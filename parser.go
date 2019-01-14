@@ -12721,6 +12721,14 @@ yynewstate:
 		{
 			parser.yyVAL.item = yyS[yypt-0].ident
 		}
+	case 1435:
+		{
+			parser.yyVAL.statement = &ast.UnlockTableStmt{}
+		}
+	case 1436:
+		{
+			parser.yyVAL.statement = &ast.LockTableStmt{}
+		}
 	case 1445:
 		{
 			parser.yyVAL.statement = &ast.KillStmt{

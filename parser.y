@@ -7755,11 +7755,10 @@ LinesTerminated:
  *********************************************************************/
 
 UnlockTablesStmt:
-	"UNLOCK" TablesTerminalSym {}
+	"UNLOCK" TablesTerminalSym { $$ = &ast.UnlockTableStmt{} }
 
 LockTablesStmt:
-	"LOCK" TablesTerminalSym TableLockList
-	{}
+	"LOCK" TablesTerminalSym TableLockList { $$ = &ast.LockTableStmt{} }
 
 TablesTerminalSym:
 	"TABLES"

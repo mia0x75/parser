@@ -46,6 +46,8 @@ var (
 	_ StmtNode = &KillStmt{}
 	_ StmtNode = &CreateBindingStmt{}
 	_ StmtNode = &DropBindingStmt{}
+	_ StmtNode = &LockTableStmt{}
+	_ StmtNode = &UnlockTableStmt{}
 
 	_ Node = &PrivElem{}
 	_ Node = &VariableAssignment{}
@@ -1003,6 +1005,44 @@ func (n *GrantStmt) Accept(v Visitor) (Node, bool) {
 		}
 		n.Privs[i] = node.(*PrivElem)
 	}
+	return v.Leave(n)
+}
+
+type LockTableStmt struct {
+	stmtNode
+}
+
+// Restore implements Node interface.
+func (n *LockTableStmt) Restore(ctx *RestoreCtx) error {
+	return errors.New("Not implemented")
+}
+
+// Accept implements Node Accept interface.
+func (n *LockTableStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*LockTableStmt)
+	return v.Leave(n)
+}
+
+type UnlockTableStmt struct {
+	stmtNode
+}
+
+// Restore implements Node interface.
+func (n *UnlockTableStmt) Restore(ctx *RestoreCtx) error {
+	return errors.New("Not implemented")
+}
+
+// Accept implements Node Accept interface.
+func (n *UnlockTableStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*UnlockTableStmt)
 	return v.Leave(n)
 }
 
