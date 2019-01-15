@@ -101,7 +101,7 @@ func (s *testParserSuite) TestSimple(c *C) {
 		"enable", "disable", "reverse", "space", "privileges", "get_lock", "release_lock", "sleep", "no", "greatest", "least",
 		"binlog", "hex", "unhex", "function", "indexes", "from_unixtime", "processlist", "events", "less", "than", "timediff",
 		"ln", "log", "log2", "log10", "timestampdiff", "pi", "quote", "none", "super", "shared", "exclusive",
-		"always", "stats", "stats_meta", "stats_histogram", "stats_buckets", "stats_healthy", "tidb_version", "replication", "slave", "client",
+		"always", "replication", "slave", "client",
 		"max_connections_per_hour", "max_queries_per_hour", "max_updates_per_hour", "max_user_connections", "event", "reload", "routine", "temporary",
 		"following", "preceding", "unbounded", "respect", "nulls", "current", "last",
 	}
@@ -464,30 +464,6 @@ func (s *testParserSuite) TestDMLStmt(c *C) {
 		{"DELETE t1, t2 FROM t1 USE INDEX(idx_a) JOIN t2 WHERE t1.id=t2.id;", true, ""},
 		{"DELETE t1, t2 FROM t1 USE INDEX(idx_a) JOIN t2 USE INDEX(idx_a) WHERE t1.id=t2.id;", true, ""},
 
-		// for admin
-		{"admin show ddl;", true, ""},
-		{"admin show ddl jobs;", true, ""},
-		{"admin show ddl jobs 20;", true, ""},
-		{"admin show ddl jobs -1;", false, ""},
-		{"admin show ddl job queries 1", true, ""},
-		{"admin show ddl job queries 1, 2, 3, 4", true, ""},
-		{"admin show t1 next_row_id", true, ""},
-		{"admin check table t1, t2;", true, ""},
-		{"admin check index tableName idxName;", true, ""},
-		{"admin check index tableName idxName (1, 2), (4, 5);", true, ""},
-		{"admin checksum table t1, t2;", true, ""},
-		{"admin cancel ddl jobs 1", true, ""},
-		{"admin cancel ddl jobs 1, 2", true, ""},
-		{"admin recover index t1 idx_a", true, ""},
-		{"admin cleanup index t1 idx_a", true, ""},
-		{"admin show slow top 3", true, ""},
-		{"admin show slow top internal 7", true, ""},
-		{"admin show slow top all 9", true, ""},
-		{"admin show slow recent 11", true, ""},
-		{"admin restore table by job 11", true, ""},
-		{"admin restore table by job 11,12,13", true, ""},
-		{"admin restore table by job", false, ""},
-
 		// for on duplicate key update
 		{"INSERT INTO t (a,b,c) VALUES (1,2,3),(4,5,6) ON DUPLICATE KEY UPDATE c=VALUES(a)+VALUES(b);", true, "INSERT INTO `t` (`a`,`b`,`c`) VALUES (1,2,3),(4,5,6) ON DUPLICATE KEY UPDATE `c`=VALUES(`a`)+VALUES(`b`)"},
 		{"INSERT IGNORE INTO t (a,b,c) VALUES (1,2,3),(4,5,6) ON DUPLICATE KEY UPDATE c=VALUES(a)+VALUES(b);", true, "INSERT IGNORE INTO `t` (`a`,`b`,`c`) VALUES (1,2,3),(4,5,6) ON DUPLICATE KEY UPDATE `c`=VALUES(`a`)+VALUES(`b`)"},
@@ -603,21 +579,6 @@ func (s *testParserSuite) TestDBAStmt(c *C) {
 		// for show create database
 		{"show create database d1", true, ""},
 		{"show create database if not exists d1", true, ""},
-		// for show stats_meta.
-		{"show stats_meta", true, ""},
-		{"show stats_meta where table_name = 't'", true, ""},
-		// for show stats_histograms
-		{"show stats_histograms", true, ""},
-		{"show stats_histograms where col_name = 'a'", true, ""},
-		// for show stats_buckets
-		{"show stats_buckets", true, ""},
-		{"show stats_buckets where col_name = 'a'", true, ""},
-		// for show stats_healthy.
-		{"show stats_healthy", true, ""},
-		{"show stats_healthy where table_name = 't'", true, ""},
-
-		// for load stats
-		{"load stats '/tmp/stats.json'", true, "LOAD STATS '/tmp/stats.json'"},
 		// set
 		// user defined
 		{"SET @ = 1", true, ""},
@@ -1583,7 +1544,6 @@ func (s *testParserSuite) TestDDL(c *C) {
 		{"drop view xxx, yyy", true, "DROP VIEW `xxx`, `yyy`"},
 		{"drop view if exists xxx", true, "DROP VIEW IF EXISTS `xxx`"},
 		{"drop view if exists xxx, yyy", true, "DROP VIEW IF EXISTS `xxx`, `yyy`"},
-		{"drop stats t", true, "DROP STATS `t`"},
 		// for issue 974
 		{`CREATE TABLE address (
 		id bigint(20) NOT NULL AUTO_INCREMENT,
@@ -1797,9 +1757,7 @@ func (s *testParserSuite) TestDDL(c *C) {
 		{"ALTER TABLE t RENAME INDEX a TO b;", true, "ALTER TABLE `t` RENAME INDEX `a` TO `b`"},
 
 		{"alter table t analyze partition a", true, ""},
-		{"alter table t analyze partition a with 4 buckets", true, ""},
 		{"alter table t analyze partition a index b", true, ""},
-		{"alter table t analyze partition a index b with 4 buckets", true, ""},
 
 		// For create index statement
 		{"CREATE INDEX idx ON t (a)", true, "CREATE INDEX `idx` ON `t` (`a`)"},
@@ -1876,64 +1834,6 @@ func (s *testParserSuite) TestErrorMsg(c *C) {
 
 	_, _, err = parser.Parse("select a1 from t1\nwhere t1.a2 = 1;\nselect1 1", "", "")
 	c.Assert(err.Error(), Equals, "line 3 column 7 near \"select1 1\" (total length 44)")
-}
-
-func (s *testParserSuite) TestOptimizerHints(c *C) {
-	parser := New()
-	stmt, _, err := parser.Parse("select /*+ tidb_SMJ(T1,t2) tidb_smj(T3,t4) */ c1, c2 from t1, t2 where t1.c1 = t2.c1", "", "")
-	c.Assert(err, IsNil)
-	selectStmt := stmt[0].(*ast.SelectStmt)
-
-	hints := selectStmt.TableHints
-	c.Assert(len(hints), Equals, 2)
-	c.Assert(hints[0].HintName.L, Equals, "tidb_smj")
-	c.Assert(len(hints[0].Tables), Equals, 2)
-	c.Assert(hints[0].Tables[0].L, Equals, "t1")
-	c.Assert(hints[0].Tables[1].L, Equals, "t2")
-
-	c.Assert(hints[1].HintName.L, Equals, "tidb_smj")
-	c.Assert(hints[1].Tables[0].L, Equals, "t3")
-	c.Assert(hints[1].Tables[1].L, Equals, "t4")
-
-	c.Assert(len(selectStmt.TableHints), Equals, 2)
-
-	stmt, _, err = parser.Parse("select /*+ TIDB_INLJ(t1, T2) tidb_inlj(t3, t4) */ c1, c2 from t1, t2 where t1.c1 = t2.c1", "", "")
-	c.Assert(err, IsNil)
-	selectStmt = stmt[0].(*ast.SelectStmt)
-
-	hints = selectStmt.TableHints
-	c.Assert(len(hints), Equals, 2)
-	c.Assert(hints[0].HintName.L, Equals, "tidb_inlj")
-	c.Assert(len(hints[0].Tables), Equals, 2)
-	c.Assert(hints[0].Tables[0].L, Equals, "t1")
-	c.Assert(hints[0].Tables[1].L, Equals, "t2")
-
-	c.Assert(hints[1].HintName.L, Equals, "tidb_inlj")
-	c.Assert(hints[1].Tables[0].L, Equals, "t3")
-	c.Assert(hints[1].Tables[1].L, Equals, "t4")
-
-	stmt, _, err = parser.Parse("select /*+ TIDB_HJ(t1, T2) tidb_hj(t3, t4) */ c1, c2 from t1, t2 where t1.c1 = t2.c1", "", "")
-	c.Assert(err, IsNil)
-	selectStmt = stmt[0].(*ast.SelectStmt)
-
-	hints = selectStmt.TableHints
-	c.Assert(len(hints), Equals, 2)
-	c.Assert(hints[0].HintName.L, Equals, "tidb_hj")
-	c.Assert(len(hints[0].Tables), Equals, 2)
-	c.Assert(hints[0].Tables[0].L, Equals, "t1")
-	c.Assert(hints[0].Tables[1].L, Equals, "t2")
-
-	c.Assert(hints[1].HintName.L, Equals, "tidb_hj")
-	c.Assert(hints[1].Tables[0].L, Equals, "t3")
-	c.Assert(hints[1].Tables[1].L, Equals, "t4")
-
-	stmt, _, err = parser.Parse("SELECT /*+ MAX_EXECUTION_TIME(1000) */ * FROM t1 INNER JOIN t2 where t1.c1 = t2.c1", "", "")
-	c.Assert(err, IsNil)
-	selectStmt = stmt[0].(*ast.SelectStmt)
-	hints = selectStmt.TableHints
-	c.Assert(len(hints), Equals, 1)
-	c.Assert(hints[0].HintName.L, Equals, "max_execution_time")
-	c.Assert(hints[0].MaxExecutionTime, Equals, uint64(1000))
 }
 
 func (s *testParserSuite) TestType(c *C) {
@@ -2325,27 +2225,6 @@ func (s *testParserSuite) TestTrace(c *C) {
 	s.RunTest(c, table)
 }
 
-func (s *testParserSuite) TestBinding(c *C) {
-	table := []testCase{
-		{"create global binding for select * from t using select * from t use index(a)", true, ""},
-		{"create session binding for select * from t using select * from t use index(a)", true, ""},
-		{"create global binding for select * from t using select * from t use index(a)", true, ""},
-		{"create session binding for select * from t using select * from t use index(a)", true, ""},
-		{"show global bindings", true, ""},
-		{"show session bindings", true, ""},
-	}
-	s.RunTest(c, table)
-
-	p := New()
-	sms, _, err := p.Parse("create global binding for select * from t using select * from t use index(a)", "", "")
-	c.Assert(err, IsNil)
-	v, ok := sms[0].(*ast.CreateBindingStmt)
-	c.Assert(ok, IsTrue)
-	c.Assert(v.OriginSel.Text(), Equals, "select * from t")
-	c.Assert(v.HintedSel.Text(), Equals, "select * from t use index(a)")
-	c.Assert(v.GlobalScope, IsTrue)
-}
-
 func (s *testParserSuite) TestView(c *C) {
 	table := []testCase{
 		{"create view v as select * from t", true, ""},
@@ -2439,9 +2318,6 @@ func (s *testParserSuite) TestSessionManage(c *C) {
 		{"kill 23123", true, ""},
 		{"kill connection 23123", true, ""},
 		{"kill query 23123", true, ""},
-		{"kill tidb 23123", true, ""},
-		{"kill tidb connection 23123", true, ""},
-		{"kill tidb query 23123", true, ""},
 		{"show processlist", true, ""},
 		{"show full processlist", true, ""},
 	}
@@ -2504,12 +2380,8 @@ func (s *testParserSuite) TestAnalyze(c *C) {
 		{"analyze table t1 index", true, "ANALYZE TABLE `t1` INDEX"},
 		{"analyze table t1 index a", true, "ANALYZE TABLE `t1` INDEX `a`"},
 		{"analyze table t1 index a,b", true, "ANALYZE TABLE `t1` INDEX `a`,`b`"},
-		{"analyze table t with 4 buckets", true, "ANALYZE TABLE `t` WITH 4 BUCKETS"},
-		{"analyze table t index a with 4 buckets", true, "ANALYZE TABLE `t` INDEX `a` WITH 4 BUCKETS"},
 		{"analyze table t partition a", true, "ANALYZE TABLE `t` PARTITION `a`"},
-		{"analyze table t partition a with 4 buckets", true, "ANALYZE TABLE `t` PARTITION `a` WITH 4 BUCKETS"},
 		{"analyze table t partition a index b", true, "ANALYZE TABLE `t` PARTITION `a` INDEX `b`"},
-		{"analyze table t partition a index b with 4 buckets", true, "ANALYZE TABLE `t` PARTITION `a` INDEX `b` WITH 4 BUCKETS"},
 	}
 	s.RunTest(c, table)
 }

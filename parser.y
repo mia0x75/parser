@@ -470,10 +470,6 @@ import (
 	varPop           "VAR_POP"
 	varSamp          "VAR_SAMP"
 
-	/* The following tokens belong to TiDBKeyword. */
-	// TODO:
-	buckets          "BUCKETS"
-
 
 	builtinAddDate
 	builtinBitAnd
@@ -695,7 +691,6 @@ import (
 	LinesTerminated               "Lines terminated by"
 	LocalOpt                      "Local opt"
 	LockClause                    "Alter table lock clause"
-	MaxNumBuckets                 "Max number of buckets"
 	NumLiteral                    "Num/Int/Float/Decimal Literal"
 	NoWriteToBinLogAliasOpt       "NO_WRITE_TO_BINLOG alias LOCAL or empty"
 	ObjectType                    "Grant statement object type"
@@ -979,18 +974,17 @@ AlterTableStmt:
 			Specs: $5.([]*ast.AlterTableSpec),
 		}
 	}
-|	"ALTER" IgnoreOptional "TABLE" TableName "ANALYZE" "PARTITION" PartitionNameList MaxNumBuckets
+|	"ALTER" IgnoreOptional "TABLE" TableName "ANALYZE" "PARTITION" PartitionNameList
 	{
-		$$ = &ast.AnalyzeTableStmt{TableNames: []*ast.TableName{$4.(*ast.TableName)}, PartitionNames: $7.([]model.CIStr), MaxNumBuckets: $8.(uint64),}
+		$$ = &ast.AnalyzeTableStmt{TableNames: []*ast.TableName{$4.(*ast.TableName)}, PartitionNames: $7.([]model.CIStr) }
 	}
-|	"ALTER" IgnoreOptional "TABLE" TableName "ANALYZE" "PARTITION" PartitionNameList "INDEX" IndexNameList MaxNumBuckets
+|	"ALTER" IgnoreOptional "TABLE" TableName "ANALYZE" "PARTITION" PartitionNameList "INDEX" IndexNameList
 	{
 		$$ = &ast.AnalyzeTableStmt{
 			TableNames: []*ast.TableName{$4.(*ast.TableName)},
 			PartitionNames: $7.([]model.CIStr),
 			IndexNames: $9.([]model.CIStr),
 			IndexFlag: true,
-			MaxNumBuckets: $10.(uint64),
 		}
 	}
 
@@ -1319,33 +1313,27 @@ TableToTable:
 /*******************************************************************************************/
 
 AnalyzeTableStmt:
-	"ANALYZE" "TABLE" TableNameList MaxNumBuckets
+	"ANALYZE" "TABLE" TableNameList
 	 {
-		$$ = &ast.AnalyzeTableStmt{TableNames: $3.([]*ast.TableName), MaxNumBuckets: $4.(uint64)}
+		$$ = &ast.AnalyzeTableStmt{ TableNames: $3.([]*ast.TableName) }
 	 }
-|	"ANALYZE" "TABLE" TableName "INDEX" IndexNameList MaxNumBuckets
+|	"ANALYZE" "TABLE" TableName "INDEX" IndexNameList
 	{
-		$$ = &ast.AnalyzeTableStmt{TableNames: []*ast.TableName{$3.(*ast.TableName)}, IndexNames: $5.([]model.CIStr), IndexFlag: true, MaxNumBuckets: $6.(uint64)}
+		$$ = &ast.AnalyzeTableStmt{ TableNames: []*ast.TableName{$3.(*ast.TableName)}, IndexNames: $5.([]model.CIStr), IndexFlag: true }
 	}
-|	"ANALYZE" "TABLE" TableName "PARTITION" PartitionNameList MaxNumBuckets
+|	"ANALYZE" "TABLE" TableName "PARTITION" PartitionNameList
 	{
-		$$ = &ast.AnalyzeTableStmt{TableNames: []*ast.TableName{$3.(*ast.TableName)}, PartitionNames: $5.([]model.CIStr), MaxNumBuckets: $6.(uint64),}
+		$$ = &ast.AnalyzeTableStmt{ TableNames: []*ast.TableName{$3.(*ast.TableName)}, PartitionNames: $5.([]model.CIStr) }
 	}
-|	"ANALYZE" "TABLE" TableName "PARTITION" PartitionNameList "INDEX" IndexNameList MaxNumBuckets
+|	"ANALYZE" "TABLE" TableName "PARTITION" PartitionNameList "INDEX" IndexNameList
 	{
 		$$ = &ast.AnalyzeTableStmt{
 			TableNames: []*ast.TableName{$3.(*ast.TableName)},
 			PartitionNames: $5.([]model.CIStr),
 			IndexNames: $7.([]model.CIStr),
 			IndexFlag: true,
-			MaxNumBuckets: $8.(uint64),
 		}
 	}
-
-
-MaxNumBuckets:
-	/* EMPTY */          { $$ = uint64(0) }
-|	"WITH" NUM "BUCKETS" { $$ = getUint64FromNUM($2) }
 
 
 /*******************************************************************************************/
@@ -6663,5 +6651,17 @@ KillStmt:
 	{
 		$$ = &ast.KillStmt{
 			ConnectionID: getUint64FromNUM($2),
+		}
+	}
+|	"KILL" "CONNECTION" NUM
+	{
+		$$ = &ast.KillStmt{
+			ConnectionID: getUint64FromNUM($3),
+		}
+	}
+|	"KILL" "QUERY" NUM
+	{
+		$$ = &ast.KillStmt{
+			ConnectionID: getUint64FromNUM($3),
 		}
 	}
