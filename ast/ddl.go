@@ -1128,11 +1128,11 @@ func (n *TableOption) Restore(ctx *RestoreCtx) error {
 	case TableOptionCharset:
 		ctx.WriteKeyWord("DEFAULT CHARACTER SET ")
 		ctx.WritePlain("= ")
-		ctx.WriteKeyWord(n.StrValue)
+		ctx.WritePlain(n.StrValue)
 	case TableOptionCollate:
 		ctx.WriteKeyWord("DEFAULT COLLATE ")
 		ctx.WritePlain("= ")
-		ctx.WriteKeyWord(n.StrValue)
+		ctx.WritePlain(n.StrValue)
 	case TableOptionAutoIncrement:
 		ctx.WriteKeyWord("AUTO_INCREMENT ")
 		ctx.WritePlain("= ")
