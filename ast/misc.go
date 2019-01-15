@@ -26,7 +26,6 @@ import (
 )
 
 var (
-	_ StmtNode = &AdminStmt{}
 	_ StmtNode = &AlterUserStmt{}
 	_ StmtNode = &BeginStmt{}
 	_ StmtNode = &BinlogStmt{}
@@ -776,99 +775,10 @@ func (n *DoStmt) Accept(v Visitor) (Node, bool) {
 	return v.Leave(n)
 }
 
-// AdminStmtType is the type for admin statement.
-type AdminStmtType int
-
-// Admin statement types.
-const (
-	AdminShowDDL = iota + 1
-	AdminCheckTable
-	AdminShowDDLJobs
-	AdminCancelDDLJobs
-	AdminCheckIndex
-	AdminRecoverIndex
-	AdminCleanupIndex
-	AdminCheckIndexRange
-	AdminShowDDLJobQueries
-	AdminChecksumTable
-	AdminShowSlow
-	AdminShowNextRowID
-	AdminRestoreTable
-)
-
 // HandleRange represents a range where handle value >= Begin and < End.
 type HandleRange struct {
 	Begin int64
 	End   int64
-}
-
-// ShowSlowType defines the type for SlowSlow statement.
-type ShowSlowType int
-
-const (
-	// ShowSlowTop is a ShowSlowType constant.
-	ShowSlowTop ShowSlowType = iota
-	// ShowSlowRecent is a ShowSlowType constant.
-	ShowSlowRecent
-)
-
-// ShowSlowKind defines the kind for SlowSlow statement when the type is ShowSlowTop.
-type ShowSlowKind int
-
-const (
-	// ShowSlowKindDefault is a ShowSlowKind constant.
-	ShowSlowKindDefault ShowSlowKind = iota
-	// ShowSlowKindInternal is a ShowSlowKind constant.
-	ShowSlowKindInternal
-	// ShowSlowKindAll is a ShowSlowKind constant.
-	ShowSlowKindAll
-)
-
-// ShowSlow is used for the following command:
-//	admin show slow top [ internal | all] N
-//	admin show slow recent N
-type ShowSlow struct {
-	Tp    ShowSlowType
-	Count uint64
-	Kind  ShowSlowKind
-}
-
-// AdminStmt is the struct for Admin statement.
-type AdminStmt struct {
-	stmtNode
-
-	Tp        AdminStmtType
-	Index     string
-	Tables    []*TableName
-	JobIDs    []int64
-	JobNumber int64
-
-	HandleRanges []HandleRange
-	ShowSlow     *ShowSlow
-}
-
-// Restore implements Node interface.
-func (n *AdminStmt) Restore(ctx *RestoreCtx) error {
-	return errors.New("Not implemented")
-}
-
-// Accept implements Node Accept interface.
-func (n *AdminStmt) Accept(v Visitor) (Node, bool) {
-	newNode, skipChildren := v.Enter(n)
-	if skipChildren {
-		return v.Leave(newNode)
-	}
-
-	n = newNode.(*AdminStmt)
-	for i, val := range n.Tables {
-		node, ok := val.Accept(v)
-		if !ok {
-			return n, false
-		}
-		n.Tables[i] = node.(*TableName)
-	}
-
-	return v.Leave(n)
 }
 
 // PrivElem is the privilege type and optional column list.
