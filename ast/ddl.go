@@ -571,13 +571,18 @@ func (n *Constraint) Restore(ctx *RestoreCtx) error {
 		ctx.WriteKeyWord("UNIQUE KEY")
 	case ConstraintUniqIndex:
 		ctx.WriteKeyWord("UNIQUE INDEX")
-	case ConstraintForeignKey:
-		ctx.WriteKeyWord("FOREIGN KEY")
 	case ConstraintFulltext:
 		ctx.WriteKeyWord("FULLTEXT")
 	}
 
-	if n.Name != "" {
+	if n.Tp == ConstraintForeignKey {
+		ctx.WriteKeyWord("CONSTRAINT ")
+		if n.Name != "" {
+			ctx.WriteName(n.Name)
+			ctx.WritePlain(" ")
+		}
+		ctx.WriteKeyWord("FOREIGN KEY ")
+	} else if n.Name != "" {
 		ctx.WritePlain(" ")
 		ctx.WriteName(n.Name)
 	}
@@ -662,9 +667,6 @@ func (n *ColumnDef) Restore(ctx *RestoreCtx) error {
 		}
 	}
 	for i, options := range n.Options {
-		if i > 0 {
-			ctx.WritePlain(",")
-		}
 		ctx.WritePlain(" ")
 		if err := options.Restore(ctx); err != nil {
 			return errors.Annotatef(err, "An error occurred while splicing ColumnDef ColumnOption: [%v]", i)
@@ -713,7 +715,73 @@ type CreateTableStmt struct {
 
 // Restore implements Node interface.
 func (n *CreateTableStmt) Restore(ctx *RestoreCtx) error {
-	return errors.New("Not implemented")
+	ctx.WriteKeyWord("CREATE TABLE ")
+	if n.IfNotExists {
+		ctx.WriteKeyWord("IF NOT EXISTS ")
+	}
+
+	if err := n.Table.Restore(ctx); err != nil {
+		return errors.Annotate(err, "An error occurred while splicing CreateTableStmt Table")
+	}
+	ctx.WritePlain(" ")
+	if n.ReferTable != nil {
+		ctx.WriteKeyWord("LIKE ")
+		if err := n.ReferTable.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while splicing CreateTableStmt ReferTable")
+		}
+	}
+
+	if lenCols := len(n.Cols); lenCols > 0 {
+		ctx.WritePlain("\n(\n")
+		for i, col := range n.Cols {
+			if i > 0 {
+				ctx.WritePlain(",\n")
+			}
+			if err := col.Restore(ctx); err != nil {
+				return errors.Annotatef(err, "An error occurred while splicing CreateTableStmt ColumnDef: [%v]", i)
+			}
+		}
+		for i, constraint := range n.Constraints {
+			if i > 0 || lenCols >= 1 {
+				ctx.WritePlain(",\n")
+			}
+			if err := constraint.Restore(ctx); err != nil {
+				return errors.Annotatef(err, "An error occurred while splicing CreateTableStmt Constraints: [%v]", i)
+			}
+		}
+		ctx.WritePlain("\n)\n")
+	}
+
+	for i, option := range n.Options {
+		if err := option.Restore(ctx); err != nil {
+			return errors.Annotatef(err, "An error occurred while splicing CreateTableStmt TableOption: [%v]", i)
+		}
+		ctx.WritePlain("\n")
+	}
+
+	if n.Partition != nil {
+		ctx.WritePlain(" ")
+		if err := n.Partition.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while splicing CreateTableStmt Partition")
+		}
+	}
+
+	if n.Select != nil {
+		switch n.OnDuplicate {
+		case OnDuplicateCreateTableSelectError:
+			ctx.WriteKeyWord(" AS ")
+		case OnDuplicateCreateTableSelectIgnore:
+			ctx.WriteKeyWord(" IGNORE AS ")
+		case OnDuplicateCreateTableSelectReplace:
+			ctx.WriteKeyWord(" REPLACE AS ")
+		}
+
+		if err := n.Select.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while splicing CreateTableStmt Select")
+		}
+	}
+
+	return nil
 }
 
 // Accept implements Node Accept interface.
@@ -922,7 +990,59 @@ type CreateViewStmt struct {
 
 // Restore implements Node interface.
 func (n *CreateViewStmt) Restore(ctx *RestoreCtx) error {
-	return errors.New("Not implemented")
+	ctx.WriteKeyWord("CREATE ")
+	if n.OrReplace {
+		ctx.WriteKeyWord("OR REPLACE ")
+	}
+	ctx.WriteKeyWord("ALGORITHM")
+	ctx.WritePlain(" = ")
+	ctx.WriteKeyWord(n.Algorithm.String())
+	ctx.WriteKeyWord(" DEFINER")
+	ctx.WritePlain(" = ")
+
+	// todo Use n.Definer.Restore(ctx) to replace this part
+	if n.Definer.CurrentUser {
+		ctx.WriteKeyWord("current_user")
+	} else {
+		ctx.WriteName(n.Definer.Username)
+		if n.Definer.Hostname != "" {
+			ctx.WritePlain("@")
+			ctx.WriteName(n.Definer.Hostname)
+		}
+	}
+
+	ctx.WriteKeyWord(" SQL SECURITY ")
+	ctx.WriteKeyWord(n.Security.String())
+	ctx.WriteKeyWord(" VIEW ")
+
+	if err := n.ViewName.Restore(ctx); err != nil {
+		return errors.Annotate(err, "An error occurred while create CreateViewStmt.ViewName")
+	}
+
+	for i, col := range n.Cols {
+		if i == 0 {
+			ctx.WritePlain(" (")
+		} else {
+			ctx.WritePlain(",")
+		}
+		ctx.WriteName(col.O)
+		if i == len(n.Cols)-1 {
+			ctx.WritePlain(")")
+		}
+	}
+
+	ctx.WriteKeyWord(" AS ")
+
+	if err := n.Select.Restore(ctx); err != nil {
+		return errors.Annotate(err, "An error occurred while create CreateViewStmt.Select")
+	}
+
+	if n.CheckOption != model.CheckOptionCascaded {
+		ctx.WriteKeyWord(" WITH ")
+		ctx.WriteKeyWord(n.CheckOption.String())
+		ctx.WriteKeyWord(" CHECK OPTION")
+	}
+	return nil
 }
 
 // Accept implements Node Accept interface.
@@ -1198,14 +1318,14 @@ func (n *TableOption) Restore(ctx *RestoreCtx) error {
 		}
 	case TableOptionStatsPersistent:
 		// TODO: not support
-		ctx.WritePlain(" /* TableOptionStatsPersistent is not supported */ ")
+		ctx.WritePlain("/* TableOptionStatsPersistent is not supported */")
 	case TableOptionShardRowID:
 		ctx.WriteKeyWord("SHARD_ROW_ID_BITS ")
 		ctx.WritePlain("= ")
 		ctx.WritePlainf("%d", n.UintValue)
 	case TableOptionPackKeys:
 		// TODO: not support
-		ctx.WritePlain(" /* TableOptionPackKeys is not supported */ ")
+		ctx.WritePlain("/* TableOptionPackKeys is not supported */")
 	default:
 		return errors.Errorf("invalid TableOption: %d", n.Tp)
 	}
@@ -1355,7 +1475,7 @@ func (n *AlterTableSpec) Restore(ctx *RestoreCtx) error {
 		default:
 			for i, opt := range n.Options {
 				if i != 0 {
-					ctx.WritePlain(", ")
+					ctx.WritePlain(",\n")
 				}
 				if err := opt.Restore(ctx); err != nil {
 					return errors.Annotatef(err, "An error occurred while restore AlterTableSpec.Options[%d]", i)
@@ -1387,7 +1507,7 @@ func (n *AlterTableSpec) Restore(ctx *RestoreCtx) error {
 			ctx.WritePlain(")")
 		}
 	case AlterTableAddConstraint:
-		ctx.WriteKeyWord("ADD CONSTRAINT ")
+		ctx.WriteKeyWord("ADD ")
 		if err := n.Constraint.Restore(ctx); err != nil {
 			return errors.Annotate(err, "An error occurred while restore AlterTableSpec.Constraint")
 		}
@@ -1455,7 +1575,7 @@ func (n *AlterTableSpec) Restore(ctx *RestoreCtx) error {
 		ctx.WriteKeyWord(n.LockType.String())
 	case AlterTableAlgorithm:
 		// TODO: not support
-		ctx.WritePlain(" /* AlterTableAlgorithm is not supported */ ")
+		ctx.WritePlain("/* AlterTableAlgorithm is not supported */")
 	case AlterTableRenameIndex:
 		ctx.WriteKeyWord("RENAME INDEX ")
 		ctx.WriteName(n.FromKey.O)
@@ -1463,7 +1583,7 @@ func (n *AlterTableSpec) Restore(ctx *RestoreCtx) error {
 		ctx.WriteName(n.ToKey.O)
 	case AlterTableForce:
 		// TODO: not support
-		ctx.WritePlain(" /* AlterTableForce is not supported */ ")
+		ctx.WritePlain("/* AlterTableForce is not supported */")
 	case AlterTableAddPartitions:
 		ctx.WriteKeyWord("ADD PARTITION")
 		if n.PartDefinitions != nil {
@@ -1492,7 +1612,7 @@ func (n *AlterTableSpec) Restore(ctx *RestoreCtx) error {
 		ctx.WriteName(n.Name)
 	default:
 		// TODO: not support
-		ctx.WritePlainf(" /* AlterTableType(%d) is not supported */ ", n.Tp)
+		ctx.WritePlainf("/* AlterTableType(%d) is not supported */", n.Tp)
 	}
 	return nil
 }
@@ -1561,7 +1681,7 @@ func (n *AlterTableStmt) Restore(ctx *RestoreCtx) error {
 		if i == 0 {
 			ctx.WritePlain(" ")
 		} else {
-			ctx.WritePlain(", ")
+			ctx.WritePlain(",\n")
 		}
 		if err := spec.Restore(ctx); err != nil {
 			return errors.Annotatef(err, "An error occurred while restore AlterTableStmt.Specs[%d]", i)
@@ -1661,4 +1781,53 @@ type PartitionOptions struct {
 	ColumnNames []*ColumnName
 	Definitions []*PartitionDefinition
 	Num         uint64
+}
+
+func (n *PartitionOptions) Restore(ctx *RestoreCtx) error {
+	ctx.WriteKeyWord("PARTITION BY ")
+	switch n.Tp {
+	case model.PartitionTypeRange:
+		ctx.WriteKeyWord("RANGE ")
+	case model.PartitionTypeHash:
+		ctx.WriteKeyWord("HASH ")
+	case model.PartitionTypeList:
+		return errors.New("TiDB Parser ignore the `PartitionTypeList` type now")
+	default:
+		return errors.Errorf("invalid model.PartitionType: %d", n.Tp)
+	}
+
+	ctx.WritePlain("(")
+	if err := n.Expr.Restore(ctx); err != nil {
+		return errors.Annotate(err, "An error occurred while restore PartitionOptions Expr")
+	}
+	ctx.WritePlain(") ")
+
+	for i, col := range n.ColumnNames {
+		if i > 0 {
+			ctx.WritePlain(",")
+		}
+		if err := col.Restore(ctx); err != nil {
+			return errors.Annotatef(err, "An error occurred while splicing PartitionOptions ColumnName: [%v]", i)
+		}
+	}
+
+	if n.Num > 0 {
+		ctx.WriteKeyWord("PARTITIONS ")
+		ctx.WritePlainf("%d", n.Num)
+	}
+
+	if len(n.Definitions) > 0 {
+		ctx.WritePlain("(")
+		for i, def := range n.Definitions {
+			if i > 0 {
+				ctx.WritePlain(",")
+			}
+			if err := def.Restore(ctx); err != nil {
+				return errors.Annotatef(err, "An error occurred while splicing PartitionOptions Definitions: [%v]", i)
+			}
+		}
+		ctx.WritePlain(")")
+	}
+
+	return nil
 }

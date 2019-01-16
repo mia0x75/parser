@@ -46,7 +46,6 @@ func (visitor1) Enter(in Node) (Node, bool) {
 func (ts *testMiscSuite) TestMiscVisitorCover(c *C) {
 	valueExpr := NewValueExpr(42)
 	stmts := []Node{
-		&AdminStmt{},
 		&AlterUserStmt{},
 		&BeginStmt{},
 		&BinlogStmt{},
@@ -187,19 +186,4 @@ func (ts *testMiscSuite) TestUserSpec(c *C) {
 	pwd, ok = u.EncodedPassword()
 	c.Assert(ok, IsTrue)
 	c.Assert(pwd, Equals, "")
-}
-
-func (ts *testMiscSuite) TestTableOptimizerHintRestore(c *C) {
-	testCases := []NodeRestoreTestCase{
-		{"TIDB_SMJ(`t1`)", "TIDB_SMJ(`t1`)"},
-		{"TIDB_SMJ(t1)", "TIDB_SMJ(`t1`)"},
-		{"TIDB_SMJ(t1,t2)", "TIDB_SMJ(`t1`, `t2`)"},
-		{"TIDB_INLJ(t1,t2)", "TIDB_INLJ(`t1`, `t2`)"},
-		{"TIDB_HJ(t1,t2)", "TIDB_HJ(`t1`, `t2`)"},
-		{"MAX_EXECUTION_TIME(3000)", "MAX_EXECUTION_TIME(3000)"},
-	}
-	extractNodeFunc := func(node Node) Node {
-		return node.(*SelectStmt).TableHints[0]
-	}
-	RunNodeRestoreTest(c, testCases, "select /*+ %s */ * from t1 join t2", extractNodeFunc)
 }
