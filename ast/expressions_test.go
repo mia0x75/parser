@@ -326,6 +326,17 @@ func (tc *testExpressionsSuite) TestPositionExprRestore(c *C) {
 	RunNodeRestoreTest(c, testCases, "select * from t order by %s", extractNodeFunc)
 }
 
+func (tc *testExpressionsSuite) TestExistsSubqueryExprRestore(c *C) {
+	testCases := []NodeRestoreTestCase{
+		{"EXISTS (SELECT 2)", "EXISTS (SELECT 2)"},
+		{"NOT EXISTS (SELECT 2)", "NOT EXISTS (SELECT 2)"},
+	}
+	extractNodeFunc := func(node Node) Node {
+		return node.(*SelectStmt).Where
+	}
+	RunNodeRestoreTest(c, testCases, "select 1 from t1 where %s", extractNodeFunc)
+}
+
 func (tc *testExpressionsSuite) TestVariableExpr(c *C) {
 	testCases := []NodeRestoreTestCase{
 		{"@a>1", "@`a`>1"},

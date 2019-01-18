@@ -898,7 +898,7 @@ var MySQLErrName = map[uint16]string{
 	ErrWindowFrameEndIllegal:                                 "Window '%s': frame end cannot be UNBOUNDED PRECEDING.",
 	ErrWindowFrameIllegal:                                    "Window '%s': frame start or end is negative, NULL or of non-integral type",
 	ErrWindowRangeFrameOrderType:                             "Window '%s' with RANGE N PRECEDING/FOLLOWING frame requires exactly one ORDER BY expression, of numeric or temporal type",
-	ErrWindowRangeFrameTEMPORALType:                          "Window '%s' with RANGE frame has ORDER BY expression of datetime type. Only INTERVAL bound value allowed.",
+	ErrWindowRangeFrameTemporalType:                          "Window '%s' with RANGE frame has ORDER BY expression of datetime type. Only INTERVAL bound value allowed.",
 	ErrWindowRangeFrameNumericType:                           "Window '%s' with RANGE frame has ORDER BY expression of numeric type, INTERVAL bound value not allowed.",
 	ErrWindowRangeBoundNotConstant:                           "Window '%s' has a non-constant frame bound.",
 	ErrWindowDuplicateName:                                   "Window '%s' is defined twice.",
