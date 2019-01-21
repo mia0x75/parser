@@ -5151,13 +5151,20 @@ ShowStmt:
 	{
 		stmt := $2.(*ast.ShowStmt)
 		if $3 != nil {
-			if x, ok := $3.(*ast.PatternLikeExpr); ok {
+			if x, ok := $3.(*ast.PatternLikeExpr); ok && x.Expr == nil {
 				stmt.Pattern = x
 			} else {
 				stmt.Where = $3.(ast.ExprNode)
 			}
 		}
 		$$ = stmt
+	}
+|	"SHOW" "CREATE" "VIEW" TableName
+	{
+		$$ = &ast.ShowStmt{
+			Tp:	ast.ShowCreateView,
+			Table:	$4.(*ast.TableName),
+		}
 	}
 |	"SHOW" "CREATE" "DATABASE" IfNotExists DBName
 	{
