@@ -459,10 +459,58 @@ func (s *testParserSuite) TestDMLStmt(c *C) {
 		{"select straight_join * from t1 right join t2 on t1.id = t2.id", true, "SELECT STRAIGHT_JOIN * FROM `t1` RIGHT JOIN `t2` ON `t1`.`id`=`t2`.`id`"},
 		{"select straight_join * from t1 straight_join t2 on t1.id = t2.id", true, "SELECT STRAIGHT_JOIN * FROM `t1` STRAIGHT_JOIN `t2` ON `t1`.`id`=`t2`.`id`"},
 
+		// delete statement
+		// single table syntax
+		{"DELETE from t1", true, "DELETE FROM `t1`"},
+		{"DELETE LOW_priORITY from t1", true, "DELETE LOW_PRIORITY FROM `t1`"},
+		{"DELETE quick from t1", true, "DELETE QUICK FROM `t1`"},
+		{"DELETE ignore from t1", true, "DELETE IGNORE FROM `t1`"},
+		{"DELETE low_priority quick ignore from t1", true, "DELETE LOW_PRIORITY QUICK IGNORE FROM `t1`"},
+		{"DELETE FROM t1 WHERE t1.a > 0 ORDER BY t1.a", true, "DELETE FROM `t1` WHERE `t1`.`a`>0 ORDER BY `t1`.`a`"},
+		{"delete from t1 where a=26", true, "DELETE FROM `t1` WHERE `a`=26"},
+		{"DELETE from t1 where a=1 limit 1", true, "DELETE FROM `t1` WHERE `a`=1 LIMIT 1"},
+		{"DELETE FROM t1 WHERE t1.a > 0 ORDER BY t1.a LIMIT 1", true, "DELETE FROM `t1` WHERE `t1`.`a`>0 ORDER BY `t1`.`a` LIMIT 1"},
+
+		// multi table syntax: before from
+		{"delete low_priority t1, t2 from t1, t2", true, "DELETE LOW_PRIORITY `t1`,`t2` FROM (`t1`) JOIN `t2`"},
+		{"delete quick t1, t2 from t1, t2", true, "DELETE QUICK `t1`,`t2` FROM (`t1`) JOIN `t2`"},
+		{"delete ignore t1, t2 from t1, t2", true, "DELETE IGNORE `t1`,`t2` FROM (`t1`) JOIN `t2`"},
+		{"delete low_priority quick ignore t1, t2 from t1, t2 where t1.a > 5", true, "DELETE LOW_PRIORITY QUICK IGNORE `t1`,`t2` FROM (`t1`) JOIN `t2` WHERE `t1`.`a`>5"},
+		{"delete t1, t2 from t1, t2", true, "DELETE `t1`,`t2` FROM (`t1`) JOIN `t2`"},
+		{"delete t1, t2 from t1, t2 where t1.a = 1 and t2.b <> 1", true, "DELETE `t1`,`t2` FROM (`t1`) JOIN `t2` WHERE `t1`.`a`=1 AND `t2`.`b`!=1"},
+		{"delete t1 from t1, t2", true, "DELETE `t1` FROM (`t1`) JOIN `t2`"},
+		{"delete t2 from t1, t2", true, "DELETE `t2` FROM (`t1`) JOIN `t2`"},
+		{"delete t1 from t1", true, "DELETE `t1` FROM `t1`"},
+		{"delete t1,t2,t3 from t1, t2, t3", true, "DELETE `t1`,`t2`,`t3` FROM ((`t1`) JOIN `t2`) JOIN `t3`"},
+		{"delete t1,t2,t3 from t1, t2, t3 where t3.c < 5 and t1.a = 3", true, "DELETE `t1`,`t2`,`t3` FROM ((`t1`) JOIN `t2`) JOIN `t3` WHERE `t3`.`c`<5 AND `t1`.`a`=3"},
+		{"delete t1 from t1, t1 as t2 where t1.b = t2.b and t1.a > t2.a", true, "DELETE `t1` FROM (`t1`) JOIN `t1` AS `t2` WHERE `t1`.`b`=`t2`.`b` AND `t1`.`a`>`t2`.`a`"},
+		{"delete t1.*,t2 from t1, t2", true, "DELETE `t1`,`t2` FROM (`t1`) JOIN `t2`"},
+		{"delete t1.*, t2.* from t1, t2", true, "DELETE `t1`,`t2` FROM (`t1`) JOIN `t2`"},
+		{"delete t11.*, t12.* from t11, t12 where t11.a = t12.a and t11.b <> 1", true, "DELETE `t11`,`t12` FROM (`t11`) JOIN `t12` WHERE `t11`.`a`=`t12`.`a` AND `t11`.`b`!=1"},
+
+		// multi table syntax: with using
+		{"DELETE quick FROM t1,t2 USING t1,t2", true, "DELETE QUICK FROM `t1`,`t2` USING (`t1`) JOIN `t2`"},
+		{"DELETE low_priority ignore FROM t1,t2 USING t1,t2", true, "DELETE LOW_PRIORITY IGNORE FROM `t1`,`t2` USING (`t1`) JOIN `t2`"},
+		{"DELETE low_priority quick ignore FROM t1,t2 USING t1,t2", true, "DELETE LOW_PRIORITY QUICK IGNORE FROM `t1`,`t2` USING (`t1`) JOIN `t2`"},
+		{"DELETE FROM t1 USING t1 WHERE post='1'", true, "DELETE FROM `t1` USING `t1` WHERE `post`='1'"},
+		{"DELETE FROM t1,t2 USING t1,t2", true, "DELETE FROM `t1`,`t2` USING (`t1`) JOIN `t2`"},
+		{"DELETE FROM t1,t2,t3 USING t1,t2,t3 where t3.a = 1", true, "DELETE FROM `t1`,`t2`,`t3` USING ((`t1`) JOIN `t2`) JOIN `t3` WHERE `t3`.`a`=1"},
+		{"DELETE FROM t2,t3 USING t1,t2,t3 where t1.a = 1", true, "DELETE FROM `t2`,`t3` USING ((`t1`) JOIN `t2`) JOIN `t3` WHERE `t1`.`a`=1"},
+		{"DELETE FROM t2.*,t3.* USING t1,t2,t3 where t1.a = 1", true, "DELETE FROM `t2`,`t3` USING ((`t1`) JOIN `t2`) JOIN `t3` WHERE `t1`.`a`=1"},
+		{"DELETE FROM t1,t2.*,t3.* USING t1,t2,t3 where t1.a = 1", true, "DELETE FROM `t1`,`t2`,`t3` USING ((`t1`) JOIN `t2`) JOIN `t3` WHERE `t1`.`a`=1"},
+
+		// for delete statement
+		{"DELETE t1, t2 FROM t1 INNER JOIN t2 INNER JOIN t3 WHERE t1.id=t2.id AND t2.id=t3.id;", true, "DELETE `t1`,`t2` FROM (`t1` JOIN `t2`) JOIN `t3` WHERE `t1`.`id`=`t2`.`id` AND `t2`.`id`=`t3`.`id`"},
+		{"DELETE FROM t1, t2 USING t1 INNER JOIN t2 INNER JOIN t3 WHERE t1.id=t2.id AND t2.id=t3.id;", true, "DELETE FROM `t1`,`t2` USING (`t1` JOIN `t2`) JOIN `t3` WHERE `t1`.`id`=`t2`.`id` AND `t2`.`id`=`t3`.`id`"},
+
 		// for "USE INDEX" in delete statement
-		{"DELETE FROM t1 USE INDEX(idx_a) WHERE t1.id=1;", true, ""},
-		{"DELETE t1, t2 FROM t1 USE INDEX(idx_a) JOIN t2 WHERE t1.id=t2.id;", true, ""},
-		{"DELETE t1, t2 FROM t1 USE INDEX(idx_a) JOIN t2 USE INDEX(idx_a) WHERE t1.id=t2.id;", true, ""},
+		{"DELETE FROM t1 USE INDEX(idx_a) WHERE t1.id=1;", true, "DELETE FROM `t1` USE INDEX (`idx_a`) WHERE `t1`.`id`=1"},
+		{"DELETE t1, t2 FROM t1 USE INDEX(idx_a) JOIN t2 WHERE t1.id=t2.id;", true, "DELETE `t1`,`t2` FROM `t1` USE INDEX (`idx_a`) JOIN `t2` WHERE `t1`.`id`=`t2`.`id`"},
+		{"DELETE t1, t2 FROM t1 USE INDEX(idx_a) JOIN t2 USE INDEX(idx_a) WHERE t1.id=t2.id;", true, "DELETE `t1`,`t2` FROM `t1` USE INDEX (`idx_a`) JOIN `t2` USE INDEX (`idx_a`) WHERE `t1`.`id`=`t2`.`id`"},
+
+		// for fail case
+		{"DELETE t1, t2 FROM t1 INNER JOIN t2 INNER JOIN t3 WHERE t1.id=t2.id AND t2.id=t3.id limit 10;", false, ""},
+		{"DELETE t1, t2 FROM t1 INNER JOIN t2 INNER JOIN t3 WHERE t1.id=t2.id AND t2.id=t3.id order by t1.id;", false, ""},
 
 		// for on duplicate key update
 		{"INSERT INTO t (a,b,c) VALUES (1,2,3),(4,5,6) ON DUPLICATE KEY UPDATE c=VALUES(a)+VALUES(b);", true, "INSERT INTO `t` (`a`,`b`,`c`) VALUES (1,2,3),(4,5,6) ON DUPLICATE KEY UPDATE `c`=VALUES(`a`)+VALUES(`b`)"},
@@ -472,20 +520,25 @@ func (s *testParserSuite) TestDMLStmt(c *C) {
 		{"INSERT INTO t SET a=1,b=2", true, "INSERT INTO `t` SET `a`=1,`b`=2"},
 		{"INSERT INTO t (a) SET a=1", false, ""},
 
-		// for delete statement
-		{"DELETE t1, t2 FROM t1 INNER JOIN t2 INNER JOIN t3 WHERE t1.id=t2.id AND t2.id=t3.id;", true, ""},
-		{"DELETE FROM t1, t2 USING t1 INNER JOIN t2 INNER JOIN t3 WHERE t1.id=t2.id AND t2.id=t3.id;", true, ""},
-		{"DELETE t1, t2 FROM t1 INNER JOIN t2 INNER JOIN t3 WHERE t1.id=t2.id AND t2.id=t3.id limit 10;", false, ""},
-		{"DELETE /*+ TiDB_INLJ(t1, t2) */ t1, t2 from t1, t2 where t1.id=t2.id;", true, ""},
-		{"DELETE /*+ TiDB_HJ(t1, t2) */ t1, t2 from t1, t2 where t1.id=t2.id", true, ""},
-
 		// for update statement
-		{"UPDATE t SET id = id + 1 ORDER BY id DESC;", true, ""},
-		{"UPDATE items,month SET items.price=month.price WHERE items.id=month.id;", true, ""},
+		{"UPDATE LOW_PRIORITY IGNORE t SET id = id + 1 ORDER BY id DESC;", true, "UPDATE LOW_PRIORITY IGNORE `t` SET `id`=`id`+1 ORDER BY `id` DESC"},
+		{"UPDATE t SET id = id + 1 ORDER BY id DESC;", true, "UPDATE `t` SET `id`=`id`+1 ORDER BY `id` DESC"},
+		{"UPDATE t SET id = id + 1 ORDER BY id DESC limit 3 ;", true, "UPDATE `t` SET `id`=`id`+1 ORDER BY `id` DESC LIMIT 3"},
+		{"UPDATE t SET id = id + 1, name = 'jojo';", true, "UPDATE `t` SET `id`=`id`+1, `name`='jojo'"},
+		{"UPDATE items,month SET items.price=month.price WHERE items.id=month.id;", true, "UPDATE (`items`) JOIN `month` SET `items`.`price`=`month`.`price` WHERE `items`.`id`=`month`.`id`"},
+		{"UPDATE user T0 LEFT OUTER JOIN user_profile T1 ON T1.id = T0.profile_id SET T0.profile_id = 1 WHERE T0.profile_id IN (1);", true, "UPDATE `user` AS `T0` LEFT JOIN `user_profile` AS `T1` ON `T1`.`id`=`T0`.`profile_id` SET `T0`.`profile_id`=1 WHERE `T0`.`profile_id` IN (1)"},
+		{"UPDATE t1, t2 set t1.profile_id = 1, t2.profile_id = 1 where ta.a=t.ba", true, "UPDATE (`t1`) JOIN `t2` SET `t1`.`profile_id`=1, `t2`.`profile_id`=1 WHERE `ta`.`a`=`t`.`ba`"},
+		// for optimizer hint in update statement
+		{"UPDATE /*+ TiDB_INLJ(t1, t2) */ t1, t2 set t1.profile_id = 1, t2.profile_id = 1 where ta.a=t.ba", true, "UPDATE /*+ TIDB_INLJ(`t1`, `t2`)*/ (`t1`) JOIN `t2` SET `t1`.`profile_id`=1, `t2`.`profile_id`=1 WHERE `ta`.`a`=`t`.`ba`"},
+		{"UPDATE /*+ TiDB_SMJ(t1, t2) */ t1, t2 set t1.profile_id = 1, t2.profile_id = 1 where ta.a=t.ba", true, "UPDATE /*+ TIDB_SMJ(`t1`, `t2`)*/ (`t1`) JOIN `t2` SET `t1`.`profile_id`=1, `t2`.`profile_id`=1 WHERE `ta`.`a`=`t`.`ba`"},
+		{"UPDATE /*+ TiDB_HJ(t1, t2) */ t1, t2 set t1.profile_id = 1, t2.profile_id = 1 where ta.a=t.ba", true, "UPDATE /*+ TIDB_HJ(`t1`, `t2`)*/ (`t1`) JOIN `t2` SET `t1`.`profile_id`=1, `t2`.`profile_id`=1 WHERE `ta`.`a`=`t`.`ba`"},
+		// fail case for update statement
 		{"UPDATE items,month SET items.price=month.price WHERE items.id=month.id LIMIT 10;", false, ""},
-		{"UPDATE user T0 LEFT OUTER JOIN user_profile T1 ON T1.id = T0.profile_id SET T0.profile_id = 1 WHERE T0.profile_id IN (1);", true, ""},
-		{"UPDATE /*+ TiDB_INLJ(t1, t2) */ t1, t2 set t1.profile_id = 1, t2.profile_id = 1 where ta.a=t.ba", true, ""},
-		{"UPDATE /*+ TiDB_SMJ(t1, t2) */ t1, t2 set t1.profile_id = 1, t2.profile_id = 1 where ta.a=t.ba", true, ""},
+		{"UPDATE items,month SET items.price=month.price WHERE items.id=month.id order by month.id;", false, ""},
+		// for "USE INDEX" in delete statement
+		{"UPDATE t1 USE INDEX(idx_a) SET t1.price=3.25 WHERE t1.id=1;", true, "UPDATE `t1` USE INDEX (`idx_a`) SET `t1`.`price`=3.25 WHERE `t1`.`id`=1"},
+		{"UPDATE t1 USE INDEX(idx_a) JOIN t2 SET t1.price=t2.price WHERE t1.id=t2.id;", true, "UPDATE `t1` USE INDEX (`idx_a`) JOIN `t2` SET `t1`.`price`=`t2`.`price` WHERE `t1`.`id`=`t2`.`id`"},
+		{"UPDATE t1 USE INDEX(idx_a) JOIN t2 USE INDEX(idx_a) SET t1.price=t2.price WHERE t1.id=t2.id;", true, "UPDATE `t1` USE INDEX (`idx_a`) JOIN `t2` USE INDEX (`idx_a`) SET `t1`.`price`=`t2`.`price` WHERE `t1`.`id`=`t2`.`id`"},
 
 		// for select with where clause
 		{"SELECT * FROM t WHERE 1 = 1", true, "SELECT * FROM `t` WHERE 1=1"},
@@ -1829,30 +1882,37 @@ func (s *testParserSuite) TestHintError(c *C) {
 	stmt, warns, err := parser.Parse("select /*+ tidb_unknow(T1,t2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1", "", "")
 	c.Assert(err, IsNil)
 	c.Assert(len(warns), Equals, 1)
-	c.Assert(warns[0].Error(), Equals, "line 1 column 32 near \"select /*+ tidb_unknow(T1,t2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" (total length 71)")
+	c.Assert(warns[0].Error(), Equals, "line 1 column 32 near \"tidb_unknow(T1,t2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" ")
 	c.Assert(len(stmt[0].(*ast.SelectStmt).TableHints), Equals, 0)
 	stmt, warns, err = parser.Parse("select /*+ tidb_unknow(T1,t2, 1) TIDB_INLJ(t1, T2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1", "", "")
 	c.Assert(len(stmt[0].(*ast.SelectStmt).TableHints), Equals, 0)
 	c.Assert(err, IsNil)
 	c.Assert(len(warns), Equals, 1)
-	c.Assert(warns[0].Error(), Equals, "line 1 column 53 near \"select /*+ tidb_unknow(T1,t2, 1) TIDB_INLJ(t1, T2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" (total length 92)")
+	c.Assert(warns[0].Error(), Equals, "line 1 column 53 near \"tidb_unknow(T1,t2, 1) TIDB_INLJ(t1, T2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" ")
 	stmt, _, err = parser.Parse("select c1, c2 from /*+ tidb_unknow(T1,t2) */ t1, t2 where t1.c1 = t2.c1", "", "")
 	c.Assert(err, NotNil)
 	stmt, _, err = parser.Parse("select1 /*+ TIDB_INLJ(t1, T2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1", "", "")
 	c.Assert(err, NotNil)
 	stmt, _, err = parser.Parse("select /*+ TIDB_INLJ(t1, T2) */ c1, c2 fromt t1, t2 where t1.c1 = t2.c1", "", "")
+	c.Assert(err.Error(), Equals, "line 1 column 7 near \"select1 /*+ TIDB_INLJ(t1, T2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" ")
 	c.Assert(err, NotNil)
 	_, _, err = parser.Parse("SELECT 1 FROM DUAL WHERE 1 IN (SELECT /*+ DEBUG_HINT3 */ 1)", "", "")
+	c.Assert(err.Error(), Equals, "line 1 column 47 near \"t1, t2 where t1.c1 = t2.c1\" ")
 	c.Assert(err, IsNil)
 }
 
 func (s *testParserSuite) TestErrorMsg(c *C) {
 	parser := New()
 	_, _, err := parser.Parse("select1 1", "", "")
-	c.Assert(err.Error(), Equals, "line 1 column 7 near \"select1 1\" (total length 9)")
-
-	_, _, err = parser.Parse("select a1 from t1\nwhere t1.a2 = 1;\nselect1 1", "", "")
-	c.Assert(err.Error(), Equals, "line 3 column 7 near \"select1 1\" (total length 44)")
+	c.Assert(err.Error(), Equals, "line 1 column 7 near \"select1 1\" ")
+	_, _, err = parser.Parse("select 1 from1 dual", "", "")
+	c.Assert(err.Error(), Equals, "line 1 column 19 near \"dual\" ")
+	_, _, err = parser.Parse("select * from t1 join t2 from t1.a = t2.a;", "", "")
+	c.Assert(err.Error(), Equals, "line 1 column 29 near \"from t1.a = t2.a;\" ")
+	_, _, err = parser.Parse("select * from t1 join t2 one t1.a = t2.a;", "", "")
+	c.Assert(err.Error(), Equals, "line 1 column 31 near \"t1.a = t2.a;\" ")
+	_, _, err = parser.Parse("select * from t1 join t2 on t1.a >>> t2.a;", "", "")
+	c.Assert(err.Error(), Equals, "line 1 column 36 near \"> t2.a;\" ")
 }
 
 func (s *testParserSuite) TestType(c *C) {
@@ -1980,9 +2040,9 @@ func (s *testParserSuite) TestComment(c *C) {
 
 func (s *testParserSuite) TestCommentErrMsg(c *C) {
 	table := []testErrMsgCase{
-		{"delete from t where a = 7 or 1=1/*' and b = 'p'", false, errors.New("[parser:1064]You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '/*' and b = 'p'' at line 1")},
-		{"delete from t where a = 7 or\n 1=1/*' and b = 'p'", false, errors.New("[parser:1064]You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '/*' and b = 'p'' at line 2")},
-		{"select 1/*", false, errors.New("[parser:1064]You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '/*' at line 1")},
+		{"delete from t where a = 7 or 1=1/*' and b = 'p'", false, errors.New("near '/*' and b = 'p'' at line 1")},
+		{"delete from t where a = 7 or\n 1=1/*' and b = 'p'", false, errors.New("near '/*' and b = 'p'' at line 2")},
+		{"select 1/*", false, errors.New("near '/*' at line 1")},
 		{"select 1/* comment */", false, nil},
 	}
 	s.RunErrMsgTest(c, table)
@@ -2825,6 +2885,14 @@ func (checker *nodeTextCleaner) Enter(in ast.Node) (out ast.Node, skipChildren b
 					col.Options = append(col.Options[:i], col.Options[i+1:]...)
 				}
 			}
+		}
+	case *ast.DeleteStmt:
+		for _, tableHint := range node.TableHints {
+			tableHint.HintName.O = ""
+		}
+	case *ast.UpdateStmt:
+		for _, tableHint := range node.TableHints {
+			tableHint.HintName.O = ""
 		}
 	case *ast.Constraint:
 		if node.Option != nil {
