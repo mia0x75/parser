@@ -192,6 +192,7 @@ import (
 	nvarcharType      "NVARCHAR"
 	on                "ON"
 	option            "OPTION"
+	optionally        "OPTIONALLY"
 	or                "OR"
 	order             "ORDER"
 	outer             "OUTER"
@@ -6389,8 +6390,8 @@ PrivType:
 |	"RELOAD"                      { $$ = mysql.PrivilegeType(0) }
 |	"CREATE" "TEMPORARY" "TABLES" { $$ = mysql.PrivilegeType(0) }
 |	"LOCK" "TABLES"               { $$ = mysql.PrivilegeType(0) }
-|	"CREATE" "VIEW"               { $$ = mysql.PrivilegeType(0) }
-|	"SHOW" "VIEW"                 { $$ = mysql.PrivilegeType(0) }
+|	"CREATE" "VIEW"               { $$ = mysql.CreateViewPriv }
+|	"SHOW" "VIEW"                 { $$ = mysql.ShowViewPriv }
 |	"CREATE" "ROUTINE"            { $$ = mysql.PrivilegeType(0) }
 |	"ALTER" "ROUTINE"             { $$ = mysql.PrivilegeType(0) }
 |	"EVENT"                       { $$ = mysql.PrivilegeType(0) }
@@ -6539,8 +6540,9 @@ FieldsTerminated:
 
 
 Enclosed:
-	/* EMPTY */               { $$ = "" }
-|	"ENCLOSED" "BY" stringLit { $$ = $3 }
+	/* EMPTY */                            { $$ = "" }
+|	"OPTIONALLY" "ENCLOSED" "BY" stringLit { $$ = $4 }
+|	"ENCLOSED" "BY" stringLit              { $$ = $3 }
 
 
 Escaped:

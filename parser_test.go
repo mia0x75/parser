@@ -58,7 +58,7 @@ func (s *testParserSuite) TestSimple(c *C) {
 		"interval", "is", "join", "key", "keys", "kill", "leading", "left", "like", "limit", "lines", "load",
 		"localtime", "localtimestamp", "lock", "longblob", "longtext", "mediumblob", "maxvalue", "mediumint", "mediumtext",
 		"minute_microsecond", "minute_second", "mod", "not", "no_write_to_binlog", "null", "numeric",
-		"on", "option", "or", "order", "outer", "partition", "precision", "primary", "procedure", "range", "read", "real",
+		"on", "option", "optionally", "or", "order", "outer", "partition", "precision", "primary", "procedure", "range", "read", "real",
 		"references", "regexp", "rename", "repeat", "replace", "revoke", "restrict", "right", "rlike",
 		"schema", "schemas", "second_microsecond", "select", "set", "show", "smallint",
 		"starting", "table", "terminated", "then", "tinyblob", "tinyint", "tinytext", "to",
@@ -391,10 +391,12 @@ func (s *testParserSuite) TestDMLStmt(c *C) {
 		{"SELECT a.b.c.d FROM t", false, ""},
 
 		// do statement
-		{"DO 1", true, ""},
+		{"DO 1", true, "DO 1"},
+		{"DO 1, sleep(1)", true, "DO 1, SLEEP(1)"},
 		{"DO 1 from t", false, ""},
 
 		// load data
+		{"load data local infile '/tmp/tmp.csv' into table t1 fields terminated by ',' optionally enclosed by '\"' ignore 1 lines", true, "LOAD DATA LOCAL INFILE '/tmp/tmp.csv' INTO TABLE `t1` FIELDS TERMINATED BY ',' ENCLOSED BY '\"' IGNORE 1 LINES"},
 		{"load data infile '/tmp/t.csv' into table t", true, "LOAD DATA INFILE '/tmp/t.csv' INTO TABLE `t`"},
 		{"load data infile '/tmp/t.csv' into table t character set utf8", true, "LOAD DATA INFILE '/tmp/t.csv' INTO TABLE `t`"},
 		{"load data infile '/tmp/t.csv' into table t fields terminated by 'ab'", true, "LOAD DATA INFILE '/tmp/t.csv' INTO TABLE `t` FIELDS TERMINATED BY 'ab'"},
@@ -573,7 +575,13 @@ AAAAAAAAAAAAAAAAAAAAAAAAEzgNAAgAEgAEBAQEEgAA2QAEGggAAAAICAgCAAAAAAAAAAAAAAAA
 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 AAAAAAAAAAAA5gm5Mg==
-'/*!*/;`, true, ""},
+'/*!*/;`, true, `BINLOG '
+BxSFVw8JAAAA8QAAAPUAAAAAAAQANS41LjQ0LU1hcmlhREItbG9nAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAEzgNAAgAEgAEBAQEEgAA2QAEGggAAAAICAgCAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAA5gm5Mg==
+'`},
 	}
 	s.RunTest(c, table)
 }
@@ -596,7 +604,7 @@ func (s *testParserSuite) TestDBAStmt(c *C) {
 		{`SHOW FULL TABLES FROM icar_qa LIKE play_evolutions`, true, "SHOW FULL TABLES IN `icar_qa` LIKE `play_evolutions`"},
 		{`SHOW FULL TABLES WHERE Table_Type != 'VIEW'`, true, "SHOW FULL TABLES WHERE `Table_Type`!='VIEW'"},
 		{`SHOW GRANTS`, true, "SHOW GRANTS"},
-		{`SHOW GRANTS FOR 'test'@'localhost'`, true, "SHOW GRANTS FOR 'test'@'localhost'"},
+		{`SHOW GRANTS FOR 'test'@'localhost'`, true, "SHOW GRANTS FOR `test`@`localhost`"},
 		{`SHOW GRANTS FOR current_user()`, true, "SHOW GRANTS FOR CURRENT_USER"},
 		{`SHOW GRANTS FOR current_user`, true, "SHOW GRANTS FOR CURRENT_USER"},
 		{`SHOW COLUMNS FROM City;`, true, "SHOW COLUMNS IN `City`"},
@@ -643,73 +651,73 @@ func (s *testParserSuite) TestDBAStmt(c *C) {
 		{"load stats '/tmp/stats.json'", true, "LOAD STATS '/tmp/stats.json'"},
 		// set
 		// user defined
-		{"SET @ = 1", true, ""},
-		{"SET @' ' = 1", true, ""},
+		{"SET @ = 1", true, "SET @``=1"},
+		{"SET @' ' = 1", true, "SET @` `=1"},
 		{"SET @! = 1", false, ""},
-		{"SET @1 = 1", true, ""},
-		{"SET @a = 1", true, ""},
-		{"SET @b := 1", true, ""},
-		{"SET @.c = 1", true, ""},
-		{"SET @_d = 1", true, ""},
-		{"SET @_e._$. = 1", true, ""},
+		{"SET @1 = 1", true, "SET @`1`=1"},
+		{"SET @a = 1", true, "SET @`a`=1"},
+		{"SET @b := 1", true, "SET @`b`=1"},
+		{"SET @.c = 1", true, "SET @`.c`=1"},
+		{"SET @_d = 1", true, "SET @`_d`=1"},
+		{"SET @_e._$. = 1", true, "SET @`_e._$.`=1"},
 		{"SET @~f = 1", false, ""},
-		{"SET @`g,` = 1", true, ""},
+		{"SET @`g,` = 1", true, "SET @`g,`=1"},
 		// session system variables
-		{"SET SESSION autocommit = 1", true, ""},
-		{"SET @@session.autocommit = 1", true, ""},
-		{"SET @@SESSION.autocommit = 1", true, ""},
-		{"SET @@GLOBAL.GTID_PURGED = '123'", true, ""},
-		{"SET @MYSQLDUMP_TEMP_LOG_BIN = @@SESSION.SQL_LOG_BIN", true, ""},
-		{"SET LOCAL autocommit = 1", true, ""},
-		{"SET @@local.autocommit = 1", true, ""},
-		{"SET @@autocommit = 1", true, ""},
-		{"SET autocommit = 1", true, ""},
+		{"SET SESSION autocommit = 1", true, "SET @@SESSION.`autocommit`=1"},
+		{"SET @@session.autocommit = 1", true, "SET @@SESSION.`autocommit`=1"},
+		{"SET @@SESSION.autocommit = 1", true, "SET @@SESSION.`autocommit`=1"},
+		{"SET @@GLOBAL.GTID_PURGED = '123'", true, "SET @@GLOBAL.`gtid_purged`='123'"},
+		{"SET @MYSQLDUMP_TEMP_LOG_BIN = @@SESSION.SQL_LOG_BIN", true, "SET @`MYSQLDUMP_TEMP_LOG_BIN`=@@SESSION.`sql_log_bin`"},
+		{"SET LOCAL autocommit = 1", true, "SET @@SESSION.`autocommit`=1"},
+		{"SET @@local.autocommit = 1", true, "SET @@SESSION.`autocommit`=1"},
+		{"SET @@autocommit = 1", true, "SET @@SESSION.`autocommit`=1"},
+		{"SET autocommit = 1", true, "SET @@SESSION.`autocommit`=1"},
 		// global system variables
-		{"SET GLOBAL autocommit = 1", true, ""},
-		{"SET @@global.autocommit = 1", true, ""},
+		{"SET GLOBAL autocommit = 1", true, "SET @@GLOBAL.`autocommit`=1"},
+		{"SET @@global.autocommit = 1", true, "SET @@GLOBAL.`autocommit`=1"},
 		// set default value
-		{"SET @@global.autocommit = default", true, ""},
-		{"SET @@session.autocommit = default", true, ""},
+		{"SET @@global.autocommit = default", true, "SET @@GLOBAL.`autocommit`=DEFAULT"},
+		{"SET @@session.autocommit = default", true, "SET @@SESSION.`autocommit`=DEFAULT"},
 		// SET CHARACTER SET
-		{"SET CHARACTER SET utf8mb4;", true, ""},
-		{"SET CHARACTER SET 'utf8mb4';", true, ""},
+		{"SET CHARACTER SET utf8mb4;", true, "SET NAMES 'utf8mb4'"},
+		{"SET CHARACTER SET 'utf8mb4';", true, "SET NAMES 'utf8mb4'"},
 		// set password
-		{"SET PASSWORD = 'password';", true, ""},
-		{"SET PASSWORD FOR 'root'@'localhost' = 'password';", true, ""},
+		{"SET PASSWORD = 'password';", true, "SET PASSWORD='password'"},
+		{"SET PASSWORD FOR 'root'@'localhost' = 'password';", true, "SET PASSWORD FOR `root`@`localhost`='password'"},
 		// SET TRANSACTION Syntax
-		{"SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ", true, ""},
-		{"SET GLOBAL TRANSACTION ISOLATION LEVEL REPEATABLE READ", true, ""},
-		{"SET SESSION TRANSACTION READ WRITE", true, ""},
-		{"SET SESSION TRANSACTION READ ONLY", true, ""},
-		{"SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED", true, ""},
-		{"SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED", true, ""},
-		{"SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE", true, ""},
-		{"SET TRANSACTION ISOLATION LEVEL REPEATABLE READ", true, ""},
-		{"SET TRANSACTION READ WRITE", true, ""},
-		{"SET TRANSACTION READ ONLY", true, ""},
-		{"SET TRANSACTION ISOLATION LEVEL READ COMMITTED", true, ""},
-		{"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED", true, ""},
-		{"SET TRANSACTION ISOLATION LEVEL SERIALIZABLE", true, ""},
+		{"SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ", true, "SET @@SESSION.`tx_isolation`='REPEATABLE-READ'"},
+		{"SET GLOBAL TRANSACTION ISOLATION LEVEL REPEATABLE READ", true, "SET @@GLOBAL.`tx_isolation`='REPEATABLE-READ'"},
+		{"SET SESSION TRANSACTION READ WRITE", true, "SET @@SESSION.`tx_read_only`='0'"},
+		{"SET SESSION TRANSACTION READ ONLY", true, "SET @@SESSION.`tx_read_only`='1'"},
+		{"SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED", true, "SET @@SESSION.`tx_isolation`='READ-COMMITTED'"},
+		{"SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED", true, "SET @@SESSION.`tx_isolation`='READ-UNCOMMITTED'"},
+		{"SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE", true, "SET @@SESSION.`tx_isolation`='SERIALIZABLE'"},
+		{"SET TRANSACTION ISOLATION LEVEL REPEATABLE READ", true, "SET @@SESSION.`tx_isolation_one_shot`='REPEATABLE-READ'"},
+		{"SET TRANSACTION READ WRITE", true, "SET @@SESSION.`tx_read_only`='0'"},
+		{"SET TRANSACTION READ ONLY", true, "SET @@SESSION.`tx_read_only`='1'"},
+		{"SET TRANSACTION ISOLATION LEVEL READ COMMITTED", true, "SET @@SESSION.`tx_isolation_one_shot`='READ-COMMITTED'"},
+		{"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED", true, "SET @@SESSION.`tx_isolation_one_shot`='READ-UNCOMMITTED'"},
+		{"SET TRANSACTION ISOLATION LEVEL SERIALIZABLE", true, "SET @@SESSION.`tx_isolation_one_shot`='SERIALIZABLE'"},
 		// for set names
-		{"set names utf8", true, ""},
-		{"set names utf8 collate utf8_unicode_ci", true, ""},
-		{"set names binary", true, ""},
+		{"set names utf8", true, "SET NAMES 'utf8'"},
+		{"set names utf8 collate utf8_unicode_ci", true, "SET NAMES 'utf8' COLLATE 'utf8_unicode_ci'"},
+		{"set names binary", true, "SET NAMES 'binary'"},
 		// for set names and set vars
-		{"set names utf8, @@session.sql_mode=1;", true, ""},
-		{"set @@session.sql_mode=1, names utf8, charset utf8;", true, ""},
+		{"set names utf8, @@session.sql_mode=1;", true, "SET NAMES 'utf8', @@SESSION.`sql_mode`=1"},
+		{"set @@session.sql_mode=1, names utf8, charset utf8;", true, "SET @@SESSION.`sql_mode`=1, NAMES 'utf8', NAMES 'utf8'"},
 
 		// for FLUSH statement
-		{"flush no_write_to_binlog tables tbl1 with read lock", true, ""},
-		{"flush table", true, ""},
-		{"flush tables", true, ""},
-		{"flush tables tbl1", true, ""},
-		{"flush no_write_to_binlog tables tbl1", true, ""},
-		{"flush local tables tbl1", true, ""},
-		{"flush table with read lock", true, ""},
-		{"flush tables tbl1, tbl2, tbl3", true, ""},
-		{"flush tables tbl1, tbl2, tbl3 with read lock", true, ""},
-		{"flush privileges", true, ""},
-		{"flush status", true, ""},
+		{"flush no_write_to_binlog tables tbl1 with read lock", true, "FLUSH NO_WRITE_TO_BINLOG TABLES `tbl1` WITH READ LOCK"},
+		{"flush table", true, "FLUSH TABLES"},
+		{"flush tables", true, "FLUSH TABLES"},
+		{"flush tables tbl1", true, "FLUSH TABLES `tbl1`"},
+		{"flush no_write_to_binlog tables tbl1", true, "FLUSH NO_WRITE_TO_BINLOG TABLES `tbl1`"},
+		{"flush local tables tbl1", true, "FLUSH NO_WRITE_TO_BINLOG TABLES `tbl1`"},
+		{"flush table with read lock", true, "FLUSH TABLES WITH READ LOCK"},
+		{"flush tables tbl1, tbl2, tbl3", true, "FLUSH TABLES `tbl1`, `tbl2`, `tbl3`"},
+		{"flush tables tbl1, tbl2, tbl3 with read lock", true, "FLUSH TABLES `tbl1`, `tbl2`, `tbl3` WITH READ LOCK"},
+		{"flush privileges", true, "FLUSH PRIVILEGES"},
+		{"flush status", true, "FLUSH STATUS"},
 	}
 	s.RunTest(c, table)
 }
@@ -1956,68 +1964,69 @@ func (s *testParserSuite) TestType(c *C) {
 func (s *testParserSuite) TestPrivilege(c *C) {
 	table := []testCase{
 		// for create user
-		{`CREATE USER 'test'`, true, ""},
-		{`CREATE USER test`, true, ""},
-		{"CREATE USER `test`", true, ""},
+		{`CREATE USER 'test'`, true, "CREATE USER `test`@`%`"},
+		{`CREATE USER test`, true, "CREATE USER `test`@`%`"},
+		{"CREATE USER `test`", true, "CREATE USER `test`@`%`"},
 		{"CREATE USER test-user", false, ""},
 		{"CREATE USER test.user", false, ""},
-		{"CREATE USER 'test-user'", true, ""},
-		{"CREATE USER `test-user`", true, ""},
+		{"CREATE USER 'test-user'", true, "CREATE USER `test-user`@`%`"},
+		{"CREATE USER `test-user`", true, "CREATE USER `test-user`@`%`"},
 		{"CREATE USER test.user", false, ""},
-		{"CREATE USER 'test.user'", true, ""},
-		{"CREATE USER `test.user`", true, ""},
-		{"CREATE USER uesr1@localhost", true, ""},
-		{"CREATE USER `uesr1`@localhost", true, ""},
-		{"CREATE USER uesr1@`localhost`", true, ""},
-		{"CREATE USER `uesr1`@`localhost`", true, ""},
-		{"CREATE USER 'uesr1'@localhost", true, ""},
-		{"CREATE USER uesr1@'localhost'", true, ""},
-		{"CREATE USER 'uesr1'@'localhost'", true, ""},
-		{"CREATE USER 'uesr1'@`localhost`", true, ""},
-		{"CREATE USER `uesr1`@'localhost'", true, ""},
-		{"create user 'bug19354014user'@'%' identified WITH mysql_native_password", true, ""},
-		{"create user 'bug19354014user'@'%' identified WITH mysql_native_password by 'new-password'", true, ""},
-		{"create user 'bug19354014user'@'%' identified WITH mysql_native_password as 'hashstring'", true, ""},
-		{`CREATE USER IF NOT EXISTS 'root'@'localhost' IDENTIFIED BY 'new-password'`, true, ""},
-		{`CREATE USER 'root'@'localhost' IDENTIFIED BY 'new-password'`, true, ""},
-		{`CREATE USER 'root'@'localhost' IDENTIFIED BY PASSWORD 'hashstring'`, true, ""},
-		{`CREATE USER 'root'@'localhost' IDENTIFIED BY 'new-password', 'root'@'127.0.0.1' IDENTIFIED BY PASSWORD 'hashstring'`, true, ""},
-		{`ALTER USER IF EXISTS 'root'@'localhost' IDENTIFIED BY 'new-password'`, true, ""},
-		{`ALTER USER 'root'@'localhost' IDENTIFIED BY 'new-password'`, true, ""},
-		{`ALTER USER 'root'@'localhost' IDENTIFIED BY PASSWORD 'hashstring'`, true, ""},
-		{`ALTER USER 'root'@'localhost' IDENTIFIED BY 'new-password', 'root'@'127.0.0.1' IDENTIFIED BY PASSWORD 'hashstring'`, true, ""},
-		{`ALTER USER USER() IDENTIFIED BY 'new-password'`, true, ""},
-		{`ALTER USER IF EXISTS USER() IDENTIFIED BY 'new-password'`, true, ""},
-		{`DROP USER 'root'@'localhost', 'root1'@'localhost'`, true, ""},
-		{`DROP USER IF EXISTS 'root'@'localhost'`, true, ""},
+		{"CREATE USER 'test.user'", true, "CREATE USER `test.user`@`%`"},
+		{"CREATE USER `test.user`", true, "CREATE USER `test.user`@`%`"},
+		{"CREATE USER uesr1@localhost", true, "CREATE USER `uesr1`@`localhost`"},
+		{"CREATE USER `uesr1`@localhost", true, "CREATE USER `uesr1`@`localhost`"},
+		{"CREATE USER uesr1@`localhost`", true, "CREATE USER `uesr1`@`localhost`"},
+		{"CREATE USER `uesr1`@`localhost`", true, "CREATE USER `uesr1`@`localhost`"},
+		{"CREATE USER 'uesr1'@localhost", true, "CREATE USER `uesr1`@`localhost`"},
+		{"CREATE USER uesr1@'localhost'", true, "CREATE USER `uesr1`@`localhost`"},
+		{"CREATE USER 'uesr1'@'localhost'", true, "CREATE USER `uesr1`@`localhost`"},
+		{"CREATE USER 'uesr1'@`localhost`", true, "CREATE USER `uesr1`@`localhost`"},
+		{"CREATE USER `uesr1`@'localhost'", true, "CREATE USER `uesr1`@`localhost`"},
+		{"create user 'bug19354014user'@'%' identified WITH mysql_native_password", true, "CREATE USER `bug19354014user`@`%`"},
+		{"create user 'bug19354014user'@'%' identified WITH mysql_native_password by 'new-password'", true, "CREATE USER `bug19354014user`@`%` IDENTIFIED BY 'new-password'"},
+		{"create user 'bug19354014user'@'%' identified WITH mysql_native_password as 'hashstring'", true, "CREATE USER `bug19354014user`@`%` IDENTIFIED BY PASSWORD 'hashstring'"},
+		{`CREATE USER IF NOT EXISTS 'root'@'localhost' IDENTIFIED BY 'new-password'`, true, "CREATE USER IF NOT EXISTS `root`@`localhost` IDENTIFIED BY 'new-password'"},
+		{`CREATE USER 'root'@'localhost' IDENTIFIED BY 'new-password'`, true, "CREATE USER `root`@`localhost` IDENTIFIED BY 'new-password'"},
+		{`CREATE USER 'root'@'localhost' IDENTIFIED BY PASSWORD 'hashstring'`, true, "CREATE USER `root`@`localhost` IDENTIFIED BY PASSWORD 'hashstring'"},
+		{`CREATE USER 'root'@'localhost' IDENTIFIED BY 'new-password', 'root'@'127.0.0.1' IDENTIFIED BY PASSWORD 'hashstring'`, true, "CREATE USER `root`@`localhost` IDENTIFIED BY 'new-password', `root`@`127.0.0.1` IDENTIFIED BY PASSWORD 'hashstring'"},
+		{`ALTER USER IF EXISTS 'root'@'localhost' IDENTIFIED BY 'new-password'`, true, "ALTER USER IF EXISTS `root`@`localhost` IDENTIFIED BY 'new-password'"},
+		{`ALTER USER 'root'@'localhost' IDENTIFIED BY 'new-password'`, true, "ALTER USER `root`@`localhost` IDENTIFIED BY 'new-password'"},
+		{`ALTER USER 'root'@'localhost' IDENTIFIED BY PASSWORD 'hashstring'`, true, "ALTER USER `root`@`localhost` IDENTIFIED BY PASSWORD 'hashstring'"},
+		{`ALTER USER 'root'@'localhost' IDENTIFIED BY 'new-password', 'root'@'127.0.0.1' IDENTIFIED BY PASSWORD 'hashstring'`, true, "ALTER USER `root`@`localhost` IDENTIFIED BY 'new-password', `root`@`127.0.0.1` IDENTIFIED BY PASSWORD 'hashstring'"},
+		{`ALTER USER USER() IDENTIFIED BY 'new-password'`, true, "ALTER USER USER() IDENTIFIED BY 'new-password'"},
+		{`ALTER USER IF EXISTS USER() IDENTIFIED BY 'new-password'`, true, "ALTER USER IF EXISTS USER() IDENTIFIED BY 'new-password'"},
+		{`DROP USER 'root'@'localhost', 'root1'@'localhost'`, true, "DROP USER `root`@`localhost`, `root1`@`localhost`"},
+		{`DROP USER IF EXISTS 'root'@'localhost'`, true, "DROP USER IF EXISTS `root`@`localhost`"},
 
 		// for grant statement
-		{"GRANT ALL ON db1.* TO 'jeffrey'@'localhost';", true, ""},
-		{"GRANT ALL ON db1.* TO 'jeffrey'@'localhost' WITH GRANT OPTION;", true, ""},
-		{"GRANT SELECT ON db2.invoice TO 'jeffrey'@'localhost';", true, ""},
-		{"GRANT ALL ON *.* TO 'someuser'@'somehost';", true, ""},
-		{"GRANT SELECT, INSERT ON *.* TO 'someuser'@'somehost';", true, ""},
-		{"GRANT ALL ON mydb.* TO 'someuser'@'somehost';", true, ""},
-		{"GRANT SELECT, INSERT ON mydb.* TO 'someuser'@'somehost';", true, ""},
-		{"GRANT ALL ON mydb.mytbl TO 'someuser'@'somehost';", true, ""},
-		{"GRANT SELECT, INSERT ON mydb.mytbl TO 'someuser'@'somehost';", true, ""},
-		{"GRANT SELECT (col1), INSERT (col1,col2) ON mydb.mytbl TO 'someuser'@'somehost';", true, ""},
-		{"grant all privileges on zabbix.* to 'zabbix'@'localhost' identified by 'password';", true, ""},
-		{"GRANT SELECT ON test.* to 'test'", true, ""},                                                                                                            // For issue 2654.
+		{"GRANT ALL ON db1.* TO 'jeffrey'@'localhost';", true, "GRANT ALL ON `db1`.* TO `jeffrey`@`localhost`"},
+		{"GRANT ALL ON TABLE db1.* TO 'jeffrey'@'localhost';", true, "GRANT ALL ON TABLE `db1`.* TO `jeffrey`@`localhost`"},
+		{"GRANT ALL ON db1.* TO 'jeffrey'@'localhost' WITH GRANT OPTION;", true, "GRANT ALL ON `db1`.* TO `jeffrey`@`localhost` WITH GRANT OPTION"},
+		{"GRANT SELECT ON db2.invoice TO 'jeffrey'@'localhost';", true, "GRANT SELECT ON `db2`.`invoice` TO `jeffrey`@`localhost`"},
+		{"GRANT ALL ON *.* TO 'someuser'@'somehost';", true, "GRANT ALL ON *.* TO `someuser`@`somehost`"},
+		{"GRANT SELECT, INSERT ON *.* TO 'someuser'@'somehost';", true, "GRANT SELECT, INSERT ON *.* TO `someuser`@`somehost`"},
+		{"GRANT ALL ON mydb.* TO 'someuser'@'somehost';", true, "GRANT ALL ON `mydb`.* TO `someuser`@`somehost`"},
+		{"GRANT SELECT, INSERT ON mydb.* TO 'someuser'@'somehost';", true, "GRANT SELECT, INSERT ON `mydb`.* TO `someuser`@`somehost`"},
+		{"GRANT ALL ON mydb.mytbl TO 'someuser'@'somehost';", true, "GRANT ALL ON `mydb`.`mytbl` TO `someuser`@`somehost`"},
+		{"GRANT SELECT, INSERT ON mydb.mytbl TO 'someuser'@'somehost';", true, "GRANT SELECT, INSERT ON `mydb`.`mytbl` TO `someuser`@`somehost`"},
+		{"GRANT SELECT (col1), INSERT (col1,col2) ON mydb.mytbl TO 'someuser'@'somehost';", true, "GRANT SELECT (`col1`), INSERT (`col1`,`col2`) ON `mydb`.`mytbl` TO `someuser`@`somehost`"},
+		{"grant all privileges on zabbix.* to 'zabbix'@'localhost' identified by 'password';", true, "GRANT ALL ON `zabbix`.* TO `zabbix`@`localhost` IDENTIFIED BY 'password'"},
+		{"GRANT SELECT ON test.* to 'test'", true, "GRANT SELECT ON `test`.* TO `test`@`%`"},                                                                      // For issue 2654.
 		{"grant PROCESS,usage, REPLICATION SLAVE, REPLICATION CLIENT on *.* to 'xxxxxxxxxx'@'%' identified by password 'xxxxxxxxxxxxxxxxxxxxxxxxxxxx'", true, ""}, // For issue 4865
 		{"/* rds internal mark */ GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, REFERENCES, RELOAD, PROCESS, INDEX, ALTER, CREATE TEMPORARY TABLES, LOCK TABLES,      EXECUTE, REPLICATION SLAVE, REPLICATION CLIENT, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT,      TRIGGER on *.* to 'root2'@'%' identified by password '*sdsadsdsadssadsadsadsadsada' with grant option", true, ""},
 
 		// for revoke statement
-		{"REVOKE ALL ON db1.* FROM 'jeffrey'@'localhost';", true, ""},
-		{"REVOKE SELECT ON db2.invoice FROM 'jeffrey'@'localhost';", true, ""},
-		{"REVOKE ALL ON *.* FROM 'someuser'@'somehost';", true, ""},
-		{"REVOKE SELECT, INSERT ON *.* FROM 'someuser'@'somehost';", true, ""},
-		{"REVOKE ALL ON mydb.* FROM 'someuser'@'somehost';", true, ""},
-		{"REVOKE SELECT, INSERT ON mydb.* FROM 'someuser'@'somehost';", true, ""},
-		{"REVOKE ALL ON mydb.mytbl FROM 'someuser'@'somehost';", true, ""},
-		{"REVOKE SELECT, INSERT ON mydb.mytbl FROM 'someuser'@'somehost';", true, ""},
-		{"REVOKE SELECT (col1), INSERT (col1,col2) ON mydb.mytbl FROM 'someuser'@'somehost';", true, ""},
-		{"REVOKE all privileges on zabbix.* FROM 'zabbix'@'localhost' identified by 'password';", true, ""},
+		{"REVOKE ALL ON db1.* FROM 'jeffrey'@'localhost';", true, "REVOKE ALL ON `db1`.* FROM `jeffrey`@`localhost`"},
+		{"REVOKE SELECT ON db2.invoice FROM 'jeffrey'@'localhost';", true, "REVOKE SELECT ON `db2`.`invoice` FROM `jeffrey`@`localhost`"},
+		{"REVOKE ALL ON *.* FROM 'someuser'@'somehost';", true, "REVOKE ALL ON *.* FROM `someuser`@`somehost`"},
+		{"REVOKE SELECT, INSERT ON *.* FROM 'someuser'@'somehost';", true, "REVOKE SELECT, INSERT ON *.* FROM `someuser`@`somehost`"},
+		{"REVOKE ALL ON mydb.* FROM 'someuser'@'somehost';", true, "REVOKE ALL ON `mydb`.* FROM `someuser`@`somehost`"},
+		{"REVOKE SELECT, INSERT ON mydb.* FROM 'someuser'@'somehost';", true, "REVOKE SELECT, INSERT ON `mydb`.* FROM `someuser`@`somehost`"},
+		{"REVOKE ALL ON mydb.mytbl FROM 'someuser'@'somehost';", true, "REVOKE ALL ON `mydb`.`mytbl` FROM `someuser`@`somehost`"},
+		{"REVOKE SELECT, INSERT ON mydb.mytbl FROM 'someuser'@'somehost';", true, "REVOKE SELECT, INSERT ON `mydb`.`mytbl` FROM `someuser`@`somehost`"},
+		{"REVOKE SELECT (col1), INSERT (col1,col2) ON mydb.mytbl FROM 'someuser'@'somehost';", true, "REVOKE SELECT (`col1`), INSERT (`col1`,`col2`) ON `mydb`.`mytbl` FROM `someuser`@`somehost`"},
+		{"REVOKE all privileges on zabbix.* FROM 'zabbix'@'localhost' identified by 'password';", true, "REVOKE ALL ON `zabbix`.* FROM `zabbix`@`localhost` IDENTIFIED BY 'password'"},
 	}
 	s.RunTest(c, table)
 }
@@ -2279,13 +2288,47 @@ func (s *testParserSuite) TestInsertStatementMemoryAllocation(c *C) {
 
 func (s *testParserSuite) TestExplain(c *C) {
 	table := []testCase{
-		{"explain select c1 from t1", true, ""},
-		{"explain delete t1, t2 from t1 inner join t2 inner join t3 where t1.id=t2.id and t2.id=t3.id;", true, ""},
-		{"explain insert into t values (1), (2), (3)", true, ""},
-		{"explain replace into foo values (1 || 2)", true, ""},
-		{"explain update t set id = id + 1 order by id desc;", true, ""},
-		{"explain select c1 from t1 union (select c2 from t2) limit 1, 1", true, ""},
-		{`explain format = "row" select c1 from t1 union (select c2 from t2) limit 1, 1`, true, ""},
+		{"explain select c1 from t1", true, "EXPLAIN FORMAT = 'row' SELECT `c1` FROM `t1`"},
+		{"explain delete t1, t2 from t1 inner join t2 inner join t3 where t1.id=t2.id and t2.id=t3.id;", true, "EXPLAIN FORMAT = 'row' DELETE `t1`,`t2` FROM (`t1` JOIN `t2`) JOIN `t3` WHERE `t1`.`id`=`t2`.`id` AND `t2`.`id`=`t3`.`id`"},
+		{"explain insert into t values (1), (2), (3)", true, "EXPLAIN FORMAT = 'row' INSERT INTO `t` VALUES (1),(2),(3)"},
+		{"explain replace into foo values (1 || 2)", true, "EXPLAIN FORMAT = 'row' REPLACE INTO `foo` VALUES (1 OR 2)"},
+		{"explain update t set id = id + 1 order by id desc;", true, "EXPLAIN FORMAT = 'row' UPDATE `t` SET `id`=`id`+1 ORDER BY `id` DESC"},
+		{"explain select c1 from t1 union (select c2 from t2) limit 1, 1", true, "EXPLAIN FORMAT = 'row' SELECT `c1` FROM `t1` UNION (SELECT `c2` FROM `t2`) LIMIT 1,1"},
+		{`explain format = "row" select c1 from t1 union (select c2 from t2) limit 1, 1`, true, "EXPLAIN FORMAT = 'row' SELECT `c1` FROM `t1` UNION (SELECT `c2` FROM `t2`) LIMIT 1,1"},
+		{"DESC SCHE.TABL", true, "DESC `SCHE`.`TABL`"},
+		{"DESC SCHE.TABL COLUM", true, "DESC `SCHE`.`TABL` `COLUM`"},
+		{"DESCRIBE SCHE.TABL COLUM", true, "DESC `SCHE`.`TABL` `COLUM`"},
+		{"EXPLAIN ANALYZE SELECT 1", true, "EXPLAIN ANALYZE SELECT 1"},
+		{"EXPLAIN FORMAT = 'dot' SELECT 1", true, "EXPLAIN FORMAT = 'dot' SELECT 1"},
+		{"EXPLAIN FORMAT = 'row' SELECT 1", true, "EXPLAIN FORMAT = 'row' SELECT 1"},
+		{"EXPLAIN FORMAT = 'ROW' SELECT 1", true, "EXPLAIN FORMAT = 'ROW' SELECT 1"},
+		{"EXPLAIN SELECT 1", true, "EXPLAIN FORMAT = 'row' SELECT 1"},
+	}
+	s.RunTest(c, table)
+}
+
+func (s *testParserSuite) TestPrepare(c *C) {
+	table := []testCase{
+		{"PREPARE pname FROM 'SELECT ?'", true, "PREPARE `pname` FROM 'SELECT ?'"},
+		{"PREPARE pname FROM @test", true, "PREPARE `pname` FROM @`test`"},
+		{"PREPARE `` FROM @test", true, "PREPARE `` FROM @`test`"},
+	}
+	s.RunTest(c, table)
+}
+
+func (s *testParserSuite) TestDeallocate(c *C) {
+	table := []testCase{
+		{"DEALLOCATE PREPARE test", true, "DEALLOCATE PREPARE `test`"},
+		{"DEALLOCATE PREPARE ``", true, "DEALLOCATE PREPARE ``"},
+	}
+	s.RunTest(c, table)
+}
+
+func (s *testParserSuite) TestExecute(c *C) {
+	table := []testCase{
+		{"EXECUTE test", true, "EXECUTE `test`"},
+		{"EXECUTE test USING @var1,@var2", true, "EXECUTE `test` USING @`var1`,@`var2`"},
+		{"EXECUTE `` USING @var1,@var2", true, "EXECUTE `` USING @`var1`,@`var2`"},
 	}
 	s.RunTest(c, table)
 }
@@ -2393,11 +2436,11 @@ func (s *testParserSuite) TestSessionManage(c *C) {
 	table := []testCase{
 		// Kill statement.
 		// See https://dev.mysql.com/doc/refman/5.7/en/kill.html
-		{"kill 23123", true, ""},
-		{"kill connection 23123", true, ""},
-		{"kill query 23123", true, ""},
-		{"show processlist", true, ""},
-		{"show full processlist", true, ""},
+		{"kill 23123", true, "KILL 23123"},
+		{"kill connection 23123", true, "KILL 23123"},
+		{"kill query 23123", true, "KILL QUERY 23123"},
+		{"show processlist", true, "SHOW PROCESSLIST"},
+		{"show full processlist", true, "SHOW FULL PROCESSLIST"},
 	}
 	s.RunTest(c, table)
 }
