@@ -106,6 +106,7 @@ func (n *AuthOption) Restore(ctx *RestoreCtx) error {
 	return nil
 }
 
+// TODO: 移除，这个不是标准语法
 // TraceStmt is a statement to trace what sql actually does at background.
 type TraceStmt struct {
 	stmtNode
