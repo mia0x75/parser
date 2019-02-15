@@ -416,7 +416,6 @@ import (
 	than                  "THAN"
 	timeType              "TIME"
 	timestampType         "TIMESTAMP"
-	trace                 "TRACE"
 	transaction           "TRANSACTION"
 	triggers              "TRIGGERS"
 	truncate              "TRUNCATE"
@@ -591,8 +590,6 @@ import (
 	SetStmt                         /* Set variable statement */
 	ShowStmt                        /* Show engines/databases/tables/user/columns/warnings/status statement */
 	Statement                       /* statement */
-	TraceStmt                       /* TRACE statement */
-	TraceableStmt                   /* traceable statment */
 	TruncateTableStmt               /* TRUNCATE TABLE statement */
 	UnlockTablesStmt                /* Unlock tables statement */
 	UpdateStmt                      /* UPDATE statement */
@@ -2240,27 +2237,6 @@ EmptyStmt:
 	/* EMPTY */ { $$ = nil }
 
 
-TraceStmt:
-	"TRACE" TraceableStmt
-	{
-		$$ = &ast.TraceStmt{
-			Stmt:	$2,
-			Format: "json",
-		}
-		startOffset := parser.startOffset(&yyS[yypt])
-		$2.SetText(string(parser.src[startOffset:]))
-	}
-|	"TRACE" "FORMAT" "=" stringLit TraceableStmt
-	{
-		$$ = &ast.TraceStmt{
-			Stmt: $5,
-			Format: $4,
-		}
-		startOffset := parser.startOffset(&yyS[yypt])
-		$5.SetText(string(parser.src[startOffset:]))
-	}
-
-
 ExplainSym:
 "EXPLAIN" | "DESCRIBE" | "DESC"
 
@@ -2699,7 +2675,7 @@ UnReservedKeyword:
 | "DYNAMIC"| "END" | "ENGINE" | "ENGINES" | "ENUM" | "ERRORS" | "ESCAPE" | "EXECUTE" | "FIELDS" | "FIRST" | "FIXED" | "FLUSH" | "FOLLOWING" | "FORMAT" | "FULL" |"GLOBAL"
 | "HASH" | "HOUR" | "LESS" | "LOCAL" | "LAST" | "NAMES" | "OFFSET" | "PASSWORD" %prec lowerThanEq | "PREPARE" | "QUICK" | "REDUNDANT"
 | "ROLLBACK" | "SESSION" | "SIGNED" | "SNAPSHOT" | "START" | "STATUS" | "SUBPARTITIONS" | "SUBPARTITION" | "TABLES" | "TABLESPACE" | "TEXT" | "THAN" | "TIME" %prec lowerThanStringLitToken 
-| "TIMESTAMP" %prec lowerThanStringLitToken | "TRACE" | "TRANSACTION" | "TRUNCATE" | "UNBOUNDED" | "UNKNOWN" | "VALUE" | "WARNINGS" | "YEAR" | "MODE"  | "WEEK"  | "ANY" | "SOME" | "USER" | "IDENTIFIED"
+| "TIMESTAMP" %prec lowerThanStringLitToken | "TRANSACTION" | "TRUNCATE" | "UNBOUNDED" | "UNKNOWN" | "VALUE" | "WARNINGS" | "YEAR" | "MODE"  | "WEEK"  | "ANY" | "SOME" | "USER" | "IDENTIFIED"
 | "COLLATION" | "COMMENT" | "AVG_ROW_LENGTH" | "CONNECTION" | "CHECKSUM" | "COMPRESSION" | "KEY_BLOCK_SIZE" | "MASTER" | "MAX_ROWS"
 | "MIN_ROWS" | "NATIONAL" | "ROW_FORMAT" | "QUARTER" | "GRANTS" | "TRIGGERS" | "DELAY_KEY_WRITE" | "ISOLATION" | "JSON"
 | "REPEATABLE" | "RESPECT" | "COMMITTED" | "UNCOMMITTED" | "ONLY" | "SERIALIZABLE" | "LEVEL" | "VARIABLES" | "SQL_CACHE" | "INDEXES" | "PROCESSLIST"
@@ -5422,21 +5398,11 @@ Statement:
 		// TODO: This is used to fix issue #320. There may be a better solution.
 		$$ = $1.(*ast.SubqueryExpr).Query.(ast.StmtNode)
 	}
-|	TraceStmt
 |	TruncateTableStmt
 |	UpdateStmt
 |	UseStmt
 |	UnlockTablesStmt
 |	LockTablesStmt
-
-
-TraceableStmt:
-	SelectStmt
-|	DeleteFromStmt
-|	UpdateStmt
-|	InsertIntoStmt
-|	ReplaceIntoStmt
-|	UnionStmt
 
 
 ExplainableStmt:

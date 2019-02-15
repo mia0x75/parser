@@ -106,35 +106,6 @@ func (n *AuthOption) Restore(ctx *RestoreCtx) error {
 	return nil
 }
 
-// TODO: 移除，这个不是标准语法
-// TraceStmt is a statement to trace what sql actually does at background.
-type TraceStmt struct {
-	stmtNode
-
-	Stmt   StmtNode
-	Format string
-}
-
-// Restore implements Node interface.
-func (n *TraceStmt) Restore(ctx *RestoreCtx) error {
-	return errors.New("Not implemented")
-}
-
-// Accept implements Node Accept interface.
-func (n *TraceStmt) Accept(v Visitor) (Node, bool) {
-	newNode, skipChildren := v.Enter(n)
-	if skipChildren {
-		return v.Leave(newNode)
-	}
-	n = newNode.(*TraceStmt)
-	node, ok := n.Stmt.Accept(v)
-	if !ok {
-		return n, false
-	}
-	n.Stmt = node.(DMLNode)
-	return v.Leave(n)
-}
-
 // ExplainStmt is a statement to provide information about how is SQL statement executed
 // or get columns information in a table.
 // See https://dev.mysql.com/doc/refman/5.7/en/explain.html

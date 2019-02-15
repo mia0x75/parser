@@ -2334,20 +2334,6 @@ func (s *testParserSuite) TestExecute(c *C) {
 	s.RunTest(c, table)
 }
 
-func (s *testParserSuite) TestTrace(c *C) {
-	table := []testCase{
-		{"trace select c1 from t1", true, ""},
-		{"trace delete t1, t2 from t1 inner join t2 inner join t3 where t1.id=t2.id and t2.id=t3.id;", true, ""},
-		{"trace insert into t values (1), (2), (3)", true, ""},
-		{"trace replace into foo values (1 || 2)", true, ""},
-		{"trace update t set id = id + 1 order by id desc;", true, ""},
-		{"trace select c1 from t1 union (select c2 from t2) limit 1, 1", true, ""},
-		{"trace format = 'row' select c1 from t1 union (select c2 from t2) limit 1, 1", true, ""},
-		{"trace format = 'json' update t set id = id + 1 order by id desc;", true, ""},
-	}
-	s.RunTest(c, table)
-}
-
 func (s *testParserSuite) TestView(c *C) {
 	table := []testCase{
 		{"create view v as select * from t", true, "CREATE ALGORITHM = UNDEFINED DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"},
@@ -2780,27 +2766,6 @@ func (s *testParserSuite) TestVisitFrameBound(c *C) {
 		c.Assert(checker.timeUnitRc, Equals, t.timeUnitRc)
 	}
 
-}
-
-func (s *testParserSuite) TestFieldText(c *C) {
-	parser := New()
-	stmts, _, err := parser.Parse("select a from t", "", "")
-	c.Assert(err, IsNil)
-	tmp := stmts[0].(*ast.SelectStmt)
-	c.Assert(tmp.Fields.Fields[0].Text(), Equals, "a")
-
-	sqls := []string{
-		"trace select a from t",
-		"trace format = 'row' select a from t",
-		"trace format = 'json' select a from t",
-	}
-	for _, sql := range sqls {
-		stmts, _, err = parser.Parse(sql, "", "")
-		c.Assert(err, IsNil)
-		traceStmt := stmts[0].(*ast.TraceStmt)
-		c.Assert(traceStmt.Text(), Equals, sql)
-		c.Assert(traceStmt.Stmt.Text(), Equals, "select a from t")
-	}
 }
 
 // See https://github.com/pingcap/parser/issue/94
