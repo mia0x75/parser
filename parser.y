@@ -4430,6 +4430,7 @@ TableRef:
 TableFactor:
 	TableName PartitionNameListOpt TableAsNameOpt IndexHintListOpt
 	{
+		tn := $1.(*ast.TableName)
 		tn.PartitionNames = $2.([]model.CIStr)
 		tn.IndexHints = $4.([]*ast.IndexHint)
 		$$ = &ast.TableSource{Source: tn, AsName: $3.(model.CIStr)}

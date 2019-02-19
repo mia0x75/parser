@@ -10004,6 +10004,7 @@ yynewstate:
 		}
 	case 907:
 		{
+			tn := yyS[yypt-3].item.(*ast.TableName)
 			tn.PartitionNames = yyS[yypt-2].item.([]model.CIStr)
 			tn.IndexHints = yyS[yypt-0].item.([]*ast.IndexHint)
 			parser.yyVAL.item = &ast.TableSource{Source: tn, AsName: yyS[yypt-1].item.(model.CIStr)}
