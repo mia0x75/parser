@@ -183,7 +183,8 @@ type TableName struct {
 	DBInfo    *model.DBInfo
 	TableInfo *model.TableInfo
 
-	IndexHints []*IndexHint
+	IndexHints     []*IndexHint
+	PartitionNames []model.CIStr
 }
 
 // Restore implements Node interface.
@@ -193,12 +194,24 @@ func (n *TableName) Restore(ctx *RestoreCtx) error {
 		ctx.WritePlain(".")
 	}
 	ctx.WriteName(n.Name.String())
+	if len(n.PartitionNames) > 0 {
+		ctx.WriteKeyWord(" PARTITION")
+		ctx.WritePlain("(")
+		for i, v := range n.PartitionNames {
+			if i != 0 {
+				ctx.WritePlain(", ")
+			}
+			ctx.WriteName(v.String())
+		}
+		ctx.WritePlain(")")
+	}
 	for _, value := range n.IndexHints {
 		ctx.WritePlain(" ")
 		if err := value.Restore(ctx); err != nil {
 			return errors.Annotate(err, "An error occurred while splicing IndexHints")
 		}
 	}
+
 	return nil
 }
 
@@ -1248,13 +1261,11 @@ func (n *InsertStmt) Restore(ctx *RestoreCtx) error {
 	} else {
 		ctx.WriteKeyWord("INSERT ")
 	}
-	switch n.Priority {
-	case mysql.LowPriority:
-		ctx.WriteKeyWord("LOW_PRIORITY ")
-	case mysql.HighPriority:
-		ctx.WriteKeyWord("HIGH_PRIORITY ")
-	case mysql.DelayedPriority:
-		ctx.WriteKeyWord("DELAYED ")
+	if err := n.Priority.Restore(ctx); err != nil {
+		return errors.Trace(err)
+	}
+	if n.Priority != mysql.NoPriority {
+		ctx.WritePlain(" ")
 	}
 	if n.IgnoreErr {
 		ctx.WriteKeyWord("IGNORE ")
@@ -1294,6 +1305,7 @@ func (n *InsertStmt) Restore(ctx *RestoreCtx) error {
 		}
 	}
 	if n.Select != nil {
+		ctx.WritePlain(" ")
 		switch v := n.Select.(type) {
 		case *SelectStmt, *UnionStmt:
 			if err := v.Restore(ctx); err != nil {
@@ -1419,9 +1431,11 @@ func (n *DeleteStmt) Restore(ctx *RestoreCtx) error {
 		ctx.WritePlain("*/ ")
 	}
 
-	switch n.Priority {
-	case mysql.LowPriority:
-		ctx.WriteKeyWord("LOW_PRIORITY ")
+	if err := n.Priority.Restore(ctx); err != nil {
+		return errors.Trace(err)
+	}
+	if n.Priority != mysql.NoPriority {
+		ctx.WritePlain(" ")
 	}
 	if n.Quick {
 		ctx.WriteKeyWord("QUICK ")
@@ -1559,9 +1573,11 @@ func (n *UpdateStmt) Restore(ctx *RestoreCtx) error {
 		ctx.WritePlain("*/ ")
 	}
 
-	switch n.Priority {
-	case mysql.LowPriority:
-		ctx.WriteKeyWord("LOW_PRIORITY ")
+	if err := n.Priority.Restore(ctx); err != nil {
+		return errors.Trace(err)
+	}
+	if n.Priority != mysql.NoPriority {
+		ctx.WritePlain(" ")
 	}
 	if n.IgnoreErr {
 		ctx.WriteKeyWord("IGNORE ")
@@ -1756,7 +1772,7 @@ type ShowStmt struct {
 	User        *auth.UserIdentity // Used for show grants/create user.
 	IfNotExists bool               // Used for `show create database if not exists`
 
-	// GlobalScope is used by show variables
+	// GlobalScope is used by `show variables`
 	GlobalScope bool
 	Pattern     *PatternLikeExpr
 	Where       ExprNode

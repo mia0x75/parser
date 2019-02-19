@@ -43,8 +43,6 @@ var (
 	_ StmtNode = &UseStmt{}
 	_ StmtNode = &FlushStmt{}
 	_ StmtNode = &KillStmt{}
-	_ StmtNode = &CreateBindingStmt{}
-	_ StmtNode = &DropBindingStmt{}
 	_ StmtNode = &LockTableStmt{}
 	_ StmtNode = &UnlockTableStmt{}
 
@@ -863,64 +861,6 @@ func (n *DropUserStmt) Accept(v Visitor) (Node, bool) {
 	return v.Leave(n)
 }
 
-// CreateBindingStmt creates sql binding hint.
-type CreateBindingStmt struct {
-	stmtNode
-
-	GlobalScope bool
-	OriginSel   StmtNode
-	HintedSel   StmtNode
-}
-
-func (n *CreateBindingStmt) Restore(ctx *RestoreCtx) error {
-	return errors.New("Not implemented")
-}
-
-func (n *CreateBindingStmt) Accept(v Visitor) (Node, bool) {
-	newNode, skipChildren := v.Enter(n)
-	if skipChildren {
-		return v.Leave(newNode)
-	}
-	n = newNode.(*CreateBindingStmt)
-	selnode, ok := n.OriginSel.Accept(v)
-	if !ok {
-		return n, false
-	}
-	n.OriginSel = selnode.(*SelectStmt)
-	hintedSelnode, ok := n.HintedSel.Accept(v)
-	if !ok {
-		return n, false
-	}
-	n.HintedSel = hintedSelnode.(*SelectStmt)
-	return v.Leave(n)
-}
-
-// DropBindingStmt deletes sql binding hint.
-type DropBindingStmt struct {
-	stmtNode
-
-	GlobalScope bool
-	OriginSel   StmtNode
-}
-
-func (n *DropBindingStmt) Restore(ctx *RestoreCtx) error {
-	return errors.New("Not implemented")
-}
-
-func (n *DropBindingStmt) Accept(v Visitor) (Node, bool) {
-	newNode, skipChildren := v.Enter(n)
-	if skipChildren {
-		return v.Leave(newNode)
-	}
-	n = newNode.(*DropBindingStmt)
-	selnode, ok := n.OriginSel.Accept(v)
-	if !ok {
-		return n, false
-	}
-	n.OriginSel = selnode.(*SelectStmt)
-	return v.Leave(n)
-}
-
 // DoStmt is the struct for DO statement.
 type DoStmt struct {
 	stmtNode
@@ -977,9 +917,7 @@ type PrivElem struct {
 func (n *PrivElem) Restore(ctx *RestoreCtx) error {
 	switch n.Priv {
 	case 0:
-		// Do nothing for types that have no effect.
-		// Actually this should not happen since there is no way to determine its type.
-		return errors.New("Cannot determine privilege type")
+		ctx.WritePlain("/* UNSUPPORTED TYPE */")
 	case mysql.AllPriv:
 		ctx.WriteKeyWord("ALL")
 	case mysql.AlterPriv:
@@ -1019,7 +957,7 @@ func (n *PrivElem) Restore(ctx *RestoreCtx) error {
 	case mysql.ShowViewPriv:
 		ctx.WriteKeyWord("SHOW VIEW")
 	default:
-		return errors.New("Unsupported privilege type")
+		return errors.New("Undefined privilege type")
 	}
 	if n.Cols != nil {
 		ctx.WritePlain(" (")
@@ -1194,8 +1132,10 @@ type GrantStmt struct {
 func (n *GrantStmt) Restore(ctx *RestoreCtx) error {
 	ctx.WriteKeyWord("GRANT ")
 	for i, v := range n.Privs {
-		if i != 0 {
+		if i != 0 && v.Priv != 0 {
 			ctx.WritePlain(", ")
+		} else if v.Priv == 0 {
+			ctx.WritePlain(" ")
 		}
 		if err := v.Restore(ctx); err != nil {
 			return errors.Annotatef(err, "An error occurred while restore GrantStmt.Privs[%d]", i)
