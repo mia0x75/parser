@@ -15,15 +15,15 @@ package parser_test
 
 import (
 	"fmt"
-	"github.com/pingcap/parser"
-	_ "github.com/pingcap/tidb/types/parser_driver"
+	"github.com/mia0x75/parser"
+	_ "github.com/mia0x75/tidb/types/parser_driver"
 )
 
 // This example show how to parse a text sql into ast.
 func Example_parseSQL() {
 
 	// 0. make sure import parser_driver implemented by TiDB(user also can implement own driver by self).
-	// and add `import _ "github.com/pingcap/tidb/types/parser_driver"` in the head of file.
+	// and add `import _ "github.com/mia0x75/tidb/types/parser_driver"` in the head of file.
 
 	// 1. Create a parser. The parser is NOT goroutine safe and should
 	// not be shared among multiple goroutines. However, parser is also

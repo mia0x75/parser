@@ -19,16 +19,16 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/pingcap/check"
-	"github.com/pingcap/errors"
-	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/charset"
-	. "github.com/pingcap/parser/format"
-	"github.com/pingcap/parser/model"
-	"github.com/pingcap/parser/mysql"
-	"github.com/pingcap/parser/terror"
-	"github.com/pingcap/tidb/types"
-	"github.com/pingcap/tidb/types/parser_driver"
+	. "github.com/mia0x75/check"
+	"github.com/mia0x75/errors"
+	"github.com/mia0x75/parser/ast"
+	"github.com/mia0x75/parser/charset"
+	. "github.com/mia0x75/parser/format"
+	"github.com/mia0x75/parser/model"
+	"github.com/mia0x75/parser/mysql"
+	"github.com/mia0x75/parser/terror"
+	"github.com/mia0x75/tidb/types"
+	"github.com/mia0x75/tidb/types/parser_driver"
 )
 
 func TestT(t *testing.T) {
@@ -124,7 +124,7 @@ func (s *testParserSuite) TestSimple(c *C) {
 
 	// Testcase for /*! xx */
 	// See http://dev.mysql.com/doc/refman/5.7/en/comments.html
-	// Fix: https://github.com/pingcap/tidb/issues/971
+	// Fix: https://github.com/mia0x75/tidb/issues/971
 	src = "/*!40101 SET character_set_client = utf8 */;"
 	stmts, _, err = parser.Parse(src, "", "")
 	c.Assert(err, IsNil)
@@ -555,10 +555,10 @@ func (s *testParserSuite) TestDMLStmt(c *C) {
 		{"select 1 as a from dual where 1 < any (select 2) order by a", true, "SELECT 1 AS `a` FROM DUAL WHERE 1<ANY (SELECT 2) ORDER BY `a`"},
 		{"select 1 order by 1", true, "SELECT 1 ORDER BY 1"},
 
-		// for https://github.com/pingcap/tidb/issues/320
+		// for https://github.com/mia0x75/tidb/issues/320
 		{`(select 1);`, true, "SELECT 1"},
 
-		// for https://github.com/pingcap/tidb/issues/1050
+		// for https://github.com/mia0x75/tidb/issues/1050
 		{`SELECT /*!40001 SQL_NO_CACHE */ * FROM test WHERE 1 limit 0, 2000;`, true, "SELECT SQL_NO_CACHE * FROM `test` WHERE 1 LIMIT 0,2000"},
 
 		{`ANALYZE TABLE t`, true, "ANALYZE TABLE t"},
@@ -2787,7 +2787,7 @@ func (wfc *windowFrameBoundChecker) Leave(inNode ast.Node) (node ast.Node, ok bo
 }
 
 // For issue #51
-// See https://github.com/pingcap/parser/pull/51 for details
+// See https://github.com/mia0x75/parser/pull/51 for details
 func (s *testParserSuite) TestVisitFrameBound(c *C) {
 	parser := New()
 	parser.EnableWindowFunc(true)
@@ -2811,7 +2811,7 @@ func (s *testParserSuite) TestVisitFrameBound(c *C) {
 
 }
 
-// See https://github.com/pingcap/parser/issue/94
+// See https://github.com/mia0x75/parser/issue/94
 func (s *testParserSuite) TestQuotedSystemVariables(c *C) {
 	parser := New()
 
@@ -2872,7 +2872,7 @@ func (s *testParserSuite) TestQuotedSystemVariables(c *C) {
 	}
 }
 
-// See https://github.com/pingcap/parser/issue/95
+// See https://github.com/mia0x75/parser/issue/95
 func (s *testParserSuite) TestQuotedVariableColumnName(c *C) {
 	parser := New()
 

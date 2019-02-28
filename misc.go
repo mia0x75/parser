@@ -16,7 +16,7 @@ package parser
 import (
 	"strings"
 
-	"github.com/pingcap/parser/charset"
+	"github.com/mia0x75/parser/charset"
 )
 
 func isLetter(ch rune) bool {

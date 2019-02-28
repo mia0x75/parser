@@ -18,10 +18,10 @@ import (
 	"io"
 	"strings"
 
-	"github.com/pingcap/errors"
-	"github.com/pingcap/parser/format"
-	"github.com/pingcap/parser/model"
-	"github.com/pingcap/parser/types"
+	"github.com/mia0x75/errors"
+	"github.com/mia0x75/parser/format"
+	"github.com/mia0x75/parser/model"
+	"github.com/mia0x75/parser/types"
 )
 
 var (
@@ -52,7 +52,7 @@ const (
 	Xor        = "bitxor"
 	Div        = "div"
 	Mul        = "mul"
-	UnaryNot   = "not" // Avoid name conflict with Not in github/pingcap/check.
+	UnaryNot   = "not" // Avoid name conflict with Not in github/mia0x75/check.
 	BitNeg     = "bitneg"
 	IntDiv     = "intdiv"
 	LogicXor   = "xor"
@@ -64,8 +64,8 @@ const (
 	Case       = "case"
 	Regexp     = "regexp"
 	IsNull     = "isnull"
-	IsTruth    = "istrue"  // Avoid name conflict with IsTrue in github/pingcap/check.
-	IsFalsity  = "isfalse" // Avoid name conflict with IsFalse in github/pingcap/check.
+	IsTruth    = "istrue"  // Avoid name conflict with IsTrue in github/mia0x75/check.
+	IsFalsity  = "isfalse" // Avoid name conflict with IsFalse in github/mia0x75/check.
 	RowFunc    = "row"
 	SetVar     = "setvar"
 	GetVar     = "getvar"

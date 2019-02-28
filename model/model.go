@@ -18,11 +18,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pingcap/errors"
-	"github.com/pingcap/parser/auth"
-	"github.com/pingcap/parser/mysql"
-	"github.com/pingcap/parser/types"
-	"github.com/pingcap/tipb/go-tipb"
+	"github.com/mia0x75/errors"
+	"github.com/mia0x75/parser/auth"
+	"github.com/mia0x75/parser/mysql"
+	"github.com/mia0x75/parser/types"
+	"github.com/mia0x75/tipb/go-tipb"
 )
 
 // SchemaState is the state for schema elements.
@@ -611,7 +611,7 @@ func NewCIStr(s string) (cs CIStr) {
 
 // UnmarshalJSON implements the user defined unmarshal method.
 // CIStr can be unmarshaled from a single string, so PartitionDefinition.Name
-// in this change https://github.com/pingcap/tidb/pull/6460/files would be
+// in this change https://github.com/mia0x75/tidb/pull/6460/files would be
 // compatible during TiDB upgrading.
 func (cis *CIStr) UnmarshalJSON(b []byte) error {
 	type T CIStr

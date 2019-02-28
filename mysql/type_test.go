@@ -14,7 +14,7 @@
 package mysql
 
 import (
-	. "github.com/pingcap/check"
+	. "github.com/mia0x75/check"
 )
 
 var _ = Suite(&testTypeSuite{})

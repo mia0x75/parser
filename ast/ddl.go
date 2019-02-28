@@ -14,11 +14,11 @@
 package ast
 
 import (
-	"github.com/pingcap/errors"
-	"github.com/pingcap/parser/auth"
-	"github.com/pingcap/parser/format"
-	"github.com/pingcap/parser/model"
-	"github.com/pingcap/parser/types"
+	"github.com/mia0x75/errors"
+	"github.com/mia0x75/parser/auth"
+	"github.com/mia0x75/parser/format"
+	"github.com/mia0x75/parser/model"
+	"github.com/mia0x75/parser/types"
 )
 
 var (

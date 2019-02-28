@@ -21,7 +21,7 @@ import (
 	"sort"
 	"strings"
 
-	. "github.com/pingcap/check"
+	. "github.com/mia0x75/check"
 )
 
 var _ = Suite(&testConsistentSuite{})
