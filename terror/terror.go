@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/parser/mysql"
+	log "github.com/sirupsen/logrus"
 )
 
 // Global error instances.

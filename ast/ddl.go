@@ -16,7 +16,7 @@ package ast
 import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/parser/auth"
-	. "github.com/pingcap/parser/format"
+	"github.com/pingcap/parser/format"
 	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/types"
 )
@@ -66,7 +66,7 @@ type DatabaseOption struct {
 }
 
 // Restore implements Node interface.
-func (n *DatabaseOption) Restore(ctx *RestoreCtx) error {
+func (n *DatabaseOption) Restore(ctx *format.RestoreCtx) error {
 	switch n.Tp {
 	case DatabaseOptionCharset:
 		ctx.WriteKeyWord("CHARACTER SET")
@@ -93,7 +93,7 @@ type CreateDatabaseStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *CreateDatabaseStmt) Restore(ctx *RestoreCtx) error {
+func (n *CreateDatabaseStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("CREATE DATABASE ")
 	if n.IfNotExists {
 		ctx.WriteKeyWord("IF NOT EXISTS ")
@@ -130,7 +130,7 @@ type AlterDatabaseStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *AlterDatabaseStmt) Restore(ctx *RestoreCtx) error {
+func (n *AlterDatabaseStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("ALTER DATABASE ")
 	if n.IfExists {
 		ctx.WriteKeyWord("IF EXISTS ")
@@ -166,7 +166,7 @@ type DropDatabaseStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *DropDatabaseStmt) Restore(ctx *RestoreCtx) error {
+func (n *DropDatabaseStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("DROP DATABASE ")
 	if n.IfExists {
 		ctx.WriteKeyWord("IF EXISTS ")
@@ -194,7 +194,7 @@ type IndexColName struct {
 }
 
 // Restore implements Node interface.
-func (n *IndexColName) Restore(ctx *RestoreCtx) error {
+func (n *IndexColName) Restore(ctx *format.RestoreCtx) error {
 	if err := n.Column.Restore(ctx); err != nil {
 		return errors.Annotate(err, "An error occurred while splicing IndexColName")
 	}
@@ -231,7 +231,7 @@ type ReferenceDef struct {
 }
 
 // Restore implements Node interface.
-func (n *ReferenceDef) Restore(ctx *RestoreCtx) error {
+func (n *ReferenceDef) Restore(ctx *format.RestoreCtx) error {
 	if n.Table != nil {
 		ctx.WriteKeyWord("REFERENCES ")
 		if err := n.Table.Restore(ctx); err != nil {
@@ -329,7 +329,7 @@ type OnDeleteOpt struct {
 }
 
 // Restore implements Node interface.
-func (n *OnDeleteOpt) Restore(ctx *RestoreCtx) error {
+func (n *OnDeleteOpt) Restore(ctx *format.RestoreCtx) error {
 	if n.ReferOpt != ReferOptionNoOption {
 		ctx.WriteKeyWord("ON DELETE ")
 		ctx.WriteKeyWord(n.ReferOpt.String())
@@ -354,7 +354,7 @@ type OnUpdateOpt struct {
 }
 
 // Restore implements Node interface.
-func (n *OnUpdateOpt) Restore(ctx *RestoreCtx) error {
+func (n *OnUpdateOpt) Restore(ctx *format.RestoreCtx) error {
 	if n.ReferOpt != ReferOptionNoOption {
 		ctx.WriteKeyWord("ON UPDATE ")
 		ctx.WriteKeyWord(n.ReferOpt.String())
@@ -407,7 +407,7 @@ type ColumnOption struct {
 }
 
 // Restore implements Node interface.
-func (n *ColumnOption) Restore(ctx *RestoreCtx) error {
+func (n *ColumnOption) Restore(ctx *format.RestoreCtx) error {
 	switch n.Tp {
 	case ColumnOptionNoOption:
 		return nil
@@ -492,7 +492,7 @@ type IndexOption struct {
 }
 
 // Restore implements Node interface.
-func (n *IndexOption) Restore(ctx *RestoreCtx) error {
+func (n *IndexOption) Restore(ctx *format.RestoreCtx) error {
 	hasPrevOption := false
 	if n.KeyBlockSize > 0 {
 		ctx.WriteKeyWord("KEY_BLOCK_SIZE")
@@ -560,7 +560,7 @@ type Constraint struct {
 }
 
 // Restore implements Node interface.
-func (n *Constraint) Restore(ctx *RestoreCtx) error {
+func (n *Constraint) Restore(ctx *format.RestoreCtx) error {
 	switch n.Tp {
 	case ConstraintNoConstraint:
 		return nil
@@ -661,7 +661,7 @@ type ColumnDef struct {
 }
 
 // Restore implements Node interface.
-func (n *ColumnDef) Restore(ctx *RestoreCtx) error {
+func (n *ColumnDef) Restore(ctx *format.RestoreCtx) error {
 	if err := n.Name.Restore(ctx); err != nil {
 		return errors.Annotate(err, "An error occurred while splicing ColumnDef Name")
 	}
@@ -719,7 +719,7 @@ type CreateTableStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *CreateTableStmt) Restore(ctx *RestoreCtx) error {
+func (n *CreateTableStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("CREATE TABLE ")
 	if n.IfNotExists {
 		ctx.WriteKeyWord("IF NOT EXISTS ")
@@ -846,7 +846,7 @@ type DropTableStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *DropTableStmt) Restore(ctx *RestoreCtx) error {
+func (n *DropTableStmt) Restore(ctx *format.RestoreCtx) error {
 	if n.IsView {
 		ctx.WriteKeyWord("DROP VIEW ")
 	} else {
@@ -899,7 +899,7 @@ type RenameTableStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *RenameTableStmt) Restore(ctx *RestoreCtx) error {
+func (n *RenameTableStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("RENAME TABLE ")
 	for index, table2table := range n.TableToTables {
 		if index != 0 {
@@ -949,7 +949,7 @@ type TableToTable struct {
 }
 
 // Restore implements Node interface.
-func (n *TableToTable) Restore(ctx *RestoreCtx) error {
+func (n *TableToTable) Restore(ctx *format.RestoreCtx) error {
 	if err := n.OldTable.Restore(ctx); err != nil {
 		return errors.Annotate(err, "An error occurred while restore TableToTable.OldTable")
 	}
@@ -996,7 +996,7 @@ type CreateViewStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *CreateViewStmt) Restore(ctx *RestoreCtx) error {
+func (n *CreateViewStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("CREATE ")
 	if n.OrReplace {
 		ctx.WriteKeyWord("OR REPLACE ")
@@ -1085,7 +1085,7 @@ type CreateIndexStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *CreateIndexStmt) Restore(ctx *RestoreCtx) error {
+func (n *CreateIndexStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("CREATE ")
 	if n.Unique {
 		ctx.WriteKeyWord("UNIQUE ")
@@ -1158,7 +1158,7 @@ type DropIndexStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *DropIndexStmt) Restore(ctx *RestoreCtx) error {
+func (n *DropIndexStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("DROP INDEX ")
 	if n.IfExists {
 		ctx.WriteKeyWord("IF EXISTS ")
@@ -1242,7 +1242,7 @@ type TableOption struct {
 	UintValue uint64
 }
 
-func (n *TableOption) Restore(ctx *RestoreCtx) error {
+func (n *TableOption) Restore(ctx *format.RestoreCtx) error {
 	switch n.Tp {
 	case TableOptionEngine:
 		ctx.WriteKeyWord("ENGINE ")
@@ -1365,7 +1365,7 @@ type ColumnPosition struct {
 }
 
 // Restore implements Node interface.
-func (n *ColumnPosition) Restore(ctx *RestoreCtx) error {
+func (n *ColumnPosition) Restore(ctx *format.RestoreCtx) error {
 	switch n.Tp {
 	case ColumnPositionNone:
 		// do nothing
@@ -1504,7 +1504,7 @@ type AlterTableSpec struct {
 }
 
 // Restore implements Node interface.
-func (n *AlterTableSpec) Restore(ctx *RestoreCtx) error {
+func (n *AlterTableSpec) Restore(ctx *format.RestoreCtx) error {
 	switch n.Tp {
 	case AlterTableOption:
 		switch {
@@ -1717,7 +1717,7 @@ type AlterTableStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *AlterTableStmt) Restore(ctx *RestoreCtx) error {
+func (n *AlterTableStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("ALTER TABLE ")
 	if err := n.Table.Restore(ctx); err != nil {
 		return errors.Annotate(err, "An error occurred while restore AlterTableStmt.Table")
@@ -1766,7 +1766,7 @@ type TruncateTableStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *TruncateTableStmt) Restore(ctx *RestoreCtx) error {
+func (n *TruncateTableStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("TRUNCATE TABLE ")
 	if err := n.Table.Restore(ctx); err != nil {
 		return errors.Annotate(err, "An error occurred while restore TruncateTableStmt.Table")
@@ -1798,7 +1798,7 @@ type PartitionDefinition struct {
 }
 
 // Restore implements Node interface.
-func (n *PartitionDefinition) Restore(ctx *RestoreCtx) error {
+func (n *PartitionDefinition) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("PARTITION ")
 	ctx.WriteName(n.Name.O)
 	if n.LessThan != nil {
@@ -1828,7 +1828,7 @@ type PartitionOptions struct {
 	Num         uint64
 }
 
-func (n *PartitionOptions) Restore(ctx *RestoreCtx) error {
+func (n *PartitionOptions) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("PARTITION BY ")
 	switch n.Tp {
 	case model.PartitionTypeRange:

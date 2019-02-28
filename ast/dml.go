@@ -18,7 +18,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/parser/auth"
-	. "github.com/pingcap/parser/format"
+	"github.com/pingcap/parser/format"
 	"github.com/pingcap/parser/model"
 	"github.com/pingcap/parser/mysql"
 )
@@ -87,7 +87,7 @@ type Join struct {
 }
 
 // Restore implements Node interface.
-func (n *Join) Restore(ctx *RestoreCtx) error {
+func (n *Join) Restore(ctx *format.RestoreCtx) error {
 	if ctx.JoinLevel != 0 {
 		ctx.WritePlain("(")
 		defer ctx.WritePlain(")")
@@ -188,7 +188,7 @@ type TableName struct {
 }
 
 // Restore implements Node interface.
-func (n *TableName) Restore(ctx *RestoreCtx) error {
+func (n *TableName) Restore(ctx *format.RestoreCtx) error {
 	if n.Schema.String() != "" {
 		ctx.WriteName(n.Schema.String())
 		ctx.WritePlain(".")
@@ -244,7 +244,7 @@ type IndexHint struct {
 }
 
 // IndexHint Restore (The const field uses switch to facilitate understanding)
-func (n *IndexHint) Restore(ctx *RestoreCtx) error {
+func (n *IndexHint) Restore(ctx *format.RestoreCtx) error {
 	indexHintType := ""
 	switch n.HintType {
 	case 1:
@@ -301,7 +301,7 @@ type DeleteTableList struct {
 }
 
 // Restore implements Node interface.
-func (n *DeleteTableList) Restore(ctx *RestoreCtx) error {
+func (n *DeleteTableList) Restore(ctx *format.RestoreCtx) error {
 	for i, t := range n.Tables {
 		if i != 0 {
 			ctx.WritePlain(",")
@@ -340,7 +340,7 @@ type OnCondition struct {
 }
 
 // Restore implements Node interface.
-func (n *OnCondition) Restore(ctx *RestoreCtx) error {
+func (n *OnCondition) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("ON ")
 	if err := n.Expr.Restore(ctx); err != nil {
 		return errors.Annotate(err, "An error occurred while restore OnCondition.Expr")
@@ -376,7 +376,7 @@ type TableSource struct {
 }
 
 // Restore implements Node interface.
-func (n *TableSource) Restore(ctx *RestoreCtx) error {
+func (n *TableSource) Restore(ctx *format.RestoreCtx) error {
 	needParen := false
 	switch n.Source.(type) {
 	case *SelectStmt, *UnionStmt:
@@ -446,7 +446,7 @@ type WildCardField struct {
 }
 
 // Restore implements Node interface.
-func (n *WildCardField) Restore(ctx *RestoreCtx) error {
+func (n *WildCardField) Restore(ctx *format.RestoreCtx) error {
 	if schema := n.Schema.String(); schema != "" {
 		ctx.WriteName(schema)
 		ctx.WritePlain(".")
@@ -490,7 +490,7 @@ type SelectField struct {
 }
 
 // Restore implements Node interface.
-func (n *SelectField) Restore(ctx *RestoreCtx) error {
+func (n *SelectField) Restore(ctx *format.RestoreCtx) error {
 	if n.WildCard != nil {
 		if err := n.WildCard.Restore(ctx); err != nil {
 			return errors.Annotate(err, "An error occurred while restore SelectField.WildCard")
@@ -533,7 +533,7 @@ type FieldList struct {
 }
 
 // Restore implements Node interface.
-func (n *FieldList) Restore(ctx *RestoreCtx) error {
+func (n *FieldList) Restore(ctx *format.RestoreCtx) error {
 	for i, v := range n.Fields {
 		if i != 0 {
 			ctx.WritePlain(", ")
@@ -570,7 +570,7 @@ type TableRefsClause struct {
 }
 
 // Restore implements Node interface.
-func (n *TableRefsClause) Restore(ctx *RestoreCtx) error {
+func (n *TableRefsClause) Restore(ctx *format.RestoreCtx) error {
 	if err := n.TableRefs.Restore(ctx); err != nil {
 		return errors.Annotate(err, "An error occurred while restore TableRefsClause.TableRefs")
 	}
@@ -601,7 +601,7 @@ type ByItem struct {
 }
 
 // Restore implements Node interface.
-func (n *ByItem) Restore(ctx *RestoreCtx) error {
+func (n *ByItem) Restore(ctx *format.RestoreCtx) error {
 	if err := n.Expr.Restore(ctx); err != nil {
 		return errors.Annotate(err, "An error occurred while restore ByItem.Expr")
 	}
@@ -633,7 +633,7 @@ type GroupByClause struct {
 }
 
 // Restore implements Node interface.
-func (n *GroupByClause) Restore(ctx *RestoreCtx) error {
+func (n *GroupByClause) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("GROUP BY ")
 	for i, v := range n.Items {
 		if i != 0 {
@@ -670,7 +670,7 @@ type HavingClause struct {
 }
 
 // Restore implements Node interface.
-func (n *HavingClause) Restore(ctx *RestoreCtx) error {
+func (n *HavingClause) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("HAVING ")
 	if err := n.Expr.Restore(ctx); err != nil {
 		return errors.Annotate(err, "An error occurred while restore HavingClause.Expr")
@@ -701,7 +701,7 @@ type OrderByClause struct {
 }
 
 // Restore implements Node interface.
-func (n *OrderByClause) Restore(ctx *RestoreCtx) error {
+func (n *OrderByClause) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("ORDER BY ")
 	for i, item := range n.Items {
 		if i != 0 {
@@ -768,7 +768,7 @@ type SelectStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *SelectStmt) Restore(ctx *RestoreCtx) error {
+func (n *SelectStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("SELECT ")
 
 	if n.SelectStmtOpts.Priority > 0 {
@@ -970,7 +970,7 @@ type UnionSelectList struct {
 }
 
 // Restore implements Node interface.
-func (n *UnionSelectList) Restore(ctx *RestoreCtx) error {
+func (n *UnionSelectList) Restore(ctx *format.RestoreCtx) error {
 	for i, selectStmt := range n.Selects {
 		if i != 0 {
 			ctx.WriteKeyWord(" UNION ")
@@ -1020,7 +1020,7 @@ type UnionStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *UnionStmt) Restore(ctx *RestoreCtx) error {
+func (n *UnionStmt) Restore(ctx *format.RestoreCtx) error {
 	if err := n.SelectList.Restore(ctx); err != nil {
 		errors.Annotate(err, "An error occurred while restore UnionStmt.SelectList")
 	}
@@ -1082,7 +1082,7 @@ type Assignment struct {
 }
 
 // Restore implements Node interface.
-func (n *Assignment) Restore(ctx *RestoreCtx) error {
+func (n *Assignment) Restore(ctx *format.RestoreCtx) error {
 	if err := n.Column.Restore(ctx); err != nil {
 		return errors.Annotate(err, "An error occurred while restore Assignment.Column")
 	}
@@ -1128,7 +1128,7 @@ type LoadDataStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *LoadDataStmt) Restore(ctx *RestoreCtx) error {
+func (n *LoadDataStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("LOAD DATA ")
 	if n.IsLocal {
 		ctx.WriteKeyWord("LOCAL ")
@@ -1193,7 +1193,7 @@ type FieldsClause struct {
 }
 
 // Restore for FieldsClause
-func (n *FieldsClause) Restore(ctx *RestoreCtx) error {
+func (n *FieldsClause) Restore(ctx *format.RestoreCtx) error {
 	if n.Terminated != "\t" || n.Escaped != '\\' {
 		ctx.WriteKeyWord(" FIELDS")
 		if n.Terminated != "\t" {
@@ -1223,7 +1223,7 @@ type LinesClause struct {
 }
 
 // Restore for LinesClause
-func (n *LinesClause) Restore(ctx *RestoreCtx) error {
+func (n *LinesClause) Restore(ctx *format.RestoreCtx) error {
 	if n.Starting != "" || n.Terminated != "\n" {
 		ctx.WriteKeyWord(" LINES")
 		if n.Starting != "" {
@@ -1255,7 +1255,7 @@ type InsertStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *InsertStmt) Restore(ctx *RestoreCtx) error {
+func (n *InsertStmt) Restore(ctx *format.RestoreCtx) error {
 	if n.IsReplace {
 		ctx.WriteKeyWord("REPLACE ")
 	} else {
@@ -1418,7 +1418,7 @@ type DeleteStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *DeleteStmt) Restore(ctx *RestoreCtx) error {
+func (n *DeleteStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("DELETE ")
 
 	if n.TableHints != nil && len(n.TableHints) != 0 {
@@ -1560,7 +1560,7 @@ type UpdateStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *UpdateStmt) Restore(ctx *RestoreCtx) error {
+func (n *UpdateStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("UPDATE ")
 
 	if n.TableHints != nil && len(n.TableHints) != 0 {
@@ -1680,7 +1680,7 @@ type Limit struct {
 }
 
 // Restore implements Node interface.
-func (n *Limit) Restore(ctx *RestoreCtx) error {
+func (n *Limit) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("LIMIT ")
 	if n.Offset != nil {
 		if err := n.Offset.Restore(ctx); err != nil {
@@ -1779,7 +1779,7 @@ type ShowStmt struct {
 }
 
 // Restore implements Node interface.
-func (n *ShowStmt) Restore(ctx *RestoreCtx) error {
+func (n *ShowStmt) Restore(ctx *format.RestoreCtx) error {
 	restoreOptFull := func() {
 		if n.Full {
 			ctx.WriteKeyWord("FULL ")
@@ -1999,7 +1999,7 @@ type WindowSpec struct {
 }
 
 // Restore implements Node interface.
-func (n *WindowSpec) Restore(ctx *RestoreCtx) error {
+func (n *WindowSpec) Restore(ctx *format.RestoreCtx) error {
 	if name := n.Name.String(); name != "" {
 		ctx.WriteName(name)
 		ctx.WriteKeyWord(" AS ")
@@ -2074,7 +2074,7 @@ type PartitionByClause struct {
 }
 
 // Restore implements Node interface.
-func (n *PartitionByClause) Restore(ctx *RestoreCtx) error {
+func (n *PartitionByClause) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("PARTITION BY ")
 	for i, v := range n.Items {
 		if i != 0 {
@@ -2124,7 +2124,7 @@ type FrameClause struct {
 }
 
 // Restore implements Node interface.
-func (n *FrameClause) Restore(ctx *RestoreCtx) error {
+func (n *FrameClause) Restore(ctx *format.RestoreCtx) error {
 	switch n.Type {
 	case Rows:
 		ctx.WriteKeyWord("ROWS")
@@ -2194,7 +2194,7 @@ type FrameBound struct {
 }
 
 // Restore implements Node interface.
-func (n *FrameBound) Restore(ctx *RestoreCtx) error {
+func (n *FrameBound) Restore(ctx *format.RestoreCtx) error {
 	if n.UnBounded {
 		ctx.WriteKeyWord("UNBOUNDED")
 	}
