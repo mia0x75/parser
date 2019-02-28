@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strconv"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/parser/mysql"
 )
