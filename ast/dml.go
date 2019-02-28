@@ -2215,7 +2215,7 @@ func (n *FrameBound) Restore(ctx *format.RestoreCtx) error {
 			// Here the Unit string should not be quoted.
 			// TODO: This is a temporary workaround that should be changed once something like "Keyword Expression" is implemented.
 			var sb strings.Builder
-			n.Unit.Restore(NewRestoreCtx(0, &sb))
+			n.Unit.Restore(format.NewRestoreCtx(0, &sb))
 			ctx.WritePlain(" ")
 			ctx.WriteKeyWord(sb.String())
 		}
