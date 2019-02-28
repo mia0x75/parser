@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/mia0x75/errors"
+	"github.com/pingcap/errors"
 )
 
 func formatENUS(number string, precision string) (string, error) {

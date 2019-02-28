@@ -14,7 +14,7 @@
 package mysql
 
 import (
-	. "github.com/mia0x75/check"
+	. "github.com/pingcap/check"
 )
 
 var _ = Suite(&testSQLErrorSuite{})

@@ -20,7 +20,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mia0x75/errors"
+	"github.com/pingcap/errors"
+
 	"github.com/mia0x75/parser/terror"
 )
 

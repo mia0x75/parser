@@ -18,11 +18,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mia0x75/errors"
+	"github.com/pingcap/errors"
+	"github.com/pingcap/tipb/go-tipb"
+
 	"github.com/mia0x75/parser/auth"
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/types"
-	"github.com/mia0x75/tipb/go-tipb"
 )
 
 // SchemaState is the state for schema elements.

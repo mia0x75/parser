@@ -18,7 +18,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/mia0x75/errors"
+	"github.com/pingcap/errors"
+
 	"github.com/mia0x75/parser/format"
 	"github.com/mia0x75/parser/model"
 	"github.com/mia0x75/parser/types"

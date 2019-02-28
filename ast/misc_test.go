@@ -14,7 +14,8 @@
 package ast_test
 
 import (
-	. "github.com/mia0x75/check"
+	. "github.com/pingcap/check"
+
 	"github.com/mia0x75/parser"
 	. "github.com/mia0x75/parser/ast"
 	"github.com/mia0x75/parser/auth"

@@ -20,7 +20,8 @@ import (
 	"strconv"
 	"unicode"
 
-	"github.com/mia0x75/errors"
+	"github.com/pingcap/errors"
+
 	"github.com/mia0x75/parser/ast"
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/terror"

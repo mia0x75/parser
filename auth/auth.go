@@ -19,8 +19,9 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/mia0x75/errors"
-	. "github.com/mia0x75/parser/format"
+	"github.com/pingcap/errors"
+
+	"github.com/mia0x75/parser/format"
 	"github.com/mia0x75/parser/terror"
 )
 
@@ -39,7 +40,7 @@ type RoleIdentity struct {
 }
 
 // Restore implements Node interface.
-func (user *UserIdentity) Restore(ctx *RestoreCtx) error {
+func (user *UserIdentity) Restore(ctx *format.RestoreCtx) error {
 	if user.CurrentUser {
 		ctx.WriteKeyWord("CURRENT_USER")
 	} else {

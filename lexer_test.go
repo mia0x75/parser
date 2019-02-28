@@ -17,7 +17,8 @@ import (
 	"fmt"
 	"unicode"
 
-	. "github.com/mia0x75/check"
+	. "github.com/pingcap/check"
+
 	"github.com/mia0x75/parser/mysql"
 )
 

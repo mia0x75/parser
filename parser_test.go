@@ -19,16 +19,17 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/mia0x75/check"
-	"github.com/mia0x75/errors"
+	. "github.com/pingcap/check"
+	"github.com/pingcap/errors"
+	"github.com/pingcap/tidb/types"
+	driver "github.com/pingcap/tidb/types/parser_driver"
+
 	"github.com/mia0x75/parser/ast"
 	"github.com/mia0x75/parser/charset"
 	. "github.com/mia0x75/parser/format"
 	"github.com/mia0x75/parser/model"
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/terror"
-	"github.com/mia0x75/tidb/types"
-	"github.com/mia0x75/tidb/types/parser_driver"
 )
 
 func TestT(t *testing.T) {
