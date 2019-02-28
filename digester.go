@@ -30,7 +30,15 @@ import (
 // for example: both DigestHash('select 1') and DigestHash('select 2') => e1c71d1661ae46e09b7aaec1c390957f0d6260410df4e4bc71b9c8d681021471
 func DigestHash(sql string) (result string) {
 	d := digesterPool.Get().(*sqlDigester)
-	result = d.doDigest(sql)
+	result = d.doNormalize(sql)
+	digesterPool.Put(d)
+	return
+}
+
+// NormalizeDigest combines Normalize and DigestHash into one method.
+func NormalizeDigest(sql string) (normalized, digest string) {
+	d := digesterPool.Get().(*sqlDigester)
+	normalized, digest = d.doNormalizeDigest(sql)
 	digesterPool.Put(d)
 	return
 }
@@ -42,7 +50,7 @@ func DigestHash(sql string) (result string) {
 // for example: Normalize('select 1 from b where a = 1') => 'select ? from b where a = ?'
 func Normalize(sql string) (result string) {
 	d := digesterPool.Get().(*sqlDigester)
-	result = d.doDigestText(sql)
+	result = d.doNormalize(sql)
 	digesterPool.Put(d)
 	return
 }
@@ -73,11 +81,20 @@ func (d *sqlDigester) doDigest(sql string) (result string) {
 	return
 }
 
-func (d *sqlDigester) doDigestText(sql string) (result string) {
+func (d *sqlDigester) doNormalize(sql string) (result string) {
 	d.normalize(sql)
 	result = string(d.buffer.Bytes())
-	d.lexer.reset("")
 	d.buffer.Reset()
+	return
+}
+
+func (d *sqlDigester) doNormalizeDigest(sql string) (normalized, digest string) {
+	d.normalize(sql)
+	normalized = string(d.buffer.Bytes())
+	d.hasher.Write(d.buffer.Bytes())
+	d.buffer.Reset()
+	digest = fmt.Sprintf("%x", d.hasher.Sum(nil))
+	d.hasher.Reset()
 	return
 }
 
