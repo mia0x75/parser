@@ -6300,6 +6300,7 @@ CreateUserStmt:
 	{
  		// See https://dev.mysql.com/doc/refman/5.7/en/create-user.html
 		$$ = &ast.CreateUserStmt{
+			IsCreateRole: false,
 			IfNotExists: $3.(bool),
 			Specs: $4.([]*ast.UserSpec),
 		}
@@ -6307,7 +6308,14 @@ CreateUserStmt:
 
 
 CreateRoleStmt:
-	"CREATE" "ROLE" IfNotExists RoleSpecList {}
+	"CREATE" "ROLE" IfNotExists RoleSpecList {
+		// See https://dev.mysql.com/doc/refman/8.0/en/create-role.html
+		$$ = &ast.CreateUserStmt{
+			IsCreateRole: true,
+			IfNotExists: $3.(bool),
+			Specs: $4.([]*ast.UserSpec),
+		}
+	}
 
 
 /* See http://dev.mysql.com/doc/refman/5.7/en/alter-user.html */
@@ -6461,6 +6469,8 @@ PrivType:
 |	"LOCK" "TABLES"               { $$ = mysql.PrivilegeType(0) }
 |	"CREATE" "VIEW"               { $$ = mysql.CreateViewPriv }
 |	"SHOW" "VIEW"                 { $$ = mysql.ShowViewPriv }
+|	"CREATE" "ROLE"               { $$ = mysql.CreateRolePriv }
+|	"DROP" "ROLE"                 { $$ = mysql.DropRolePriv }
 |	"CREATE" "ROUTINE"            { $$ = mysql.PrivilegeType(0) }
 |	"ALTER" "ROUTINE"             { $$ = mysql.PrivilegeType(0) }
 |	"EVENT"                       { $$ = mysql.PrivilegeType(0) }
