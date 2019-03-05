@@ -435,43 +435,51 @@ import (
 	yearType              "YEAR"
 
 	/* The following tokens belong to NotKeywordToken. */
-	addDate          "ADDDATE"
-	bitAnd           "BIT_AND"
-	bitOr            "BIT_OR"
-	bitXor           "BIT_XOR"
-	cast             "CAST"
-	copyKwd          "COPY"
-	count            "COUNT"
-	curTime          "CURTIME"
-	dateAdd          "DATE_ADD"
-	dateSub          "DATE_SUB"
-	extract          "EXTRACT"
-	getFormat        "GET_FORMAT"
-	groupConcat      "GROUP_CONCAT"
-	next_row_id      "NEXT_ROW_ID"
-	inplace          "INPLACE"
-	instant          "INSTANT"
-	internal         "INTERNAL"
-	min              "MIN"
-	max              "MAX"
-	maxExecutionTime "MAX_EXECUTION_TIME"
-	now              "NOW"
-	position         "POSITION"
-	recent           "RECENT"
-	std              "STD"
-	stddev           "STDDEV"
-	stddevPop        "STDDEV_POP"
-	stddevSamp       "STDDEV_SAMP"
-	subDate          "SUBDATE"
-	sum              "SUM"
-	substring        "SUBSTRING"
-	timestampAdd     "TIMESTAMPADD"
-	timestampDiff    "TIMESTAMPDIFF"
-	top              "TOP"
-	trim             "TRIM"
-	variance         "VARIANCE"
-	varPop           "VAR_POP"
-	varSamp          "VAR_SAMP"
+	addDate            "ADDDATE"
+	bitAnd             "BIT_AND"
+	bitOr              "BIT_OR"
+	bitXor             "BIT_XOR"
+	cast               "CAST"
+	copyKwd            "COPY"
+	count              "COUNT"
+	curTime            "CURTIME"
+	dateAdd            "DATE_ADD"
+	dateSub            "DATE_SUB"
+	extract            "EXTRACT"
+	getFormat          "GET_FORMAT"
+	groupConcat        "GROUP_CONCAT"
+	next_row_id        "NEXT_ROW_ID"
+	inplace            "INPLACE"
+	instant            "INSTANT"
+	internal           "INTERNAL"
+	min                "MIN"
+	max                "MAX"
+	maxExecutionTime   "MAX_EXECUTION_TIME"
+	now                "NOW"
+	position           "POSITION"
+	recent             "RECENT"
+	std                "STD"
+	stddev             "STDDEV"
+	stddevPop          "STDDEV_POP"
+	stddevSamp         "STDDEV_SAMP"
+	subDate            "SUBDATE"
+	sum                "SUM"
+	substring          "SUBSTRING"
+	timestampAdd       "TIMESTAMPADD"
+	timestampDiff      "TIMESTAMPDIFF"
+	tokudbDefault      "TOKUDB_DEFAULT"
+	tokudbFast         "TOKUDB_FAST"
+	tokudbLzma         "TOKUDB_LZMA"
+	tokudbQuickLZ      "TOKUDB_QUICKLZ"
+	tokudbSnappy       "TOKUDB_SNAPPY"
+	tokudbSmall        "TOKUDB_SMALL"
+	tokudbUncompressed "TOKUDB_UNCOMPRESSED"
+	tokudbZlib         "TOKUDB_ZLIB"
+	top                "TOP"
+	trim               "TRIM"
+	variance           "VARIANCE"
+	varPop             "VAR_POP"
+	varSamp            "VAR_SAMP"
 
 
 	builtinAddDate
@@ -2716,7 +2724,7 @@ NotKeywordToken:
  "ADDDATE" | "BIT_AND" | "BIT_OR" | "BIT_XOR" | "CAST" | "COPY" | "COUNT" | "CURTIME" | "DATE_ADD" | "DATE_SUB" | "EXTRACT" | "GET_FORMAT" | "GROUP_CONCAT"
 | "INPLACE" | "INSTANT" | "INTERNAL" |"MIN" | "MAX" | "MAX_EXECUTION_TIME" | "NOW" | "RECENT" | "POSITION" | "SUBDATE" | "SUBSTRING" | "SUM"
 | "STD" | "STDDEV" | "STDDEV_POP" | "STDDEV_SAMP" | "VARIANCE" | "VAR_POP" | "VAR_SAMP"
-| "TIMESTAMPADD" | "TIMESTAMPDIFF" | "TOP" | "TRIM" | "NEXT_ROW_ID"
+| "TIMESTAMPADD" | "TIMESTAMPDIFF" | "TOKUDB_DEFAULT" | "TOKUDB_FAST" | "TOKUDB_LZMA" | "TOKUDB_QUICKLZ" | "TOKUDB_SNAPPY" | "TOKUDB_SMALL" | "TOKUDB_UNCOMPRESSED" | "TOKUDB_ZLIB"  | "TOP" | "TRIM" | "NEXT_ROW_ID"
 
 /************************************************************************************
  *
@@ -5714,12 +5722,20 @@ TruncateTableStmt:
 
 
 RowFormat:
-	"ROW_FORMAT" EqOpt "DEFAULT"    { $$ = ast.RowFormatDefault }
-|	"ROW_FORMAT" EqOpt "DYNAMIC"    { $$ = ast.RowFormatDynamic }
-|	"ROW_FORMAT" EqOpt "FIXED"      { $$ = ast.RowFormatFixed }
-|	"ROW_FORMAT" EqOpt "COMPRESSED" { $$ = ast.RowFormatCompressed }
-|	"ROW_FORMAT" EqOpt "REDUNDANT"  { $$ = ast.RowFormatRedundant }
-|	"ROW_FORMAT" EqOpt "COMPACT"    { $$ = ast.RowFormatCompact }
+	"ROW_FORMAT" EqOpt "DEFAULT"             { $$ = ast.RowFormatDefault }
+|	"ROW_FORMAT" EqOpt "DYNAMIC"             { $$ = ast.RowFormatDynamic }
+|	"ROW_FORMAT" EqOpt "FIXED"               { $$ = ast.RowFormatFixed }
+|	"ROW_FORMAT" EqOpt "COMPRESSED"          { $$ = ast.RowFormatCompressed }
+|	"ROW_FORMAT" EqOpt "REDUNDANT"           { $$ = ast.RowFormatRedundant }
+|	"ROW_FORMAT" EqOpt "COMPACT"             { $$ = ast.RowFormatCompact }
+|	"ROW_FORMAT" EqOpt "TOKUDB_DEFAULT"      { $$ = ast.TokuDBRowFormatDefault }
+|	"ROW_FORMAT" EqOpt "TOKUDB_FAST"         { $$ = ast.TokuDBRowFormatFast }
+|	"ROW_FORMAT" EqOpt "TOKUDB_SMALL"        { $$ = ast.TokuDBRowFormatSmall }
+|	"ROW_FORMAT" EqOpt "TOKUDB_ZLIB"         { $$ = ast.TokuDBRowFormatZlib }
+|	"ROW_FORMAT" EqOpt "TOKUDB_QUICKLZ"      { $$ = ast.TokuDBRowFormatQuickLZ }
+|	"ROW_FORMAT" EqOpt "TOKUDB_LZMA"         { $$ = ast.TokuDBRowFormatLzma }
+|	"ROW_FORMAT" EqOpt "TOKUDB_SNAPPY"       { $$ = ast.TokuDBRowFormatSnappy }
+|	"ROW_FORMAT" EqOpt "TOKUDB_UNCOMPRESSED" { $$ = ast.TokuDBRowFormatUncompressed }
 
 
 /*************************************Type Begin***************************************/
