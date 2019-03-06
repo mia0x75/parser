@@ -46,7 +46,7 @@ var (
 	// ErrBadNumber is return when parsing an invalid binary decimal number.
 	ErrBadNumber = terror.ClassTypes.New(codeBadNumber, "Bad Number")
 	// ErrInvalidDefault is returned when meet a invalid default value.
-	ErrInvalidDefault = parser_types.ErrInvalidDefault
+	// ErrInvalidDefault = ErrInvalidDefault
 	// ErrCastAsSignedOverflow is returned when positive out-of-range integer, and convert to it's negative complement.
 	ErrCastAsSignedOverflow = terror.ClassTypes.New(codeUnknown, msgCastAsSignedOverflow)
 	// ErrCastNegIntAsUnsigned is returned when a negative integer be casted to an unsigned int.
