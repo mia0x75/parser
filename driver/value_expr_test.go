@@ -17,9 +17,9 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/pingcap/check"
 	"github.com/mia0x75/parser/format"
-	"github.com/pingcap/tidb/types"
+	"github.com/mia0x75/parser/types"
+	. "github.com/pingcap/check"
 )
 
 var _ = Suite(&testValueExprRestoreSuite{})

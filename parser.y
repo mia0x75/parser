@@ -4322,7 +4322,7 @@ WindowingClause:
 
 
 WindowNameOrSpec:
-	WindowName { $$ = ast.WindowSpec{Ref: $1.(model.CIStr)} }
+	WindowName { $$ = ast.WindowSpec{Name: $1.(model.CIStr), OnlyAlias: true, } }
 |	WindowSpec { $$ = $1.(ast.WindowSpec) }
 
 
