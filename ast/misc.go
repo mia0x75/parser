@@ -10,7 +10,6 @@
 // distributed under the License is distributed on an "AS IS" BASIS,
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 package ast
 
 import (
@@ -837,13 +836,18 @@ func (n *AlterUserStmt) Accept(v Visitor) (Node, bool) {
 type DropUserStmt struct {
 	stmtNode
 
-	IfExists bool
-	UserList []*auth.UserIdentity
+	IfExists   bool
+	IsDropRole bool
+	UserList   []*auth.UserIdentity
 }
 
 // Restore implements Node interface.
 func (n *DropUserStmt) Restore(ctx *format.RestoreCtx) error {
-	ctx.WriteKeyWord("DROP USER ")
+	if n.IsDropRole {
+		ctx.WriteKeyWord("DROP ROLE ")
+	} else {
+		ctx.WriteKeyWord("DROP USER ")
+	}
 	if n.IfExists {
 		ctx.WriteKeyWord("IF EXISTS ")
 	}

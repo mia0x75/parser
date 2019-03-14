@@ -14,7 +14,6 @@
 package mysql
 
 import (
-	"fmt"
 	"strings"
 
 	. "github.com/mia0x75/parser/format"
@@ -27,11 +26,8 @@ func newInvalidModeErr(s string) error {
 
 // Version information.
 var (
-	// TiDBReleaseVersion is initialized by (git describe --tags) in Makefile.
-	TiDBReleaseVersion = "None"
-
-	// ServerVersion is the version information of this tidb-server in MySQL's format.
-	ServerVersion = fmt.Sprintf("5.7.10-TiDB-%s", TiDBReleaseVersion)
+	// ServerVersion is the version information in MySQL's format.
+	ServerVersion = "5.7.25-log"
 )
 
 // Header information.
@@ -180,8 +176,10 @@ const (
 	GlobalVariablesTable = "GLOBAL_VARIABLES"
 	// GlobalStatusTable is the table contains global status variables.
 	GlobalStatusTable = "GLOBAL_STATUS"
-	// TiDBTable is the table contains tidb info.
-	TiDBTable = "tidb"
+	//  RoleEdgesTable is the table contains role relation info
+	RoleEdgeTable = "role_edges"
+	// DefaultRoleTable is the table contain default active role info
+	DefaultRoleTable = "default_roles"
 )
 
 // PrivilegeType  privilege

@@ -8091,11 +8091,29 @@ yynewstate:
 		}
 	case 232:
 		{
-			parser.yyVAL.statement = &ast.DropUserStmt{IfExists: false, UserList: yyS[yypt-0].item.([]*auth.UserIdentity)}
+			parser.yyVAL.statement = &ast.DropUserStmt{IsDropRole: false, IfExists: false, UserList: yyS[yypt-0].item.([]*auth.UserIdentity)}
 		}
 	case 233:
 		{
-			parser.yyVAL.statement = &ast.DropUserStmt{IfExists: true, UserList: yyS[yypt-0].item.([]*auth.UserIdentity)}
+			parser.yyVAL.statement = &ast.DropUserStmt{IsDropRole: false, IfExists: true, UserList: yyS[yypt-0].item.([]*auth.UserIdentity)}
+		}
+	case 234:
+		{
+			tmp := make([]*auth.UserIdentity, 0, 10)
+			roleList := yyS[yypt-0].item.([]*auth.RoleIdentity)
+			for _, r := range roleList {
+				tmp = append(tmp, &auth.UserIdentity{Username: r.Username, Hostname: r.Hostname})
+			}
+			parser.yyVAL.statement = &ast.DropUserStmt{IsDropRole: true, IfExists: false, UserList: tmp}
+		}
+	case 235:
+		{
+			tmp := make([]*auth.UserIdentity, 0, 10)
+			roleList := yyS[yypt-0].item.([]*auth.RoleIdentity)
+			for _, r := range roleList {
+				tmp = append(tmp, &auth.UserIdentity{Username: r.Username, Hostname: r.Hostname})
+			}
+			parser.yyVAL.statement = &ast.DropUserStmt{IsDropRole: true, IfExists: true, UserList: tmp}
 		}
 	case 243:
 		{
