@@ -99,6 +99,7 @@ import (
 	currentTime       "CURRENT_TIME"
 	currentTs         "CURRENT_TIMESTAMP"
 	currentUser       "CURRENT_USER"
+	currentRole       "CURRENT_ROLE"
 	database          "DATABASE"
 	databases         "DATABASES"
 	dayHour           "DAY_HOUR"
@@ -170,6 +171,7 @@ import (
 	like              "LIKE"
 	limit             "LIMIT"
 	lines             "LINES"
+	linear            "LINEAR"
 	load              "LOAD"
 	localTime         "LOCALTIME"
 	localTs           "LOCALTIMESTAMP"
@@ -916,6 +918,7 @@ import (
 	LockType                        /* Table locks type */
 	logAnd                          /* logical and operator */
 	logOr                           /* logical or operator */
+	LinearOpt                       /* linear or empty */
 	FieldsOrColumns                 /* Fields or columns */
 	GetFormatSelector               /* {DATE|DATETIME|TIME|TIMESTAMP} */
 
@@ -1877,16 +1880,20 @@ PartitionOpt:
 	{
 		$$ = nil
 	}
-|	"PARTITION" "BY" "HASH" '(' Expression ')' PartitionNumOpt
+|	"PARTITION" "BY" LinearOpt "HASH" '(' Expression ')' PartitionNumOpt
 	{
 		tmp := &ast.PartitionOptions{
-			Tp: model.PartitionTypeHash,
-			Expr: $5.(ast.ExprNode),
-			// If you do not include a PARTITIONS clause, the number of partitions defaults to 1
-			Num: 1,
+			Tp: model.PartitionTypeHash, //
+			Expr: $6.(ast.ExprNode),     //
+			Num: 1,                      // If you do not include a PARTITIONS clause, the number of partitions defaults to 1
 		}
-		if $7 != nil {
-			tmp.Num = getUint64FromNUM($7)
+		if $8 != nil {
+			tmp.Num = getUint64FromNUM($8)
+		}
+		if $3 != "" {
+			yylex.Errorf("linear is not supported, ignore partition")
+			parser.lastErrorAsWarn()
+			tmp = nil
 		}
 		$$ = tmp
 	}
@@ -1902,11 +1909,11 @@ PartitionOpt:
 			Definitions:	defs,
 		}
 	}
-|	"PARTITION" "BY" "RANGE" "COLUMNS" '(' ColumnNameList ')' PartitionNumOpt PartitionDefinitionListOpt
+|	"PARTITION" "BY" "RANGE" "COLUMNS" '(' ColumnNameList ')' PartitionNumOpt SubPartitionOpt PartitionDefinitionListOpt
 	{
 		var defs []*ast.PartitionDefinition
-		if $9 != nil {
-			defs = $9.([]*ast.PartitionDefinition)
+		if $10 != nil {
+			defs = $10.([]*ast.PartitionDefinition)
 		}
 		$$ = &ast.PartitionOptions{
 			Tp:		model.PartitionTypeRange,
@@ -1914,6 +1921,11 @@ PartitionOpt:
 			Definitions:	defs,
 		}
 	}
+
+
+LinearOpt: 
+	/* EMPTY */	{ $$ = "" }
+|	"LINEAR"	{ $$ = $1 }
 
 
 SubPartitionOpt:
@@ -3356,6 +3368,7 @@ OptionalBraces:
 FunctionNameOptionalBraces:
 	"CURRENT_USER"
 |	"CURRENT_DATE"
+|	"CURRENT_ROLE"
 |	"UTC_DATE"
 
 
@@ -4969,7 +4982,7 @@ SetStmt:
 
 
 SetRoleStmt:
-	"SET" "ROLE" SetRoleOpt {}
+	"SET" "ROLE" SetRoleOpt { $$ = $3.(*ast.SetRoleStmt) }
 
 
 SetDefaultRoleStmt:
@@ -4977,15 +4990,15 @@ SetDefaultRoleStmt:
 
 
 SetDefaultRoleOpt:
-	"NONE"       {}
-|	"ALL"        {}
-|	RolenameList {}
+	"NONE"       { $$ = &ast.SetRoleStmt{SetRoleOpt: ast.SetRoleNone, RoleList: nil} }
+|	"ALL"        { $$ = &ast.SetRoleStmt{SetRoleOpt: ast.SetRoleAll, RoleList: nil} }
+|	RolenameList { $$ = &ast.SetRoleStmt{SetRoleOpt: ast.SetRoleRegular, RoleList: $1.([]*auth.RoleIdentity)} }
 
 
 SetRoleOpt:
-	"ALL" "EXCEPT" RolenameList {}
-|	SetDefaultRoleOpt           {}
-|	"DEFAULT"                   {}
+	"ALL" "EXCEPT" RolenameList { $$ = &ast.SetRoleStmt{SetRoleOpt: ast.SetRoleAllExcept, RoleList: $3.([]*auth.RoleIdentity)} }
+|	SetDefaultRoleOpt           { $$ = $1 }
+|	"DEFAULT"                   { $$ = &ast.SetRoleStmt{SetRoleOpt: ast.SetRoleDefault, RoleList: nil} }
 
 
 TransactionChars:
@@ -6439,7 +6452,13 @@ GrantStmt:
 
 
 GrantRoleStmt:
-	 "GRANT" RolenameList "TO" UsernameList {}
+	 "GRANT" RolenameList "TO" UsernameList
+	 {
+		$$ = &ast.GrantRoleStmt {
+			Roles: $2.([]*auth.RoleIdentity),
+			Users: $4.([]*auth.UserIdentity),
+		}
+	}
 
 
 WithGrantOptionOpt:

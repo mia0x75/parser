@@ -34,11 +34,6 @@ type UserIdentity struct {
 	AuthHostname string // Match in privs system (i.e. could be a wildcard)
 }
 
-type RoleIdentity struct {
-	Username string
-	Hostname string
-}
-
 // Restore implements Node interface.
 func (user *UserIdentity) Restore(ctx *format.RestoreCtx) error {
 	if user.CurrentUser {
@@ -66,6 +61,26 @@ func (user *UserIdentity) String() string {
 func (user *UserIdentity) AuthIdentityString() string {
 	// TODO: Escape username and hostname.
 	return fmt.Sprintf("%s@%s", user.AuthUsername, user.AuthHostname)
+}
+
+type RoleIdentity struct {
+	Username string
+	Hostname string
+}
+
+func (role *RoleIdentity) Restore(ctx *format.RestoreCtx) error {
+	ctx.WriteName(role.Username)
+	if role.Hostname != "" {
+		ctx.WritePlain("@")
+		ctx.WriteName(role.Hostname)
+	}
+	return nil
+}
+
+// String converts UserIdentity to the format user@host.
+func (role *RoleIdentity) String() string {
+	// TODO: Escape username and hostname.
+	return fmt.Sprintf("`%s`@`%s`", role.Username, role.Hostname)
 }
 
 // CheckScrambledPassword check scrambled password received from client.
