@@ -19,11 +19,10 @@ import (
 	"strings"
 	"testing"
 
+	driver "github.com/mia0x75/parser/driver"
 	. "github.com/pingcap/check"
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/types"
-	driver "github.com/pingcap/tidb/types/parser_driver"
-
+	"github.com/mia0x75/parser/types"
 	"github.com/mia0x75/parser/ast"
 	"github.com/mia0x75/parser/charset"
 	. "github.com/mia0x75/parser/format"
@@ -241,6 +240,24 @@ func (s *testParserSuite) TestSimple(c *C) {
 	src = `insert into tb(v) (select v from tb);`
 	_, err = parser.ParseOneStmt(src, "", "")
 	c.Assert(err, IsNil)
+
+	// for issue #9823
+	src = "SELECT 9223372036854775807;"
+	st, err = parser.ParseOneStmt(src, "", "")
+	c.Assert(err, IsNil)
+	sel, ok := st.(*ast.SelectStmt)
+	c.Assert(ok, IsTrue)
+	expr := sel.Fields.Fields[0]
+	vExpr := expr.Expr.(*driver.ValueExpr)
+	c.Assert(vExpr.Kind(), Equals, types.KindInt64)
+	src = "SELECT 9223372036854775808;"
+	st, err = parser.ParseOneStmt(src, "", "")
+	c.Assert(err, IsNil)
+	sel, ok = st.(*ast.SelectStmt)
+	c.Assert(ok, IsTrue)
+	expr = sel.Fields.Fields[0]
+	vExpr = expr.Expr.(*driver.ValueExpr)
+	c.Assert(vExpr.Kind(), Equals, types.KindUint64)
 }
 
 type testCase struct {
@@ -1934,6 +1951,9 @@ func (s *testParserSuite) TestErrorMsg(c *C) {
 	c.Assert(err.Error(), Equals, "line 1 column 31 near \"t1.a = t2.a;\" ")
 	_, _, err = parser.Parse("select * from t1 join t2 on t1.a >>> t2.a;", "", "")
 	c.Assert(err.Error(), Equals, "line 1 column 36 near \"> t2.a;\" ")
+
+	_, _, err = parser.Parse("create table t(f_year year(5))ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;", "", "")
+	c.Assert(err.Error(), Equals, "[parser:1818]Supports only YEAR or YEAR(4) column")
 }
 
 func (s *testParserSuite) TestType(c *C) {

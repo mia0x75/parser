@@ -15,7 +15,6 @@ package types
 
 import (
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	"github.com/pingcap/tidb/util/testleak"
 )
 
@@ -181,36 +180,6 @@ func (s *testBinaryLiteralSuite) TestToBitLiteralString(c *C) {
 	for _, t := range tbl {
 		str := t.Input.ToBitLiteralString(t.TrimLeadingZero)
 		c.Assert(str, Equals, t.Expected)
-	}
-}
-
-func (s *testBinaryLiteralSuite) TestToInt(c *C) {
-	defer testleak.AfterTest(c)()
-	tbl := []struct {
-		Input    string
-		Expected uint64
-		HasError bool
-	}{
-		{"x''", 0, false},
-		{"0x00", 0x0, false},
-		{"0xff", 0xff, false},
-		{"0x10ff", 0x10ff, false},
-		{"0x1010ffff", 0x1010ffff, false},
-		{"0x1010ffff8080", 0x1010ffff8080, false},
-		{"0x1010ffff8080ff12", 0x1010ffff8080ff12, false},
-		{"0x1010ffff8080ff12ff", 0xffffffffffffffff, true},
-	}
-	sc := new(stmtctx.StatementContext)
-	for _, t := range tbl {
-		hex, err := ParseHexStr(t.Input)
-		c.Assert(err, IsNil)
-		intValue, err := hex.ToInt(sc)
-		if t.HasError {
-			c.Assert(err, NotNil)
-		} else {
-			c.Assert(err, IsNil)
-		}
-		c.Assert(intValue, Equals, t.Expected)
 	}
 }
 

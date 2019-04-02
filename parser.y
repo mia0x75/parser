@@ -435,6 +435,9 @@ import (
 	identSQLErrors        "ERRORS"
 	week                  "WEEK"
 	yearType              "YEAR"
+	purge                 "PURGE"
+	logs                  "LOGS"
+	before                "BEFORE"
 
 	/* The following tokens belong to NotKeywordToken. */
 	addDate            "ADDDATE"
@@ -614,6 +617,7 @@ import (
 	UpdateStmt                      /* UPDATE statement */
 	UnionStmt                       /* Union select state ment */
 	UseStmt                         /* USE statement */
+	PurgeStmt                       /* PURGE statement */
 
 
 %type	<item>
@@ -2542,7 +2546,7 @@ PredicateExpr:
 	{
 		escape := $4.(string)
 		if len(escape) > 1 {
-			yylex.Errorf("Incorrect arguments %s to ESCAPE", escape)
+			yylex.AppendError(yylex.Errorf("Incorrect arguments %s to ESCAPE", escape))
 			return 1
 		} else if len(escape) == 0 {
 			escape = "\\"
@@ -2956,7 +2960,7 @@ Literal:
 		// See https://dev.mysql.com/doc/refman/5.7/en/charset-literal.html
 		co, err := charset.GetDefaultCollation($1)
 		if err != nil {
-			yylex.Errorf("Get collation error for charset: %s", $1)
+			yylex.AppendError(yylex.Errorf("Get collation error for charset: %s", $1))
 			return 1
 		}
 		expr := ast.NewValueExpr($2)
@@ -3274,7 +3278,7 @@ SimpleExpr:
 			FunctionType: ast.CastConvertFunction,
 		}
 	}
-|	"CONVERT" '(' Expression "USING" StringName ')'
+|	"CONVERT" '(' Expression "USING" CharsetName ')'
 	{
 		// See https://dev.mysql.com/doc/refman/5.7/en/cast-functions.html#function_convert
 		charset1 := ast.NewValueExpr($5)
@@ -3415,7 +3419,7 @@ FunctionCallKeyword:
 			Args: append(args, nilVal),
 		}
 	}
-|	"CHAR" '(' ExpressionList "USING" StringName ')'
+|	"CHAR" '(' ExpressionList "USING" CharsetName ')'
 	{
 		charset1 := ast.NewValueExpr($5)
 		args := $3.([]ast.ExprNode)
@@ -5133,7 +5137,17 @@ VariableAssignment:
 
 
 CharsetName:
-	StringName { $$ = $1 }
+	StringName {
+		// Validate input charset name to keep the same behavior as parser of MySQL.
+		_, _, err := charset.GetCharsetInfo($1.(string))
+		if err != nil {
+			yylex.AppendError(ErrUnknownCharacterSet.GenWithStackByArgs($1))
+			return 1
+		}
+		// Use $1 instead of charset name returned from charset.GetCharsetInfo(),
+		// to keep upper-lower case of input for restore.
+		$$ = $1
+	}
 |	binaryType { $$ = charset.CharsetBin }
 
 
@@ -5405,6 +5419,7 @@ ShowTableAliasOpt:
 	FromOrIn TableName { $$ = $2.(*ast.TableName) }
 
 
+// https://dev.mysql.com/doc/refman/5.7/en/flush.html
 FlushStmt:
 	"FLUSH" NoWriteToBinLogAliasOpt FlushOption
 	{
@@ -5513,6 +5528,7 @@ Statement:
 |	UseStmt
 |	UnlockTablesStmt
 |	LockTablesStmt
+|	PurgeStmt
 
 
 ExplainableStmt:
@@ -5856,7 +5872,7 @@ NumericType:
 		if x.Flen == types.UnspecifiedLength || x.Flen == 0 {
 			x.Flen = 1
 		} else if x.Flen > 64 {
-			yylex.Errorf("invalid field length %d for bit type, must in [1, 64]", x.Flen)
+			yylex.AppendError(yylex.Errorf("invalid field length %d for bit type, must in [1, 64]", x.Flen))
 		}
 		$$ = x
 	}
@@ -6173,7 +6189,7 @@ DateAndTimeType:
 		x := types.NewFieldType(mysql.TypeYear)
 		x.Flen = $2.(int)
 		if x.Flen != types.UnspecifiedLength && x.Flen != 4 {
-			yylex.Errorf("Supports only YEAR or YEAR(4) column.")
+			yylex.AppendError(ErrInvalidYearColumnLength.GenWithStackByArgs())
 			return -1
 		}
 		$$ = x
@@ -6318,6 +6334,22 @@ UpdateStmt:
 
 UseStmt:
 	"USE" DBName { $$ = &ast.UseStmt{DBName: $2.(string)} }
+
+
+PurgeStmt:
+	"PURGE" BinaryOrMaster "LOGS" PurgeOption { $$ = &ast.PurgeStmt{} }
+;
+
+BinaryOrMaster:
+	"BINARY"
+|	"MASTER"
+;
+
+PurgeOption:
+	"TO" stringLit
+|	"BEFORE" stringLit
+;
+
 
 
 WhereClause:
@@ -6638,13 +6670,13 @@ Fields:
 	{
 		escape := $4.(string)
 		if escape != "\\" && len(escape) > 1 {
-			yylex.Errorf("Incorrect arguments %s to ESCAPE", escape)
+			yylex.AppendError(yylex.Errorf("Incorrect arguments %s to ESCAPE", escape))
 			return 1
 		}
 		var enclosed byte
 		str := $3.(string)
 		if len(str) > 1 {
-			yylex.Errorf("Incorrect arguments %s to ENCLOSED", escape)
+			yylex.AppendError(yylex.Errorf("Incorrect arguments %s to ENCLOSED", escape))
 			return 1
 		}else if len(str) != 0 {
 			enclosed = str[0]

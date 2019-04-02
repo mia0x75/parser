@@ -322,6 +322,19 @@ func (ft *FieldType) StorageLength() int {
 	}
 }
 
+// HasCharset indicates if a COLUMN has an associated charset. Returning false here prevents some information
+// statements(like `SHOW CREATE TABLE`) from attaching a CHARACTER SET clause to the column.
+func HasCharset(ft *FieldType) bool {
+	switch ft.Tp {
+	case mysql.TypeVarchar, mysql.TypeString, mysql.TypeVarString, mysql.TypeBlob,
+		mysql.TypeTinyBlob, mysql.TypeMediumBlob, mysql.TypeLongBlob:
+		return !mysql.HasBinaryFlag(ft.Flag)
+	case mysql.TypeEnum, mysql.TypeSet:
+		return true
+	}
+	return false
+}
+
 // AggFieldType aggregates field types for a multi-argument function like `IF`, `IFNULL`, `COALESCE`
 // whose return type is determined by the arguments' FieldTypes.
 // Aggregation is performed by MergeFieldType function.

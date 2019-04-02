@@ -18,7 +18,6 @@ import (
 
 	"github.com/mia0x75/parser/mysql"
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	"github.com/pingcap/tidb/util/testleak"
 )
 
@@ -144,44 +143,6 @@ func (s *testCompareSuite) TestCompare(c *C) {
 		c.Assert(ret, Equals, t.ret, comment)
 
 		ret, err = compareForTest(t.rhs, t.lhs)
-		c.Assert(err, IsNil)
-		c.Assert(ret, Equals, -t.ret, comment)
-	}
-}
-
-func compareForTest(a, b interface{}) (int, error) {
-	sc := new(stmtctx.StatementContext)
-	sc.IgnoreTruncate = true
-	aDatum := NewDatum(a)
-	bDatum := NewDatum(b)
-	return aDatum.CompareDatum(sc, &bDatum)
-}
-
-func (s *testCompareSuite) TestCompareDatum(c *C) {
-	defer testleak.AfterTest(c)()
-	cmpTbl := []struct {
-		lhs Datum
-		rhs Datum
-		ret int // 0, 1, -1
-	}{
-		{MaxValueDatum(), NewDatum("00:00:00"), 1},
-		{MinNotNullDatum(), NewDatum("00:00:00"), -1},
-		{Datum{}, NewDatum("00:00:00"), -1},
-		{Datum{}, Datum{}, 0},
-		{MinNotNullDatum(), MinNotNullDatum(), 0},
-		{MaxValueDatum(), MaxValueDatum(), 0},
-		{Datum{}, MinNotNullDatum(), -1},
-		{MinNotNullDatum(), MaxValueDatum(), -1},
-	}
-	sc := new(stmtctx.StatementContext)
-	sc.IgnoreTruncate = true
-	for i, t := range cmpTbl {
-		comment := Commentf("%d %v %v", i, t.lhs, t.rhs)
-		ret, err := t.lhs.CompareDatum(sc, &t.rhs)
-		c.Assert(err, IsNil)
-		c.Assert(ret, Equals, t.ret, comment)
-
-		ret, err = t.rhs.CompareDatum(sc, &t.lhs)
 		c.Assert(err, IsNil)
 		c.Assert(ret, Equals, -t.ret, comment)
 	}

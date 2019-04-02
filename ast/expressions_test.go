@@ -14,8 +14,8 @@
 package ast_test
 
 import (
+	_ "github.com/mia0x75/parser/driver"
 	. "github.com/pingcap/check"
-	_ "github.com/pingcap/tidb/types/parser_driver"
 
 	. "github.com/mia0x75/parser/ast"
 )

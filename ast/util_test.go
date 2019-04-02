@@ -17,8 +17,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mia0x75/parser/driver"
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/types/parser_driver"
 
 	"github.com/mia0x75/parser"
 	. "github.com/mia0x75/parser/ast"

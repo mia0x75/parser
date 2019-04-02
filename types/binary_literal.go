@@ -18,12 +18,10 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/sessionctx/stmtctx"
 )
 
 // BinaryLiteral is the internal type for storing bit / hex literal type.
@@ -98,28 +96,6 @@ func (b BinaryLiteral) ToBitLiteralString(trimLeadingZero bool) string {
 		}
 	}
 	return fmt.Sprintf("b'%s'", string(ret))
-}
-
-// ToInt returns the int value for the literal.
-func (b BinaryLiteral) ToInt(sc *stmtctx.StatementContext) (uint64, error) {
-	buf := trimLeadingZeroBytes(b)
-	length := len(buf)
-	if length == 0 {
-		return 0, nil
-	}
-	if length > 8 {
-		var err error = ErrTruncatedWrongVal.GenWithStackByArgs("BINARY", b)
-		if sc != nil {
-			err = sc.HandleTruncate(err)
-		}
-		return math.MaxUint64, err
-	}
-	// Note: the byte-order is BigEndian.
-	val := uint64(buf[0])
-	for i := 1; i < length; i++ {
-		val = (val << 8) | uint64(buf[i])
-	}
-	return val, nil
 }
 
 // Compare compares BinaryLiteral to another one

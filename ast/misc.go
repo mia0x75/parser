@@ -44,6 +44,7 @@ var (
 	_ StmtNode = &SetRoleStmt{}
 	_ StmtNode = &SetStmt{}
 	_ StmtNode = &UseStmt{}
+	_ StmtNode = &PurgeStmt{}
 	_ StmtNode = &FlushStmt{}
 	_ StmtNode = &KillStmt{}
 	_ StmtNode = &LockTableStmt{}
@@ -1353,6 +1354,25 @@ func (n *UnlockTableStmt) Accept(v Visitor) (Node, bool) {
 		return v.Leave(newNode)
 	}
 	n = newNode.(*UnlockTableStmt)
+	return v.Leave(n)
+}
+
+type PurgeStmt struct {
+	stmtNode
+}
+
+// Restore implements Node interface.
+func (n *PurgeStmt) Restore(ctx *format.RestoreCtx) error {
+	return errors.New("Not implemented")
+}
+
+// Accept implements Node Accept interface.
+func (n *PurgeStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*PurgeStmt)
 	return v.Leave(n)
 }
 
