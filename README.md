@@ -1,6 +1,6 @@
 # Parser
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/pingcap/parser)](https://goreportcard.com/report/github.com/pingcap/parser) [![CircleCI Status](https://circleci.com/gh/pingcap/parser.svg?style=shield)](https://circleci.com/gh/pingcap/parser) [![GoDoc](https://godoc.org/github.com/pingcap/parser?status.svg)](https://godoc.org/github.com/pingcap/parser)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mia0x75/parser)](https://goreportcard.com/report/github.com/mia0x75/parser) [![CircleCI Status](https://circleci.com/gh/mia0x75/parser.svg?style=shield)](https://circleci.com/gh/mia0x75/parser) [![GoDoc](https://godoc.org/github.com/mia0x75/parser?status.svg)](https://godoc.org/github.com/mia0x75/parser)
 
 TiDB SQL Parser
 
@@ -21,16 +21,16 @@ Suppose the forked repository is `https://github.com/your-repo/parser`.
 
 ### Step 2: Make your parser changes take effect in TiDB and run CI
 
-1. In your TiDB repository, modify the `go.mod` file, remove `github.com/pingcap/parser` from the `require` instruction, and add a new line at the end of the file like this:
+1. In your TiDB repository, modify the `go.mod` file, remove `github.com/mia0x75/parser` from the `require` instruction, and add a new line at the end of the file like this:
 
     ```
-    replace github.com/pingcap/parser => github.com/your-repo/parser v0.0.0-20181102150703-4acd198f5092
+    replace github.com/mia0x75/parser => github.com/your-repo/parser v0.0.0-20181102150703-4acd198f5092
     ```
 
     This change tells TiDB to use the modified parser from your repository. You can just use below command to replace the dependent parser version:
 
     ```
-    GO111MODULE=on go mod edit -replace github.com/pingcap/parser=github.com/your-repo/parser@your-branch
+    GO111MODULE=on go mod edit -replace github.com/mia0x75/parser=github.com/your-repo/parser@your-branch
     ```
 
 2. You can get correct version information by running this command in your TiDB directory:
@@ -54,7 +54,7 @@ This PR will be reviewed, and if everything goes well, it will be merged.
 In your TiDB pull request, modify the `go.mod` file manually or use this command:
 
 ```
-GO111MODULE=on go get -u github.com/pingcap/parser@master
+GO111MODULE=on go get -u github.com/mia0x75/parser@master
 ```
 
 Make sure the `replace` instruction is changed back to the `require` instruction and the version is the latest.

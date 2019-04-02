@@ -20,8 +20,9 @@ import (
 
 	"github.com/mia0x75/parser/charset"
 	"github.com/mia0x75/parser/mysql"
+	"github.com/mia0x75/parser/terror"
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/util/testleak"
+	"github.com/pingcap/errors"
 )
 
 var _ = Suite(&testTypeConvertSuite{})
@@ -32,14 +33,285 @@ type testTypeConvertSuite struct {
 type invalidMockType struct {
 }
 
+func (s *testTypeConvertSuite) TestConvertType(c *C) {
+	ft := NewFieldType(mysql.TypeBlob)
+	ft.Flen = 4
+	ft.Charset = "utf8"
+	v, err := Convert("123456", ft)
+	c.Assert(ErrDataTooLong.Equal(err), IsTrue)
+	c.Assert(v, Equals, "1234")
+	ft = NewFieldType(mysql.TypeString)
+	ft.Flen = 4
+	ft.Charset = charset.CharsetBin
+	v, err = Convert("12345", ft)
+	c.Assert(ErrDataTooLong.Equal(err), IsTrue)
+	c.Assert(v, DeepEquals, []byte("1234"))
+
+	ft = NewFieldType(mysql.TypeFloat)
+	ft.Flen = 5
+	ft.Decimal = 2
+	v, err = Convert(111.114, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, float32(111.11))
+
+	ft = NewFieldType(mysql.TypeFloat)
+	ft.Flen = 5
+	ft.Decimal = 2
+	v, err = Convert(999.999, ft)
+	c.Assert(err, NotNil)
+	c.Assert(v, Equals, float32(999.99))
+
+	ft = NewFieldType(mysql.TypeFloat)
+	ft.Flen = 5
+	ft.Decimal = 2
+	v, err = Convert(-999.999, ft)
+	c.Assert(err, NotNil)
+	c.Assert(v, Equals, float32(-999.99))
+
+	ft = NewFieldType(mysql.TypeFloat)
+	ft.Flen = 5
+	ft.Decimal = 2
+	v, err = Convert(1111.11, ft)
+	c.Assert(err, NotNil)
+	c.Assert(v, Equals, float32(999.99))
+
+	ft = NewFieldType(mysql.TypeFloat)
+	ft.Flen = 5
+	ft.Decimal = 2
+	v, err = Convert(999.916, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, float32(999.92))
+
+	ft = NewFieldType(mysql.TypeFloat)
+	ft.Flen = 5
+	ft.Decimal = 2
+	v, err = Convert(999.914, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, float32(999.91))
+
+	ft = NewFieldType(mysql.TypeFloat)
+	ft.Flen = 5
+	ft.Decimal = 2
+	v, err = Convert(999.9155, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, float32(999.92))
+
+	// For TypeBlob
+	ft = NewFieldType(mysql.TypeBlob)
+	_, err = Convert(&invalidMockType{}, ft)
+	c.Assert(err, NotNil)
+
+	// Nil
+	ft = NewFieldType(mysql.TypeBlob)
+	v, err = Convert(nil, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, IsNil)
+
+	// TypeDouble
+	ft = NewFieldType(mysql.TypeDouble)
+	ft.Flen = 5
+	ft.Decimal = 2
+	v, err = Convert(999.9155, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, float64(999.92))
+
+	// For TypeString
+	ft = NewFieldType(mysql.TypeString)
+	ft.Flen = 3
+	v, err = Convert("12345", ft)
+	c.Assert(ErrDataTooLong.Equal(err), IsTrue)
+	c.Assert(v, Equals, "123")
+	ft = NewFieldType(mysql.TypeString)
+	ft.Flen = 3
+	ft.Charset = charset.CharsetBin
+	v, err = Convert("12345", ft)
+	c.Assert(ErrDataTooLong.Equal(err), IsTrue)
+	c.Assert(v, DeepEquals, []byte("123"))
+
+	// For TypeDuration
+	ft = NewFieldType(mysql.TypeDuration)
+	ft.Decimal = 3
+	v, err = Convert("10:11:12.123456", ft)
+	c.Assert(err, IsNil)
+	c.Assert(v.(Duration).String(), Equals, "10:11:12.123")
+	ft.Decimal = 1
+	vv, err := Convert(v, ft)
+	c.Assert(err, IsNil)
+	c.Assert(vv.(Duration).String(), Equals, "10:11:12.1")
+
+	vd, err := ParseTime(nil, "2010-10-10 10:11:11.12345", mysql.TypeDatetime, 2)
+	c.Assert(vd.String(), Equals, "2010-10-10 10:11:11.12")
+	c.Assert(err, IsNil)
+	v, err = Convert(vd, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v.(Duration).String(), Equals, "10:11:11.1")
+
+	// For mysql.TypeTimestamp, mysql.TypeDatetime, mysql.TypeDate
+	ft = NewFieldType(mysql.TypeTimestamp)
+	ft.Decimal = 3
+	v, err = Convert("2010-10-10 10:11:11.12345", ft)
+	c.Assert(err, IsNil)
+	c.Assert(v.(Time).String(), Equals, "2010-10-10 10:11:11.123")
+	ft.Decimal = 1
+	vv, err = Convert(v, ft)
+	c.Assert(err, IsNil)
+	c.Assert(vv.(Time).String(), Equals, "2010-10-10 10:11:11.1")
+
+	// For TypeLonglong
+	ft = NewFieldType(mysql.TypeLonglong)
+	v, err = Convert("100", ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, int64(100))
+	// issue 4287.
+	v, err = Convert(math.Pow(2, 63)-1, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, int64(math.MaxInt64))
+	ft = NewFieldType(mysql.TypeLonglong)
+	ft.Flag |= mysql.UnsignedFlag
+	v, err = Convert("100", ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, uint64(100))
+	// issue 3470
+	ft = NewFieldType(mysql.TypeLonglong)
+	v, err = Convert(Duration{Duration: time.Duration(12*time.Hour + 59*time.Minute + 59*time.Second + 555*time.Millisecond), Fsp: 3}, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, int64(130000))
+	v, err = Convert(Time{
+		Time: FromDate(2017, 1, 1, 12, 59, 59, 555000),
+		Type: mysql.TypeDatetime,
+		Fsp:  MaxFsp}, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, int64(20170101130000))
+
+	// For TypeBit
+	ft = NewFieldType(mysql.TypeBit)
+	ft.Flen = 24 // 3 bytes.
+	v, err = Convert("100", ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, NewBinaryLiteralFromUint(3223600, 3))
+
+	v, err = Convert(NewBinaryLiteralFromUint(100, -1), ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, NewBinaryLiteralFromUint(100, 3))
+
+	ft.Flen = 1
+	v, err = Convert(1, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, NewBinaryLiteralFromUint(1, 1))
+
+	_, err = Convert(2, ft)
+	c.Assert(err, NotNil)
+
+	ft.Flen = 0
+	_, err = Convert(2, ft)
+	c.Assert(err, NotNil)
+
+	// For TypeNewDecimal
+	ft = NewFieldType(mysql.TypeNewDecimal)
+	ft.Flen = 8
+	ft.Decimal = 4
+	v, err = Convert(3.1416, ft)
+	c.Assert(err, IsNil, Commentf(errors.ErrorStack(err)))
+	c.Assert(v.(*MyDecimal).String(), Equals, "3.1416")
+	v, err = Convert("3.1415926", ft)
+	c.Assert(terror.ErrorEqual(err, ErrTruncated), IsTrue, Commentf("err %v", err))
+	c.Assert(v.(*MyDecimal).String(), Equals, "3.1416")
+	v, err = Convert("99999", ft)
+	c.Assert(terror.ErrorEqual(err, ErrOverflow), IsTrue, Commentf("err %v", err))
+	c.Assert(v.(*MyDecimal).String(), Equals, "9999.9999")
+	v, err = Convert("-10000", ft)
+	c.Assert(terror.ErrorEqual(err, ErrOverflow), IsTrue, Commentf("err %v", err))
+	c.Assert(v.(*MyDecimal).String(), Equals, "-9999.9999")
+
+	// For TypeYear
+	ft = NewFieldType(mysql.TypeYear)
+	v, err = Convert("2015", ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, int64(2015))
+	v, err = Convert(2015, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, int64(2015))
+	_, err = Convert(1800, ft)
+	c.Assert(err, NotNil)
+	dt, err := ParseDate(nil, "2015-11-11")
+	c.Assert(err, IsNil)
+	v, err = Convert(dt, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, int64(2015))
+	v, err = Convert(ZeroDuration, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, int64(time.Now().Year()))
+
+	// For enum
+	ft = NewFieldType(mysql.TypeEnum)
+	ft.Elems = []string{"a", "b", "c"}
+	v, err = Convert("a", ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, Enum{Name: "a", Value: 1})
+	v, err = Convert(2, ft)
+	c.Log(errors.ErrorStack(err))
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, Enum{Name: "b", Value: 2})
+	_, err = Convert("d", ft)
+	c.Assert(err, NotNil)
+	v, err = Convert(4, ft)
+	c.Assert(terror.ErrorEqual(err, ErrTruncated), IsTrue, Commentf("err %v", err))
+	c.Assert(v, DeepEquals, Enum{})
+
+	ft = NewFieldType(mysql.TypeSet)
+	ft.Elems = []string{"a", "b", "c"}
+	v, err = Convert("a", ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, Set{Name: "a", Value: 1})
+	v, err = Convert(2, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, Set{Name: "b", Value: 2})
+	v, err = Convert(3, ft)
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, Set{Name: "a,b", Value: 3})
+	_, err = Convert("d", ft)
+	c.Assert(err, NotNil)
+	_, err = Convert(9, ft)
+	c.Assert(err, NotNil)
+}
+
 func testToString(c *C, val interface{}, expect string) {
 	b, err := ToString(val)
 	c.Assert(err, IsNil)
 	c.Assert(b, Equals, expect)
 }
 
+func (s *testTypeConvertSuite) TestConvertToString(c *C) {
+	testToString(c, "0", "0")
+	testToString(c, true, "1")
+	testToString(c, "false", "false")
+	testToString(c, int(0), "0")
+	testToString(c, int64(0), "0")
+	testToString(c, uint64(0), "0")
+	testToString(c, float32(1.6), "1.6")
+	testToString(c, float64(-0.6), "-0.6")
+	testToString(c, []byte{1}, "\x01")
+	testToString(c, NewBinaryLiteralFromUint(0x4D7953514C, -1), "MySQL")
+	testToString(c, NewBinaryLiteralFromUint(0x41, -1), "A")
+	testToString(c, Enum{Name: "a", Value: 1}, "a")
+	testToString(c, Set{Name: "a", Value: 1}, "a")
+
+	td, err := ParseDuration(nil, "11:11:11.999999", 6)
+	c.Assert(err, IsNil)
+	testToString(c, td, "11:11:11.999999")
+
+	ft := NewFieldType(mysql.TypeNewDecimal)
+	ft.Flen = 10
+	ft.Decimal = 5
+	v, err := Convert(3.1415926, ft)
+	c.Assert(terror.ErrorEqual(err, ErrTruncated), IsTrue, Commentf("err %v", err))
+	testToString(c, v, "3.14159")
+
+	_, err = ToString(&invalidMockType{})
+	c.Assert(err, NotNil)
+}
+
 func (s *testTypeConvertSuite) TestStrToNum(c *C) {
-	defer testleak.AfterTest(c)()
 	testStrToInt(c, "0", 0, true, nil)
 	testStrToInt(c, "-1", -1, true, nil)
 	testStrToInt(c, "100", 100, true, nil)
@@ -84,7 +356,6 @@ func (s *testTypeConvertSuite) TestStrToNum(c *C) {
 }
 
 func (s *testTypeConvertSuite) TestFieldTypeToStr(c *C) {
-	defer testleak.AfterTest(c)()
 	v := TypeToStr(mysql.TypeUnspecified, "not binary")
 	c.Assert(v, Equals, TypeStr(mysql.TypeUnspecified))
 	v = TypeToStr(mysql.TypeBlob, charset.CharsetBin)
@@ -114,7 +385,6 @@ func strvalue(v interface{}) string {
 }
 
 func (s *testTypeConvertSuite) TestConvert(c *C) {
-	defer testleak.AfterTest(c)()
 	// integer ranges
 	signedDeny(c, mysql.TypeTiny, -129, "-128")
 	signedAccept(c, mysql.TypeTiny, -128, "-128")

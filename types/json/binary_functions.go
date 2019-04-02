@@ -23,8 +23,8 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
+	"github.com/mia0x75/parser/hack"
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/util/hack"
 )
 
 // Type returns type of BinaryJSON as string.

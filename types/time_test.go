@@ -18,9 +18,8 @@ import (
 	"time"
 
 	"github.com/mia0x75/parser/mysql"
+	"github.com/mia0x75/parser/types"
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/types"
-	"github.com/pingcap/tidb/util/testleak"
 )
 
 var _ = Suite(&testTimeSuite{})
@@ -29,7 +28,6 @@ type testTimeSuite struct {
 }
 
 func (s *testTimeSuite) TestDurationAdd(c *C) {
-	defer testleak.AfterTest(c)()
 	table := []struct {
 		Input    string
 		Fsp      int
@@ -66,7 +64,6 @@ func (s *testTimeSuite) TestDurationAdd(c *C) {
 }
 
 func (s *testTimeSuite) TestYear(c *C) {
-	defer testleak.AfterTest(c)()
 	table := []struct {
 		Input  string
 		Expect int16
@@ -148,7 +145,6 @@ func (s *testTimeSuite) getLocation(c *C) *time.Location {
 }
 
 func (s *testTimeSuite) TestParseFrac(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		S        string
 		Fsp      int
@@ -185,7 +181,6 @@ func (s *testTimeSuite) TestParseFrac(c *C) {
 }
 
 func (s *testTimeSuite) TestCompare(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		Arg1 string
 		Arg2 string
@@ -228,7 +223,6 @@ func (s *testTimeSuite) TestCompare(c *C) {
 }
 
 func (s *testTimeSuite) TestDurationClock(c *C) {
-	defer testleak.AfterTest(c)()
 	// test hour, minute, second and micro second
 	tbl := []struct {
 		Input       string
@@ -253,7 +247,6 @@ func (s *testTimeSuite) TestDurationClock(c *C) {
 }
 
 func (s *testTimeSuite) TestParseDateFormat(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		Input  string
 		Result []string

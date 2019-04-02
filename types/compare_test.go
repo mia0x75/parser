@@ -18,7 +18,6 @@ import (
 
 	"github.com/mia0x75/parser/mysql"
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/util/testleak"
 )
 
 var _ = Suite(&testCompareSuite{})
@@ -27,7 +26,6 @@ type testCompareSuite struct {
 }
 
 func (s *testCompareSuite) TestCompare(c *C) {
-	defer testleak.AfterTest(c)()
 	cmpTbl := []struct {
 		lhs interface{}
 		rhs interface{}

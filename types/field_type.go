@@ -22,7 +22,7 @@ import (
 	"github.com/mia0x75/parser/charset"
 	"github.com/mia0x75/parser/format"
 	"github.com/mia0x75/parser/mysql"
-	"github.com/pingcap/tidb/types/json"
+	"github.com/mia0x75/parser/types/json"
 )
 
 // UnspecifiedLength is unspecified length.

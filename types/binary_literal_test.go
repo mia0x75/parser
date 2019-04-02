@@ -15,7 +15,6 @@ package types
 
 import (
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/util/testleak"
 )
 
 var _ = Suite(&testBinaryLiteralSuite{})
@@ -24,7 +23,6 @@ type testBinaryLiteralSuite struct {
 }
 
 func (s *testBinaryLiteralSuite) TestTrimLeadingZeroBytes(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		Input    []byte
 		Expected []byte
@@ -46,7 +44,6 @@ func (s *testBinaryLiteralSuite) TestTrimLeadingZeroBytes(c *C) {
 }
 
 func (s *testBinaryLiteralSuite) TestParseBitStr(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		Input    string
 		Expected []byte
@@ -108,7 +105,6 @@ func (s *testBinaryLiteralSuite) TestParseBitStr(c *C) {
 }
 
 func (s *testBinaryLiteralSuite) TestParseHexStr(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		Input    string
 		Expected []byte
@@ -141,7 +137,6 @@ func (s *testBinaryLiteralSuite) TestParseHexStr(c *C) {
 }
 
 func (s *testBinaryLiteralSuite) TestString(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		Input    BinaryLiteral
 		Expected string
@@ -158,7 +153,6 @@ func (s *testBinaryLiteralSuite) TestString(c *C) {
 }
 
 func (s *testBinaryLiteralSuite) TestToBitLiteralString(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		Input           BinaryLiteral
 		TrimLeadingZero bool
@@ -184,7 +178,6 @@ func (s *testBinaryLiteralSuite) TestToBitLiteralString(c *C) {
 }
 
 func (s *testBinaryLiteralSuite) TestNewBinaryLiteralFromUint(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		Input    uint64
 		ByteSize int

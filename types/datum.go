@@ -19,11 +19,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mia0x75/parser/hack"
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/terror"
+	"github.com/mia0x75/parser/types/json"
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/types/json"
-	"github.com/pingcap/tidb/util/hack"
 )
 
 // Kind constants.

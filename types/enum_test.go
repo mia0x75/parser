@@ -15,7 +15,6 @@ package types
 
 import (
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/util/testleak"
 )
 
 var _ = Suite(&testEnumSuite{})
@@ -24,7 +23,6 @@ type testEnumSuite struct {
 }
 
 func (s *testEnumSuite) TestEnum(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		Elems    []string
 		Name     string

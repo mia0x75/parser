@@ -20,7 +20,6 @@ import (
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/terror"
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/util/testleak"
 )
 
 func TestT(t *testing.T) {
@@ -43,7 +42,6 @@ func testIsTypeChar(c *C, tp byte, expect bool) {
 }
 
 func (s *testTypeEtcSuite) TestIsType(c *C) {
-	defer testleak.AfterTest(c)()
 	testIsTypeBlob(c, mysql.TypeTinyBlob, true)
 	testIsTypeBlob(c, mysql.TypeMediumBlob, true)
 	testIsTypeBlob(c, mysql.TypeBlob, true)
@@ -66,7 +64,6 @@ func testTypeToStr(c *C, tp byte, charset string, expect string) {
 }
 
 func (s *testTypeEtcSuite) TestTypeToStr(c *C) {
-	defer testleak.AfterTest(c)()
 	testTypeStr(c, mysql.TypeYear, "year")
 	testTypeStr(c, 0xdd, "")
 
@@ -103,13 +100,11 @@ func (s *testTypeEtcSuite) TestTypeToStr(c *C) {
 }
 
 func (s *testTypeEtcSuite) TestEOFAsNil(c *C) {
-	defer testleak.AfterTest(c)()
 	err := EOFAsNil(io.EOF)
 	c.Assert(err, IsNil)
 }
 
 func (s *testTypeEtcSuite) TestMaxFloat(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		Flen    int
 		Decimal int
@@ -128,7 +123,6 @@ func (s *testTypeEtcSuite) TestMaxFloat(c *C) {
 }
 
 func (s *testTypeEtcSuite) TestRoundFloat(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		Input  float64
 		Expect float64
@@ -151,7 +145,6 @@ func (s *testTypeEtcSuite) TestRoundFloat(c *C) {
 }
 
 func (s *testTypeEtcSuite) TestRound(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		Input  float64
 		Dec    int
@@ -172,7 +165,6 @@ func (s *testTypeEtcSuite) TestRound(c *C) {
 }
 
 func (s *testTypeEtcSuite) TestTruncate(c *C) {
-	defer testleak.AfterTest(c)()
 	tbl := []struct {
 		Input   float64
 		Flen    int

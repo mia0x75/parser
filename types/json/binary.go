@@ -25,9 +25,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/mia0x75/parser/hack"
 	"github.com/mia0x75/parser/terror"
 	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/util/hack"
 )
 
 /*

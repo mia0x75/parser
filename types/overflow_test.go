@@ -17,7 +17,6 @@ import (
 	"math"
 
 	. "github.com/pingcap/check"
-	"github.com/pingcap/tidb/util/testleak"
 )
 
 var _ = Suite(&testOverflowSuite{})
@@ -26,7 +25,6 @@ type testOverflowSuite struct {
 }
 
 func (s *testOverflowSuite) TestAdd(c *C) {
-	defer testleak.AfterTest(c)()
 	tblUint64 := []struct {
 		lsh      uint64
 		rsh      uint64
@@ -96,7 +94,6 @@ func (s *testOverflowSuite) TestAdd(c *C) {
 }
 
 func (s *testOverflowSuite) TestSub(c *C) {
-	defer testleak.AfterTest(c)()
 	tblUint64 := []struct {
 		lsh      uint64
 		rsh      uint64
@@ -195,7 +192,6 @@ func (s *testOverflowSuite) TestSub(c *C) {
 }
 
 func (s *testOverflowSuite) TestMul(c *C) {
-	defer testleak.AfterTest(c)()
 	tblUint64 := []struct {
 		lsh      uint64
 		rsh      uint64
@@ -269,7 +265,6 @@ func (s *testOverflowSuite) TestMul(c *C) {
 }
 
 func (s *testOverflowSuite) TestDiv(c *C) {
-	defer testleak.AfterTest(c)()
 	tblInt64 := []struct {
 		lsh      int64
 		rsh      int64
