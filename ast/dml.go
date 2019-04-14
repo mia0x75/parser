@@ -1186,6 +1186,17 @@ func (n *LoadDataStmt) Accept(v Visitor) (Node, bool) {
 	return v.Leave(n)
 }
 
+const (
+	Terminated = iota
+	Enclosed
+	Escaped
+)
+
+type FieldItem struct {
+	Type  int
+	Value string
+}
+
 // FieldsClause represents fields references clause in load data statement.
 type FieldsClause struct {
 	Terminated string
@@ -1770,8 +1781,9 @@ type ShowStmt struct {
 	Column      *ColumnName // Used for `desc table column`.
 	Flag        int         // Some flag parsed from sql, such as FULL.
 	Full        bool
-	User        *auth.UserIdentity // Used for show grants/create user.
-	IfNotExists bool               // Used for `show create database if not exists`
+	User        *auth.UserIdentity   // Used for show grants/create user.
+	Roles       []*auth.RoleIdentity // Used for show grants .. using
+	IfNotExists bool                 // Used for `show create database if not exists`
 
 	// GlobalScope is used by `show variables`
 	GlobalScope bool
@@ -1844,6 +1856,17 @@ func (n *ShowStmt) Restore(ctx *format.RestoreCtx) error {
 			ctx.WriteKeyWord(" FOR ")
 			if err := n.User.Restore(ctx); err != nil {
 				return errors.Annotate(err, "An error occurred while restore ShowStmt.User")
+			}
+		}
+		if n.Roles != nil {
+			ctx.WriteKeyWord(" USING ")
+			for i, r := range n.Roles {
+				if err := r.Restore(ctx); err != nil {
+					return errors.Annotate(err, "An error occurred while restore ShowStmt.User")
+				}
+				if i != len(n.Roles)-1 {
+					ctx.WritePlain(", ")
+				}
 			}
 		}
 	case ShowMasterStatus:
@@ -1999,7 +2022,7 @@ type WindowSpec struct {
 	Frame       *FrameClause
 
 	// OnlyAlias will set to true of the first following case.
-	// To make compatiable with MySQL, we need to distinguish `select func over w` from `select func over (w)`.
+	// To make compatible with MySQL, we need to distinguish `select func over w` from `select func over (w)`.
 	OnlyAlias bool
 }
 

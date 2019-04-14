@@ -216,6 +216,7 @@ import (
 	rename            "RENAME"
 	repeat            "REPEAT"
 	replace           "REPLACE"
+	require           "REQUIRE"
 	restrict          "RESTRICT"
 	revoke            "REVOKE"
 	right             "RIGHT"
@@ -230,6 +231,7 @@ import (
 	smallIntType      "SMALLINT"
 	sql               "SQL"
 	sqlCalcFoundRows  "SQL_CALC_FOUND_ROWS"
+	ssl               "SSL"
 	starting          "STARTING"
 	straightJoin      "STRAIGHT_JOIN"
 	tableKwd          "TABLE"
@@ -270,6 +272,7 @@ import (
 	natural           "NATURAL"
 
 	/* The following tokens belong to UnReservedKeyword. */
+	account               "ACCOUNT"
 	action                "ACTION"
 	after                 "AFTER"
 	always                "ALWAYS"
@@ -289,6 +292,7 @@ import (
 	cascaded              "CASCADED"
 	charsetKwd            "CHARSET"
 	checksum              "CHECKSUM"
+	cipher                "CIPHER"
 	cleanup               "CLEANUP"
 	client                "CLIENT"
 	coalesce              "COALESCE"
@@ -324,6 +328,7 @@ import (
 	escape                "ESCAPE"
 	exclusive             "EXCLUSIVE"
 	execute               "EXECUTE"
+	expire                "EXPIRE"
 	fields                "FIELDS"
 	first                 "FIRST"
 	fixed                 "FIXED"
@@ -337,6 +342,7 @@ import (
 	hour                  "HOUR"
 	identified            "IDENTIFIED"
 	isolation             "ISOLATION"
+	issuer                "ISSUER"
 	indexes               "INDEXES"
 	invoker               "INVOKER"
 	jsonType              "JSON"
@@ -360,6 +366,7 @@ import (
 	minRows               "MIN_ROWS"
 	names                 "NAMES"
 	national              "NATIONAL"
+	never                 "NEVER"
 	no                    "NO"
 	none                  "NONE"
 	nulls                 "NULLS"
@@ -407,6 +414,7 @@ import (
 	start                 "START"
 	statsPersistent       "STATS_PERSISTENT"
 	status                "STATUS"
+	subject               "SUBJECT"
 	subpartition          "SUBPARTITION"
 	subpartitions         "SUBPARTITIONS"
 	super                 "SUPER"
@@ -434,6 +442,7 @@ import (
 	warnings              "WARNINGS"
 	identSQLErrors        "ERRORS"
 	week                  "WEEK"
+	x509                  "X509"
 	yearType              "YEAR"
 	purge                 "PURGE"
 	logs                  "LOGS"
@@ -634,6 +643,7 @@ import (
 	OptionalBraces                  /* optional braces */
 	CastType                        /* Cast function target type */
 	CharsetName                     /* Character set name */
+	ClearPasswordExpireOptions      /* Clear password expire options */
 	ColumnDef                       /* table column definition */
 	ColumnDefList                   /* table column definition list */
 	ColumnName                      /* column name */
@@ -648,6 +658,9 @@ import (
 	ColumnOptionList                /* column definition option list */
 	VirtualOrStored                 /* indicate generated column is stored or not */
 	ColumnOptionListOpt             /* optional column definition option list */
+	ConnectionOption                /* single connection options */
+	ConnectionOptionList            /* connection options for CREATE USER statement */
+	ConnectionOptions               /* optional connection options for CREATE USER statement */
 	Constraint                      /* table constraint */
 	ConstraintElem                  /* table constraint element */
 	ConstraintKeywordOpt            /* Constraint Keyword or empty */
@@ -662,10 +675,9 @@ import (
 	DefaultFalseDistinctOpt         /* Distinct option which defaults to false */
 	DefaultTrueDistinctOpt          /* Distinct option which defaults to true */
 	BuggyDefaultFalseDistinctOpt    /* Distinct option which accepts DISTINCT ALL and defaults to false */
-	Enclosed                        /* Enclosed by */
+	RequireClause                   /* Encrypted connections options */
 	EqOpt                           /* = or empty */
 	EscapedTableRef                 /* escaped table reference */
-	Escaped                         /* Escaped by */
 	ExpressionList                  /* expression list */
 	MaxValueOrExpressionList        /* maxvalue or expression list */
 	ExpressionListOpt               /* expression list opt */
@@ -673,12 +685,13 @@ import (
 	FuncDatetimePrecList            /* Function datetime precision list */
 	Field                           /* field expression */
 	Fields                          /* Fields clause */
-	FieldsTerminated                /* Fields terminated by */
 	FieldAsName                     /* Field alias name */
 	FieldAsNameOpt                  /* Field alias name opt */
 	FieldList                       /* field expression list */
 	FlushOption                     /* Flush option */
 	TableRefsClause                 /* Table references clause */
+	FieldItem                       /* Field item for load data clause */
+	FieldItemList                   /* Field items for load data clause */
 	FuncDatetimePrec                /* Function datetime precision */
 	GlobalScope                     /* The scope of variable */
 	GroupByClause                   /* GROUP BY clause */
@@ -711,6 +724,9 @@ import (
 	LimitOption                     /* Limit option could be integer or parameter marker. */
 	Lines                           /* Lines clause */
 	LinesTerminated                 /* Lines terminated by */
+	LoadDataSetSpecOpt              /* Optional load data specification */
+	LoadDataSetList                 /* Load data specifications */
+	LoadDataSetItem                 /* Single load data specification */
 	LocalOpt                        /* Local opt */
 	LockClause                      /* Alter table lock clause */
 	NumLiteral                      /* Num/Int/Float/Decimal Literal */
@@ -737,7 +753,11 @@ import (
 	PartDefOptionsOpt               /* PartDefOptionList option */
 	PartDefOptionList               /* PartDefOption list */
 	PartDefOption                   /* COMMENT [=] xxx | TABLESPACE [=] tablespace_name | ENGINE [=] xxx */
+	PasswordExpire                  /* Single password option for create user statement */
 	PasswordOpt                     /* Password option */
+	PasswordOrLockOption            /* Single password or lock option for create user statement */
+	PasswordOrLockOptionList        /* Password or lock options for create user statement */
+	PasswordOrLockOptions           /* Optional password or lock options for create user statement */
 	ColumnPosition                  /* Column position [First|After ColumnName] */
 	PrepareSQL                      /* Prepare statement sql string */
 	PriorityOpt                     /* Statement priority option */
@@ -750,6 +770,8 @@ import (
 	OnUpdateOpt                     /* optional ON UPDATE clause */
 	OptGConcatSeparator             /* optional GROUP_CONCAT SEPARATOR */
 	ReferOpt                        /* reference option */
+	RequireList                     /* require list */
+	RequireListElement              /* require list element */
 	Rolename                        /* Rolename */
 	RolenameList                    /* RolenameList */
 	RoleSpec                        /* Rolename and auth option */
@@ -810,6 +832,7 @@ import (
 	UserSpec                        /* Username and auth option */
 	UserSpecList                    /* Username and auth option list */
 	UserVariableList                /* User defined variable name list */
+	UsingRoles                      /*UsingRoles is role option for SHOW GRANT */
 	Values                          /* values */
 	ValuesList                      /* values list */
 	ValuesOpt                       /* values optional */
@@ -1535,7 +1558,10 @@ ColumnOption:
 			Refer: $1.(*ast.ReferenceDef),
 		}
 	}
-
+|	"COLLATE" StringName
+	{
+		$$ = &ast.ColumnOption{Tp: ast.ColumnOptionCollate, StrValue: $2.(string)}
+	}
 
 GeneratedAlways: | "GENERATED" "ALWAYS"
 
@@ -2333,6 +2359,20 @@ ExplainStmt:
 			Format: "row",
 		}
 	}
+|	ExplainSym "FOR" "CONNECTION" NUM
+	{
+		$$ = &ast.ExplainForStmt{
+			Format:       "row",
+			ConnectionID: getUint64FromNUM($4),
+		}
+	}
+|	ExplainSym "FORMAT" "=" stringLit "FOR" "CONNECTION" NUM
+	{
+		$$ = &ast.ExplainForStmt{
+			Format:       $4,
+			ConnectionID: getUint64FromNUM($7),
+		}
+	}
 |	ExplainSym "FORMAT" "=" stringLit ExplainableStmt
 	{
 		$$ = &ast.ExplainStmt{
@@ -2546,7 +2586,7 @@ PredicateExpr:
 	{
 		escape := $4.(string)
 		if len(escape) > 1 {
-			yylex.AppendError(yylex.Errorf("Incorrect arguments %s to ESCAPE", escape))
+			yylex.AppendError(ErrWrongArguments.GenWithStackByArgs("ESCAPE"))
 			return 1
 		} else if len(escape) == 0 {
 			escape = "\\"
@@ -2747,7 +2787,7 @@ UnReservedKeyword:
 | "SQL_NO_CACHE" | "DISABLE"  | "ENABLE" | "REVERSE" | "PRIVILEGES" | "NO" | "BINLOG" | "FUNCTION" | "VIEW" | "MODIFY" | "EVENTS" | "PARTITIONS"
 | "NONE" | "NULLS" | "SUPER" | "EXCLUSIVE" | "STATS_PERSISTENT" | "ROW_COUNT" | "COALESCE" | "MONTH" | "PROCESS" | "PROFILES"
 | "MICROSECOND" | "MINUTE" | "PLUGINS" | "PRECEDING" | "QUERY" | "QUERIES" | "SECOND" | "SEPARATOR" | "SHARE" | "SHARED" | "SLOW" | "MAX_CONNECTIONS_PER_HOUR" | "MAX_QUERIES_PER_HOUR" | "MAX_UPDATES_PER_HOUR"
-| "MAX_USER_CONNECTIONS" | "REPLICATION" | "CLIENT" | "SLAVE" | "RELOAD" | "TEMPORARY" | "ROUTINE" | "EVENT" | "ALGORITHM" | "DEFINER" | "INVOKER" | "MERGE" | "TEMPTABLE" | "UNDEFINED" | "SECURITY" | "CASCADED" | "RECOVER"
+| "MAX_USER_CONNECTIONS" | "REPLICATION" | "CLIENT" | "SLAVE" | "RELOAD" | "TEMPORARY" | "ROUTINE" | "EVENT" | "ALGORITHM" | "DEFINER" | "INVOKER" | "MERGE" | "TEMPTABLE" | "UNDEFINED" | "SECURITY" | "CASCADED" | "RECOVER" | "CIPHER" | "SUBJECT" | "ISSUER" | "X509" | "NEVER" | "EXPIRE" | "ACCOUNT"
 
 
 NotKeywordToken:
@@ -4990,7 +5030,14 @@ SetRoleStmt:
 
 
 SetDefaultRoleStmt:
-	"SET" "DEFAULT" "ROLE" SetDefaultRoleOpt "TO" UsernameList {}
+	"SET" "DEFAULT" "ROLE" SetDefaultRoleOpt "TO" UsernameList {
+		tmp := $4.(*ast.SetRoleStmt)
+		$$ = &ast.SetDefaultRoleStmt{
+			SetRoleOpt: tmp.SetRoleOpt,
+			RoleList: tmp.RoleList,
+			UserList: $6.([]*auth.UserIdentity),
+		}
+	}
 
 
 SetDefaultRoleOpt:
@@ -5273,11 +5320,31 @@ ShowStmt:
 |	"SHOW" "CREATE" "TABLE" TableName { $$ = &ast.ShowStmt{Tp: ast.ShowCreateTable, Table: $4.(*ast.TableName)} }
 |	"SHOW" "CREATE" "USER" Username   { $$ = &ast.ShowStmt{Tp: ast.ShowCreateUser, User: $4.(*auth.UserIdentity)} }
 |	"SHOW" "GRANTS"                   { $$ = &ast.ShowStmt{Tp: ast.ShowGrants} }
-|	"SHOW" "GRANTS" "FOR" Username    { $$ = &ast.ShowStmt{Tp: ast.ShowGrants, User: $4.(*auth.UserIdentity)} }
+|	"SHOW" "GRANTS" "FOR" Username UsingRoles
+	{
+		if $5 != nil {
+			$$ = &ast.ShowStmt{
+				Tp:	ast.ShowGrants,
+				User:	$4.(*auth.UserIdentity),
+				Roles:  $5.([]*auth.RoleIdentity),
+			}
+		} else {
+			$$ = &ast.ShowStmt{
+				Tp:	ast.ShowGrants,
+				User:	$4.(*auth.UserIdentity),
+				Roles:  nil,
+			}
+		}
+	}
 |	"SHOW" "MASTER" "STATUS"          { $$ = &ast.ShowStmt{Tp: ast.ShowMasterStatus} }
 |	"SHOW" OptFull "PROCESSLIST"      { $$ = &ast.ShowStmt{Tp: ast.ShowProcessList, Full: $2.(bool)} }
 |	"SHOW" "PROFILES"                 { $$ = &ast.ShowStmt{Tp: ast.ShowProfiles} }
 |	"SHOW" "PRIVILEGES"               { $$ = &ast.ShowStmt{Tp: ast.ShowPrivileges} }
+
+
+UsingRoles:
+	/* EMPTY */          { $$ = nil }
+|	"USING" RolenameList { $$ = $2.([]*auth.RoleIdentity) }
 
 
 ShowIndexKwd:
@@ -5872,7 +5939,7 @@ NumericType:
 		if x.Flen == types.UnspecifiedLength || x.Flen == 0 {
 			x.Flen = 1
 		} else if x.Flen > 64 {
-			yylex.AppendError(yylex.Errorf("invalid field length %d for bit type, must in [1, 64]", x.Flen))
+			yylex.AppendError(ErrTooBigDisplayWidth.GenWithStackByArgs(x.Flen))
 		}
 		$$ = x
 	}
@@ -5978,44 +6045,40 @@ BitValueType:
 
 
 StringType:
-	NationalOpt "CHAR" FieldLen OptBinary OptCollate
+	NationalOpt "CHAR" FieldLen OptBinary
 	{
 		x := types.NewFieldType(mysql.TypeString)
 		x.Flen = $3.(int)
 		x.Charset = $4.(*ast.OptBinary).Charset
-		x.Collate = $5.(string)
 		if $4.(*ast.OptBinary).IsBinary {
 			x.Flag |= mysql.BinaryFlag
 		}
 		$$ = x
 	}
-|	NationalOpt "CHAR" OptBinary OptCollate
+|	NationalOpt "CHAR" OptBinary
 	{
 		x := types.NewFieldType(mysql.TypeString)
 		x.Charset = $3.(*ast.OptBinary).Charset
-		x.Collate = $4.(string)
 		if $3.(*ast.OptBinary).IsBinary {
 			x.Flag |= mysql.BinaryFlag
 		}
 		$$ = x
 	}
-|	"NATIONAL" "CHARACTER" FieldLen OptBinary OptCollate
+|	"NATIONAL" "CHARACTER" FieldLen OptBinary
 	{
 		x := types.NewFieldType(mysql.TypeString)
 		x.Flen = $3.(int)
 		x.Charset = $4.(*ast.OptBinary).Charset
-		x.Collate = $5.(string)
 		if $4.(*ast.OptBinary).IsBinary {
 			x.Flag |= mysql.BinaryFlag
 		}
 		$$ = x
 	}
-|	Varchar FieldLen OptBinary OptCollate
+|	Varchar FieldLen OptBinary
 	{
 		x := types.NewFieldType(mysql.TypeVarchar)
 		x.Flen = $2.(int)
 		x.Charset = $3.(*ast.OptBinary).Charset
-		x.Collate = $4.(string)
 		if $3.(*ast.OptBinary).IsBinary {
 			x.Flag |= mysql.BinaryFlag
 		}
@@ -6047,30 +6110,27 @@ StringType:
 		x.Flag |= mysql.BinaryFlag
 		$$ = $1.(*types.FieldType)
 	}
-|	TextType OptBinary OptCollate
+|	TextType OptBinary
 	{
 		x := $1.(*types.FieldType)
 		x.Charset = $2.(*ast.OptBinary).Charset
-		x.Collate = $3.(string)
 		if $2.(*ast.OptBinary).IsBinary {
 			x.Flag |= mysql.BinaryFlag
 		}
 		$$ = x
 	}
-|	"ENUM" '(' StringList ')' OptCharset OptCollate
+|	"ENUM" '(' StringList ')' OptCharset
 	{
 		x := types.NewFieldType(mysql.TypeEnum)
 		x.Elems = $3.([]string)
 		x.Charset = $5.(string)
-		x.Collate = $6.(string)
 		$$ = x
 	}
-|	"SET" '(' StringList ')' OptCharset OptCollate
+|	"SET" '(' StringList ')' OptCharset
 	{
 		x := types.NewFieldType(mysql.TypeSet)
 		x.Elems = $3.([]string)
 		x.Charset = $5.(string)
-		x.Collate = $6.(string)
 		$$ = x
 	}
 |	"JSON"
@@ -6371,14 +6431,16 @@ CommaOpt:
  *  https://dev.mysql.com/doc/refman/5.7/en/account-management-sql.html
  ************************************************************************************/
 CreateUserStmt:
-	"CREATE" "USER" IfNotExists UserSpecList
+	"CREATE" "USER" IfNotExists UserSpecList RequireClause ConnectionOptions PasswordOrLockOptions
 	{
  		// See https://dev.mysql.com/doc/refman/5.7/en/create-user.html
 		$$ = &ast.CreateUserStmt{
 			IsCreateRole: false,
 			IfNotExists: $3.(bool),
 			Specs: $4.([]*ast.UserSpec),
-		}
+			TslOptions: $5.([]*ast.TslOption),
+			ResourceOptions: $6.([]*ast.ResourceOption),
+			PasswordOrLockOptions: $7.([]*ast.PasswordOrLockOption),		}
 	}
 
 
@@ -6431,6 +6493,197 @@ UserSpec:
 UserSpecList:
 	UserSpec                  { $$ = []*ast.UserSpec{$1.(*ast.UserSpec)} }
 |	UserSpecList ',' UserSpec { $$ = append($1.([]*ast.UserSpec), $3.(*ast.UserSpec)) }
+
+
+ConnectionOptions:
+	/* EMPTY */
+	{
+		l := []*ast.ResourceOption{}
+		$$ = l
+	}
+|	"WITH" ConnectionOptionList { $$ = $2 }
+
+
+ConnectionOptionList:
+	ConnectionOption                      { $$ = []*ast.ResourceOption{$1.(*ast.ResourceOption)} }
+|	ConnectionOptionList ConnectionOption
+	{
+		l := $1.([]*ast.ResourceOption)
+		l = append(l, $2.(*ast.ResourceOption))
+		$$ = l
+	}
+
+
+ConnectionOption:
+	"MAX_QUERIES_PER_HOUR" NUM
+	{
+		$$ = &ast.ResourceOption {
+			Type: ast.MaxQueriesPerHour,
+			Count: $2.(int64),
+		}
+	}
+|	"MAX_UPDATES_PER_HOUR" NUM
+	{
+		$$ = &ast.ResourceOption {
+			Type: ast.MaxUpdatesPerHour,
+			Count: $2.(int64),
+		}
+	}
+|	"MAX_CONNECTIONS_PER_HOUR" NUM
+	{
+		$$ = &ast.ResourceOption {
+			Type: ast.MaxConnectionsPerHour,
+			Count: $2.(int64),
+		}
+	}
+|	"MAX_USER_CONNECTIONS" NUM
+	{
+		$$ = &ast.ResourceOption {
+			Type: ast.MaxUserConnections,
+			Count: $2.(int64),
+		}
+	}
+
+
+RequireClause:
+	/* EMPTY */
+	{
+		l := []*ast.TslOption{}
+		$$ = l
+	}
+|	"REQUIRE" "NONE"
+	{
+		t := &ast.TslOption {
+			Type: ast.TslNone,
+		}
+		$$ = []*ast.TslOption{t}
+	}
+|	"REQUIRE" "SSL"
+	{
+		t := &ast.TslOption {
+			Type: ast.Ssl,
+		}
+		$$ = []*ast.TslOption{t}
+	}
+|	"REQUIRE" "X509"
+	{
+		t := &ast.TslOption {
+			Type: ast.X509,
+		}
+		$$ = []*ast.TslOption{t}
+	}
+|	"REQUIRE" RequireList { $$ = $2 }
+
+
+
+RequireList:
+	RequireListElement
+	{
+		$$ = []*ast.TslOption{$1.(*ast.TslOption)}
+	}
+|	RequireListElement "AND" RequireList
+	{
+		l := $3.([]*ast.TslOption)
+		l = append(l, $1.(*ast.TslOption))
+		$$ = l
+	}
+
+
+RequireListElement:
+	"ISSUER" stringLit
+	{
+		$$ = &ast.TslOption {
+			Type: ast.Issuer,
+			Value: $2,
+		}
+	}
+|	"SUBJECT" stringLit
+	{
+		$$ = &ast.TslOption {
+			Type: ast.Subject,
+			Value: $2,
+		}
+	}
+|	"CIPHER" stringLit
+	{
+		$$ = &ast.TslOption {
+			Type: ast.Cipher,
+			Value: $2,
+		}
+	}
+
+
+PasswordOrLockOptions:
+	/* EMPTY */
+	{
+		l := []*ast.PasswordOrLockOption{}
+		$$ = l
+	}
+|	PasswordOrLockOptionList
+	{
+		$$ = $1
+	}
+
+
+PasswordOrLockOptionList:
+	PasswordOrLockOption
+	{
+		$$ = []*ast.PasswordOrLockOption{$1.(*ast.PasswordOrLockOption)}
+	}
+|	PasswordOrLockOptionList PasswordOrLockOption
+	{
+		l := $1.([]*ast.PasswordOrLockOption)
+		l = append(l, $2.(*ast.PasswordOrLockOption))
+		$$ = l
+	}
+
+
+PasswordOrLockOption:
+	"ACCOUNT" "UNLOCK"
+	{
+		$$ = &ast.PasswordOrLockOption {
+			Type: ast.Unlock,
+		}
+	}
+|	"ACCOUNT" "LOCK"
+	{
+		$$ = &ast.PasswordOrLockOption {
+			Type: ast.Lock,
+		}
+	}
+|	PasswordExpire
+	{
+		$$ = &ast.PasswordOrLockOption {
+			Type: ast.PasswordExpire,
+		}
+	}
+|	PasswordExpire "INTERVAL" NUM "DAY"
+	{
+		$$ = &ast.PasswordOrLockOption {
+			Type: ast.PasswordExpireInterval,
+			Count: $3.(int64),
+		}
+	}
+|	PasswordExpire "NEVER"
+	{
+		$$ = &ast.PasswordOrLockOption {
+			Type: ast.PasswordExpireNever,
+		}
+	}
+|	PasswordExpire "DEFAULT"
+	{
+		$$ = &ast.PasswordOrLockOption {
+			Type: ast.PasswordExpireDefault,
+		}
+	}
+
+
+PasswordExpire:
+	"PASSWORD" "EXPIRE" ClearPasswordExpireOptions { $$ = nil }
+
+
+ClearPasswordExpireOptions:
+	/* EMPTY */ { $$ = nil }
 
 
 AuthOption:
@@ -6615,14 +6868,19 @@ RevokeStmt:
 
 
 RevokeRoleStmt:
-	"REVOKE" RolenameList "FROM" UsernameList {}
+	"REVOKE" RolenameList "FROM" UsernameList {
+		$$ = &ast.RevokeRoleStmt {
+			Roles: $2.([]*auth.RoleIdentity),
+			Users: $4.([]*auth.UserIdentity),
+		}
+	}
 
 
 /**************************************LoadDataStmt*****************************************
  * See https://dev.mysql.com/doc/refman/5.7/en/load-data.html
  *******************************************************************************************/
 LoadDataStmt:
-	"LOAD" "DATA" LocalOpt "INFILE" stringLit "INTO" "TABLE" TableName CharsetOpt Fields Lines IgnoreLines ColumnNameListOptWithBrackets
+	"LOAD" "DATA" LocalOpt "INFILE" stringLit "INTO" "TABLE" TableName CharsetOpt Fields Lines IgnoreLines ColumnNameListOptWithBrackets LoadDataSetSpecOpt
 	{
 		x := &ast.LoadDataStmt{
 			Path:       $5,
@@ -6666,30 +6924,32 @@ Fields:
 			Escaped:    escape[0],
 		}
 	}
-|	FieldsOrColumns FieldsTerminated Enclosed Escaped
+|	FieldsOrColumns FieldItemList
 	{
-		escape := $4.(string)
-		if escape != "\\" && len(escape) > 1 {
-			yylex.AppendError(yylex.Errorf("Incorrect arguments %s to ESCAPE", escape))
-			return 1
+		fieldsClause := &ast.FieldsClause{
+			Terminated: "\t",
+			Escaped:    []byte("\\")[0],
 		}
-		var enclosed byte
-		str := $3.(string)
-		if len(str) > 1 {
-			yylex.AppendError(yylex.Errorf("Incorrect arguments %s to ENCLOSED", escape))
-			return 1
-		}else if len(str) != 0 {
-			enclosed = str[0]
+		fieldItems := $2.([]*ast.FieldItem)
+		for _, item := range fieldItems {
+			switch item.Type {
+			case ast.Terminated:
+				fieldsClause.Terminated = item.Value
+			case ast.Enclosed:
+				var enclosed byte
+				if len(item.Value) > 0 {
+					enclosed = item.Value[0]
+				}
+				fieldsClause.Enclosed = enclosed
+			case ast.Escaped:
+				var escaped byte
+				if len(item.Value) > 0 {
+					escaped = item.Value[0]
+				}
+				fieldsClause.Escaped = escaped
+			}
 		}
-		var escaped byte
-		if len(escape) > 0 {
-			escaped = escape[0]
-		}
-		$$ = &ast.FieldsClause{
-			Terminated: $2.(string),
-			Enclosed:   enclosed,
-			Escaped:    escaped,
-		}
+		$$ = fieldsClause
 	}
 
 
@@ -6698,20 +6958,64 @@ FieldsOrColumns:
 |	"COLUMNS"
 
 
-FieldsTerminated:
-	/* EMPTY */                 { $$ = "\t" }
-|	"TERMINATED" "BY" stringLit { $$ = $3 }
+FieldItemList:
+	FieldItemList FieldItem
+	{
+		fieldItems := $1.([]*ast.FieldItem)
+		$$ = append(fieldItems, $2.(*ast.FieldItem))
+	}
+|	FieldItem
+	{
+		fieldItems := make([]*ast.FieldItem, 1, 1)
+		fieldItems[0] = $1.(*ast.FieldItem)
+		$$ = fieldItems
+	}
 
 
-Enclosed:
-	/* EMPTY */                            { $$ = "" }
-|	"OPTIONALLY" "ENCLOSED" "BY" stringLit { $$ = $4 }
-|	"ENCLOSED" "BY" stringLit              { $$ = $3 }
-
-
-Escaped:
-	/* EMPTY */              { $$ = "\\" }
-|	"ESCAPED" "BY" stringLit { $$ = $3 }
+FieldItem:
+	"TERMINATED" "BY" stringLit
+	{
+		$$ = &ast.FieldItem{
+			Type:    ast.Terminated,
+			Value:   $3,
+		}
+	}
+|	"OPTIONALLY" "ENCLOSED" "BY" stringLit
+	{
+		str := $4
+		if str != "\\" && len(str) > 1 {
+			yylex.AppendError(ErrWrongFieldTerminators.GenWithStackByArgs())
+			return 1
+		}
+		$$ = &ast.FieldItem{
+			Type:    ast.Enclosed,
+			Value:   str,
+		}
+	}
+|	"ENCLOSED" "BY" stringLit
+	{
+		str := $3
+		if str != "\\" && len(str) > 1 {
+			yylex.AppendError(ErrWrongFieldTerminators.GenWithStackByArgs())
+			return 1
+		}
+		$$ = &ast.FieldItem{
+			Type:    ast.Enclosed,
+			Value:   str,
+		}
+	}
+|	"ESCAPED" "BY" stringLit
+	{
+		str := $3
+		if str != "\\" && len(str) > 1 {
+			yylex.AppendError(ErrWrongFieldTerminators.GenWithStackByArgs())
+			return 1
+		}
+		$$ = &ast.FieldItem{
+			Type:    ast.Escaped,
+			Value:   str,
+		}
+	}
 
 
 Lines:
@@ -6727,6 +7031,20 @@ Starting:
 LinesTerminated:
 	/* EMPTY */                 { $$ = "\n" }
 |	"TERMINATED" "BY" stringLit { $$ = $3 }
+
+
+LoadDataSetSpecOpt:
+	/* EMPTY */           { $$ = nil }
+|	"SET" LoadDataSetList { $$ = nil }
+
+
+LoadDataSetList:
+	LoadDataSetList ',' LoadDataSetItem { $$ = nil }
+|	LoadDataSetItem                     { $$ = nil }
+
+
+LoadDataSetItem:
+	SimpleIdent "=" ExprOrDefault { $$ = nil }
 
 
 /*********************************************************************

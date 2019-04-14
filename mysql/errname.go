@@ -929,5 +929,14 @@ var MySQLErrName = map[uint16]string{
 	ErrUnsupportedReloadPlugin:    "Plugin %s isn't loaded so cannot be reloaded",
 	ErrUnsupportedReloadPluginVar: "Reload plugin with different sysVar is unsupported %v",
 
+	// TiKV/PD errors.
+	ErrPDServerTimeout:    "PD server timeout",
+	ErrTiKVServerTimeout:  "TiKV server timeout",
+	ErrTiKVServerBusy:     "TiKV server is busy",
+	ErrResolveLockTimeout: "Resolve lock timeout",
+	ErrRegionUnavailable:  "Region is unavailable",
+	ErrGCTooEarly:         "GC life time is shorter than transaction duration, transaction starts at %v, GC safe point is %v",
+	ErrWriteConflict:      "Write conflict, txnStartTS=%d, conflictTS=%d, key=%s",
+
 	ErrTxnTooLarge: "Transaction is too large",
 }
