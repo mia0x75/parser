@@ -15,6 +15,7 @@ package ast_test
 
 import (
 	_ "github.com/mia0x75/parser/driver"
+	"github.com/mia0x75/parser/format"
 	. "github.com/pingcap/check"
 
 	. "github.com/mia0x75/parser/ast"
@@ -199,6 +200,24 @@ func (tc *testExpressionsSuite) TestBinaryOperationExpr(c *C) {
 		return node.(*SelectStmt).Fields.Fields[0].Expr
 	}
 	RunNodeRestoreTest(c, testCases, "select %s", extractNodeFunc)
+}
+
+func (tc *testExpressionsSuite) TestBinaryOperationExprWithFlags(c *C) {
+	testCases := []NodeRestoreTestCase{
+		{"'a'!=1", "'a' != 1"},
+		{"a!=1", "`a` != 1"},
+		{"3<5", "3 < 5"},
+		{"10>5", "10 > 5"},
+		{"3+5", "3 + 5"},
+		{"3-5", "3 - 5"},
+		{"a<>5", "`a` != 5"},
+		{"a=1", "`a` = 1"},
+	}
+	extractNodeFunc := func(node Node) Node {
+		return node.(*SelectStmt).Fields.Fields[0].Expr
+	}
+	flags := format.DefaultRestoreFlags | format.RestoreSpacesAroundBinaryOperation
+	RunNodeRestoreTestWithFlags(c, testCases, "select %s", extractNodeFunc, flags)
 }
 
 func (tc *testExpressionsSuite) TestParenthesesExpr(c *C) {
