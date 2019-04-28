@@ -244,7 +244,7 @@ type IndexHint struct {
 	HintScope  IndexHintScope
 }
 
-// IndexHint Restore (The const field uses switch to facilitate understanding)
+// Restore IndexHint (The const field uses switch to facilitate understanding)
 func (n *IndexHint) Restore(ctx *format.RestoreCtx) error {
 	indexHintType := ""
 	switch n.HintType {

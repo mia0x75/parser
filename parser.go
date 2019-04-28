@@ -7578,7 +7578,18 @@ yynewstate:
 		}
 	case 78:
 		{
-			parser.yyVAL.item = &ast.ColumnDef{Name: yyS[yypt-2].item.(*ast.ColumnName), Tp: yyS[yypt-1].item.(*types.FieldType), Options: yyS[yypt-0].item.([]*ast.ColumnOption)}
+			colDef := &ast.ColumnDef{Name: yyS[yypt-2].item.(*ast.ColumnName), Tp: yyS[yypt-1].item.(*types.FieldType), Options: yyS[yypt-0].item.([]*ast.ColumnOption)}
+			if !colDef.Validate() {
+				yylex.AppendError(yylex.Errorf("Invalid column definition"))
+				return 1
+			}
+			for _, opt := range colDef.Options {
+				if opt.Tp != ast.ColumnOptionCollate {
+					continue
+				}
+				colDef.Tp.Collate = opt.StrValue
+			}
+			parser.yyVAL.item = colDef
 		}
 	case 79:
 		{
@@ -7653,8 +7664,7 @@ yynewstate:
 		}
 	case 98:
 		{
-			nowFunc := &ast.FuncCallExpr{FnName: model.NewCIStr("CURRENT_TIMESTAMP")}
-			parser.yyVAL.item = &ast.ColumnOption{Tp: ast.ColumnOptionOnUpdate, Expr: nowFunc}
+			parser.yyVAL.item = &ast.ColumnOption{Tp: ast.ColumnOptionOnUpdate, Expr: yyS[yypt-0].expr}
 		}
 	case 99:
 		{
@@ -11141,14 +11151,14 @@ yynewstate:
 	case 1053:
 		{
 			// Validate input charset name to keep the same behavior as parser of MySQL.
-			_, _, err := charset.GetCharsetInfo(yyS[yypt-0].item.(string))
+			name, _, err := charset.GetCharsetInfo(yyS[yypt-0].item.(string))
 			if err != nil {
 				yylex.AppendError(ErrUnknownCharacterSet.GenWithStackByArgs(yyS[yypt-0].item))
 				return 1
 			}
-			// Use $1 instead of charset name returned from charset.GetCharsetInfo(),
-			// to keep upper-lower case of input for restore.
-			parser.yyVAL.item = yyS[yypt-0].item
+			// Use charset name returned from charset.GetCharsetInfo(),
+			// to keep lower case of input for generated column restore.
+			parser.yyVAL.item = name
 		}
 	case 1054:
 		{

@@ -728,6 +728,7 @@ type SetRoleStmt struct {
 	RoleList   []*auth.RoleIdentity
 }
 
+// Restore implements Node interface.
 func (n *SetRoleStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("SET ROLE")
 	switch n.SetRoleOpt {
@@ -771,6 +772,7 @@ type SetDefaultRoleStmt struct {
 	UserList   []*auth.UserIdentity
 }
 
+// Restore implements Node interface.
 func (n *SetDefaultRoleStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("SET DEFAULT ROLE")
 	switch n.SetRoleOpt {

@@ -1443,7 +1443,18 @@ ColumnDefList:
 ColumnDef:
 	ColumnName Type ColumnOptionListOpt
 	{
-		$$ = &ast.ColumnDef{Name: $1.(*ast.ColumnName), Tp: $2.(*types.FieldType), Options: $3.([]*ast.ColumnOption)}
+		colDef := &ast.ColumnDef{Name: $1.(*ast.ColumnName), Tp: $2.(*types.FieldType), Options: $3.([]*ast.ColumnOption)}
+		if !colDef.Validate() {
+			yylex.AppendError(yylex.Errorf("Invalid column definition"))
+			return 1
+		}
+		for _, opt := range colDef.Options {
+			if opt.Tp != ast.ColumnOptionCollate {
+				continue
+			}
+			colDef.Tp.Collate = opt.StrValue
+		}
+		$$ = colDef
 	}
 
 
@@ -1563,7 +1574,9 @@ ColumnOption:
 		$$ = &ast.ColumnOption{Tp: ast.ColumnOptionCollate, StrValue: $2.(string)}
 	}
 
-GeneratedAlways: | "GENERATED" "ALWAYS"
+GeneratedAlways:
+	/* EMPTY */
+|	"GENERATED" "ALWAYS"
 
 
 VirtualOrStored:

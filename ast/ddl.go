@@ -393,6 +393,14 @@ const (
 	ColumnOptionCollate
 )
 
+var (
+	invalidOptionForGeneratedColumn = map[ColumnOptionType]struct{}{
+		ColumnOptionAutoIncrement: {},
+		ColumnOptionOnUpdate:      {},
+		ColumnOptionDefaultValue:  {},
+	}
+)
+
 // ColumnOption is used for parsing column constraint info from SQL.
 type ColumnOption struct {
 	node
@@ -709,6 +717,23 @@ func (n *ColumnDef) Accept(v Visitor) (Node, bool) {
 		n.Options[i] = node.(*ColumnOption)
 	}
 	return v.Leave(n)
+}
+
+// Validate checks if a column definition is legal.
+// For example, generated column definitions that contain such
+// column options as `ON UPDATE`, `AUTO_INCREMENT`, `DEFAULT`
+// are illegal.
+func (n *ColumnDef) Validate() bool {
+	generatedCol := false
+	illegalOpt4gc := false
+	for _, opt := range n.Options {
+		if opt.Tp == ColumnOptionGenerated {
+			generatedCol = true
+		}
+		_, found := invalidOptionForGeneratedColumn[opt.Tp]
+		illegalOpt4gc = illegalOpt4gc || found
+	}
+	return !(generatedCol && illegalOpt4gc)
 }
 
 // CreateTableStmt is a statement to create a table.
@@ -1259,6 +1284,7 @@ type TableOption struct {
 	UintValue uint64
 }
 
+// Restore implements Node interface.
 func (n *TableOption) Restore(ctx *format.RestoreCtx) error {
 	switch n.Tp {
 	case TableOptionEngine:
@@ -1864,6 +1890,7 @@ type PartitionOptions struct {
 	Num         uint64
 }
 
+// Restore implements Node interface.
 func (n *PartitionOptions) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("PARTITION BY ")
 	switch n.Tp {
