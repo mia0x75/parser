@@ -17,8 +17,8 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/mia0x75/goInception/util/testleak"
 	. "github.com/pingcap/check"
+	"github.com/pingcap/tidb/util/testleak"
 )
 
 func TestT(t *testing.T) {
@@ -121,6 +121,19 @@ func (s *testCharsetSuite) TestGetCharsetDesc(c *C) {
 			c.Assert(desc.Name, Equals, tt.result)
 		}
 	}
+}
+
+func (s *testCharsetSuite) TestGetCollationByName(c *C) {
+	defer testleak.AfterTest(c)()
+
+	for _, collation := range collations {
+		coll, err := GetCollationByName(collation.Name)
+		c.Assert(err, IsNil)
+		c.Assert(coll, Equals, collation)
+	}
+
+	_, err := GetCollationByName("non_exist")
+	c.Assert(err, ErrorMatches, "\\[ddl:1273\\]Unknown collation: 'non_exist'")
 }
 
 func BenchmarkGetCharsetDesc(b *testing.B) {

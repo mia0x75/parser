@@ -17,7 +17,7 @@ import (
 	"fmt"
 
 	"github.com/mia0x75/parser"
-	_ "github.com/pingcap/tidb/types/parser_driver"
+	_ "github.com/mia0x75/parser/driver"
 )
 
 // This example show how to parse a text sql into ast.
