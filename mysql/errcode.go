@@ -915,31 +915,8 @@ const (
 	ErrWindowNestedWindowFuncUseInWindowSpec                        = 3595
 	ErrWindowRowsIntervalUse                                        = 3596
 	ErrWindowNoGroupOrderUnused                                     = 3597
-	ErrWindowExplainJson                                            = 3598
+	ErrWindowExplainJSON                                            = 3598
 	ErrWindowFunctionIgnoresFrame                                   = 3599
-
-	// TiDB self-defined errors.
-	ErrMemExceedThreshold         = 8001
-	ErrForUpdateCantRetry         = 8002
-	ErrAdminCheckTable            = 8003
-	ErrInvalidPluginID            = 8101
-	ErrInvalidPluginManifest      = 8102
-	ErrInvalidPluginName          = 8103
-	ErrInvalidPluginVersion       = 8104
-	ErrDuplicatePlugin            = 8105
-	ErrInvalidPluginSysVarName    = 8106
-	ErrRequireVersionCheckFail    = 8107
-	ErrUnsupportedReloadPlugin    = 8018
-	ErrUnsupportedReloadPluginVar = 8019
-
-	// TiKV/PD errors.
-	ErrPDServerTimeout    = 9001
-	ErrTiKVServerTimeout  = 9002
-	ErrTiKVServerBusy     = 9003
-	ErrResolveLockTimeout = 9004
-	ErrRegionUnavailable  = 9005
-	ErrGCTooEarly         = 9006
-	ErrWriteConflict      = 9007
 
 	ErrTxnTooLarge = 9500
 )

@@ -41,7 +41,6 @@ func (s *testConsistentSuite) TestKeywordConsistent(c *C) {
 	reservedKeywordStartMarker := "\t/* The following tokens belong to ReservedKeyword. */"
 	unreservedKeywordStartMarker := "\t/* The following tokens belong to UnReservedKeyword. */"
 	notKeywordTokenStartMarker := "\t/* The following tokens belong to NotKeywordToken. */"
-	tidbKeywordStartMarker := "\t/* The following tokens belong to TiDBKeyword. */"
 	identTokenEndMarker := "%token\t<item>"
 
 	reservedKeywords := extractKeywords(content, reservedKeywordStartMarker, unreservedKeywordStartMarker)
@@ -64,9 +63,6 @@ func (s *testConsistentSuite) TestKeywordConsistent(c *C) {
 
 	notKeywordTokensCollectionDef := extractKeywordsFromCollectionDef(content, "\nNotKeywordToken:")
 	c.Assert(notKeywordTokens, DeepEquals, notKeywordTokensCollectionDef)
-
-	tidbKeywordsCollectionDef := extractKeywordsFromCollectionDef(content, "\nTiDBKeyword:")
-	c.Assert(tidbKeywords, DeepEquals, tidbKeywordsCollectionDef)
 }
 
 func extractMiddle(str, startMarker, endMarker string) string {

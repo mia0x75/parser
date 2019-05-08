@@ -1114,6 +1114,7 @@ func (n *Assignment) Accept(v Visitor) (Node, bool) {
 	return v.Leave(n)
 }
 
+// ColumnNameOrUserVar TODO
 type ColumnNameOrUserVar struct {
 	ColumnName *ColumnName
 	UserVar    *VariableExpr
@@ -1222,12 +1223,14 @@ func (n *LoadDataStmt) Accept(v Visitor) (Node, bool) {
 	return v.Leave(n)
 }
 
+// TODO:
 const (
 	Terminated = iota
 	Enclosed
 	Escaped
 )
 
+// FieldItem TODO:
 type FieldItem struct {
 	Type  int
 	Value string
@@ -1807,6 +1810,7 @@ const (
 	ShowOpenTables
 )
 
+// TODO:
 const (
 	ProfileTypeInvalid = iota
 	ProfileTypeCPU
@@ -2300,7 +2304,7 @@ type FrameExtent struct {
 	End   FrameBound
 }
 
-// FrameType is the type of window function frame bound.
+// BoundType is the type of window function frame bound.
 type BoundType int
 
 // Frame bound types.

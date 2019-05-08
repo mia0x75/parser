@@ -23,7 +23,7 @@ import (
 // This example show how to parse a text sql into ast.
 func Example_parseSQL() {
 
-	// 0. make sure import parser_driver implemented by TiDB(user also can implement own driver by self).
+	// 0. make sure import parser_driver
 	// and add `import _ "github.com/mia0x75/tidb/types/parser_driver"` in the head of file.
 
 	// 1. Create a parser. The parser is NOT goroutine safe and should

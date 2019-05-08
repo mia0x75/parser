@@ -578,23 +578,11 @@ type KillStmt struct {
 	// If Query is false, terminates the connection associated with the given ConnectionID, after terminating any statement the connection is executing.
 	Query        bool
 	ConnectionID uint64
-	// TiDBExtension is used to indicate whether the user knows he is sending kill statement to the right tidb-server.
-	// When the SQL grammar is "KILL TIDB [CONNECTION | QUERY] connectionID", TiDBExtension will be set.
-	// It's a special grammar extension in TiDB. This extension exists because, when the connection is:
-	// client -> LVS proxy -> TiDB, and type Ctrl+C in client, the following action will be executed:
-	// new a connection; kill xxx;
-	// kill command may send to the wrong TiDB, because the exists of LVS proxy, and kill the wrong session.
-	// So, "KILL TIDB" grammar is introduced, and it REQUIRES DIRECT client -> TiDB TOPOLOGY.
-	// TODO: The standard KILL grammar will be supported once we have global connectionID.
-	TiDBExtension bool
 }
 
 // Restore implements Node interface.
 func (n *KillStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("KILL")
-	if n.TiDBExtension {
-		ctx.WriteKeyWord(" TIDB")
-	}
 	if n.Query {
 		ctx.WriteKeyWord(" QUERY")
 	}
@@ -721,6 +709,7 @@ const (
 	SetRoleRegular
 )
 
+// SetRoleStmt TODO:
 type SetRoleStmt struct {
 	stmtNode
 
@@ -764,6 +753,7 @@ func (n *SetRoleStmt) Accept(v Visitor) (Node, bool) {
 	return v.Leave(n)
 }
 
+// SetDefaultRoleStmt TODO:
 type SetDefaultRoleStmt struct {
 	stmtNode
 
@@ -870,6 +860,7 @@ func (n *UserSpec) EncodedPassword() (string, bool) {
 	return opt.HashString, true
 }
 
+// TODO:
 const (
 	TslNone = iota
 	Ssl
@@ -879,11 +870,13 @@ const (
 	Subject
 )
 
+// TslOption TODO:
 type TslOption struct {
 	Type  int
 	Value string
 }
 
+// Restore implements Node interface.
 func (t *TslOption) Restore(ctx *format.RestoreCtx) error {
 	switch t.Type {
 	case TslNone:
@@ -907,6 +900,7 @@ func (t *TslOption) Restore(ctx *format.RestoreCtx) error {
 	return nil
 }
 
+// TODO:
 const (
 	MaxQueriesPerHour = iota + 1
 	MaxUpdatesPerHour
@@ -914,11 +908,13 @@ const (
 	MaxUserConnections
 )
 
+// ResourceOption TODO:
 type ResourceOption struct {
 	Type  int
 	Count int64
 }
 
+// Restore implements Node interface.
 func (r *ResourceOption) Restore(ctx *format.RestoreCtx) error {
 	switch r.Type {
 	case MaxQueriesPerHour:
@@ -936,6 +932,7 @@ func (r *ResourceOption) Restore(ctx *format.RestoreCtx) error {
 	return nil
 }
 
+// TODO:
 const (
 	PasswordExpire = iota + 1
 	PasswordExpireDefault
@@ -945,11 +942,13 @@ const (
 	Unlock
 )
 
+// PasswordOrLockOption TODO:
 type PasswordOrLockOption struct {
 	Type  int
 	Count int64
 }
 
+// Restore implements Node interface.
 func (p *PasswordOrLockOption) Restore(ctx *format.RestoreCtx) error {
 	switch p.Type {
 	case PasswordExpire:
@@ -1587,6 +1586,7 @@ func (n *GrantRoleStmt) SecureText() string {
 	return text
 }
 
+// LockTableStmt TODO:
 type LockTableStmt struct {
 	stmtNode
 }
@@ -1606,6 +1606,7 @@ func (n *LockTableStmt) Accept(v Visitor) (Node, bool) {
 	return v.Leave(n)
 }
 
+// UnlockTableStmt TODO:
 type UnlockTableStmt struct {
 	stmtNode
 }
@@ -1625,6 +1626,7 @@ func (n *UnlockTableStmt) Accept(v Visitor) (Node, bool) {
 	return v.Leave(n)
 }
 
+// PurgeStmt TODO:
 type PurgeStmt struct {
 	stmtNode
 }

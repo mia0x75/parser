@@ -18,6 +18,7 @@ func HasAggFlag(expr ExprNode) bool {
 	return expr.GetFlag()&FlagHasAggregateFunc > 0
 }
 
+// HasWindowFlag TODO:
 func HasWindowFlag(expr ExprNode) bool {
 	return expr.GetFlag()&FlagHasWindowFunc > 0
 }
@@ -31,10 +32,12 @@ func SetFlag(n Node) {
 type flagSetter struct {
 }
 
+// Enter TODO:
 func (f *flagSetter) Enter(in Node) (Node, bool) {
 	return in, false
 }
 
+// Leave TODO:
 func (f *flagSetter) Leave(in Node) (Node, bool) {
 	if x, ok := in.(ParamMarkerExpr); ok {
 		x.SetFlag(FlagHasParamMarker)

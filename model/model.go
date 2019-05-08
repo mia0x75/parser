@@ -71,6 +71,7 @@ const (
 
 // ColumnInfo provides meta data describing of a table column.
 type ColumnInfo struct {
+	types.FieldType                         `json:"type"`
 	ID                  int64               `json:"id"`
 	Name                CIStr               `json:"name"`
 	Offset              int                 `json:"offset"`
@@ -80,15 +81,9 @@ type ColumnInfo struct {
 	GeneratedExprString string              `json:"generated_expr_string"`
 	GeneratedStored     bool                `json:"generated_stored"`
 	Dependences         map[string]struct{} `json:"dependences"`
-	types.FieldType     `json:"type"`
-	State               SchemaState `json:"state"`
-	Comment             string      `json:"comment"`
-	// Version means the version of the column info.
-	// Version = 0: For OriginDefaultValue and DefaultValue of timestamp column will stores the default time in system time zone.
-	//              That is a bug if multiple TiDB servers in different system time zone.
-	// Version = 1: For OriginDefaultValue and DefaultValue of timestamp column will stores the default time in UTC time zone.
-	//              This will fix bug in version 0. For compatibility with version 0, we add version field in column info struct.
-	Version uint64 `json:"version"`
+	State               SchemaState         `json:"state"`
+	Comment             string              `json:"comment"`
+	Version             uint64              `json:"version"`
 }
 
 // Clone clones ColumnInfo.
@@ -160,7 +155,7 @@ const (
 	// When we execute a change/modify column statement that does not specify a charset value for column,
 	// we set the charset of this column to the charset of table. This behavior is compatible with MySQL.
 	TableInfoVersion1 = uint16(1)
-	// CurrLatestTableInfoVersion means the latest table info in the current TiDB.
+	// CurrLatestTableInfoVersion means the latest table info
 	CurrLatestTableInfoVersion = TableInfoVersion1
 )
 
@@ -620,9 +615,6 @@ func NewCIStr(s string) (cs CIStr) {
 }
 
 // UnmarshalJSON implements the user defined unmarshal method.
-// CIStr can be unmarshaled from a single string, so PartitionDefinition.Name
-// in this change https://github.com/mia0x75/tidb/pull/6460/files would be
-// compatible during TiDB upgrading.
 func (cis *CIStr) UnmarshalJSON(b []byte) error {
 	type T CIStr
 	if err := json.Unmarshal(b, (*T)(cis)); err == nil {

@@ -443,7 +443,7 @@ func (n *ColumnOption) Restore(ctx *format.RestoreCtx) error {
 			return errors.Annotate(err, "An error occurred while splicing ColumnOption ON UPDATE Expr")
 		}
 	case ColumnOptionFulltext:
-		return errors.New("TiDB Parser ignore the `ColumnOptionFulltext` type now")
+		return errors.New("Parser ignore the `ColumnOptionFulltext` type now")
 	case ColumnOptionComment:
 		ctx.WriteKeyWord("COMMENT ")
 		if err := n.Expr.Restore(ctx); err != nil {
@@ -1517,7 +1517,7 @@ const (
 type AlterAlgorithm byte
 
 // DDL alter algorithms.
-// For now, TiDB only supported inplace and instance algorithms. If the user specify `copy`,
+// For now, only supported inplace and instance algorithms. If the user specify `copy`,
 // will get an error.
 const (
 	AlterAlgorithmDefault AlterAlgorithm = iota
@@ -1899,7 +1899,7 @@ func (n *PartitionOptions) Restore(ctx *format.RestoreCtx) error {
 	case model.PartitionTypeHash:
 		ctx.WriteKeyWord("HASH ")
 	case model.PartitionTypeList:
-		return errors.New("TiDB Parser ignore the `PartitionTypeList` type now")
+		return errors.New("Parser ignore the `PartitionTypeList` type now")
 	default:
 		return errors.Errorf("invalid model.PartitionType: %d", n.Tp)
 	}

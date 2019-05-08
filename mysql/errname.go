@@ -911,33 +911,9 @@ var MySQLErrName = map[uint16]string{
 	ErrWindowNestedWindowFuncUseInWindowSpec:                 "You cannot nest a window function in the specification of window '%s'.",
 	ErrWindowRowsIntervalUse:                                 "Window '%s': INTERVAL can only be used with RANGE frames.",
 	ErrWindowNoGroupOrderUnused:                              "ASC or DESC with GROUP BY isn't allowed with window functions; put ASC or DESC in ORDER BY",
-	ErrWindowExplainJson:                                     "To get information about window functions use EXPLAIN FORMAT=JSON",
+	ErrWindowExplainJSON:                                     "To get information about window functions use EXPLAIN FORMAT=JSON",
 	ErrWindowFunctionIgnoresFrame:                            "Window function '%s' ignores the frame clause of window '%s' and aggregates over the whole partition",
 	ErrRoleNotGranted:                                        "%s is is not granted to %s",
-
-	// TiDB errors.
-	ErrMemExceedThreshold: "%s holds %dB memory, exceeds threshold %dB.%s",
-	ErrForUpdateCantRetry: "[%d] can not retry select for update statement",
-	ErrAdminCheckTable:    "TiDB admin check table failed.",
-
-	ErrInvalidPluginID:            "Wrong plugin id: %s, valid plugin id is [name]-[version], both name and version should not contain '-'",
-	ErrInvalidPluginManifest:      "Cannot read plugin %s's manifest",
-	ErrInvalidPluginName:          "Plugin load with %s but got wrong name %s",
-	ErrInvalidPluginVersion:       "Plugin load with %s but got %s",
-	ErrDuplicatePlugin:            "Plugin [%s] is redeclared",
-	ErrInvalidPluginSysVarName:    "Plugin %s's sysVar %s must start with its plugin name %s",
-	ErrRequireVersionCheckFail:    "Plugin %s require %s be %v but got %v",
-	ErrUnsupportedReloadPlugin:    "Plugin %s isn't loaded so cannot be reloaded",
-	ErrUnsupportedReloadPluginVar: "Reload plugin with different sysVar is unsupported %v",
-
-	// TiKV/PD errors.
-	ErrPDServerTimeout:    "PD server timeout",
-	ErrTiKVServerTimeout:  "TiKV server timeout",
-	ErrTiKVServerBusy:     "TiKV server is busy",
-	ErrResolveLockTimeout: "Resolve lock timeout",
-	ErrRegionUnavailable:  "Region is unavailable",
-	ErrGCTooEarly:         "GC life time is shorter than transaction duration, transaction starts at %v, GC safe point is %v",
-	ErrWriteConflict:      "Write conflict, txnStartTS=%d, conflictTS=%d, key=%s",
 
 	ErrTxnTooLarge: "Transaction is too large",
 }
