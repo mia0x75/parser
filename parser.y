@@ -995,6 +995,8 @@ import (
 %precedence insertValues
 %precedence lowerThanCreateTableSelect
 %precedence createTableSelect
+%precedence lowerThanCharsetKwd
+%precedence charsetKwd
 %precedence lowerThanKey
 %precedence key
 
@@ -1852,23 +1854,32 @@ IndexColNameList:
 |	IndexColNameList ',' IndexColName { $$ = append($1.([]*ast.IndexColName), $3.(*ast.IndexColName)) }
 
 
-/*******************************************************************
+/**************************************AlterDatabaseStmt***************************************
+ * See https://dev.mysql.com/doc/refman/5.7/en/alter-database.html
+ * 'ALTER DATABASE ... UPGRADE DATA DIRECTORY NAME' is not supported yet.
  *
- *  Alter Database Statement
- *  ALTER {DATABASE | SCHEMA} [IF NOT EXISTS] db_name
- *      [alter_specification] ...
+ *  ALTER {DATABASE | SCHEMA} [db_name]
+ *   alter_specification ...
  *
  *  alter_specification:
- *      [DEFAULT] CHARACTER SET [=] charset_name
- *    | [DEFAULT] COLLATE [=] collation_name
- *******************************************************************/
+ *   [DEFAULT] CHARACTER SET [=] charset_name
+ * | [DEFAULT] COLLATE [=] collation_name
+ *******************************************************************************************/
 AlterDatabaseStmt:
-	"ALTER" DatabaseSym IfExists DBName DatabaseOptionList
+	"ALTER" DatabaseSym DBName DatabaseOptionList
 	{
 		$$ = &ast.AlterDatabaseStmt{
-			IfExists: $3.(bool),
-			Name:     $4.(string),
-			Options:  $5.([]*ast.DatabaseOption),
+			Name:                 $3.(string),
+			AlterDefaultDatabase: false,
+			Options:              $4.([]*ast.DatabaseOption),
+		}
+	}
+|	"ALTER" DatabaseSym DatabaseOptionList
+	{
+		$$ = &ast.AlterDatabaseStmt{
+			Name:                 "",
+			AlterDefaultDatabase: true,
+			Options:              $3.([]*ast.DatabaseOption),
 		}
 	}
 
@@ -1960,7 +1971,7 @@ CreateTableStmt:
 
 
 DefaultKwdOpt:
-	/* EMPTY */ {}
+	%prec lowerThanCharsetKwd {}
 |	"DEFAULT"
 
 
@@ -2835,7 +2846,7 @@ identifier | UnReservedKeyword | NotKeywordToken
 
 
 UnReservedKeyword:
- "ACTION" | "ASCII" | "AUTO_INCREMENT" | "AFTER" | "ALWAYS" | "AVG" | "BEGIN" | "BIT" | "BOOL" | "BOOLEAN" | "BTREE" | "BYTE" | "CLEANUP" | "CHARSET"
+  "ACTION" | "ASCII" | "AUTO_INCREMENT" | "AFTER" | "ALWAYS" | "AVG" | "BEGIN" | "BIT" | "BOOL" | "BOOLEAN" | "BTREE" | "BYTE" | "CLEANUP" | "CHARSET" %prec charsetKwd
 | "COLUMNS" | "COMMIT" | "COMPACT" | "COMPRESSED" | "CONSISTENT" | "CURRENT" | "DATA" | "DATE" %prec lowerThanStringLitToken| "DATETIME" | "DAY" | "DEALLOCATE" | "DO" | "DUPLICATE"
 | "DYNAMIC"| "END" | "ENGINE" | "ENGINES" | "ENUM" | "ERRORS" | "ESCAPE" | "EXECUTE" | "FIELDS" | "FIRST" | "FIXED" | "FLUSH" | "FOLLOWING" | "FORMAT" | "FULL" |"GLOBAL"
 | "HASH" | "HOUR" | "LESS" | "LOCAL" | "LAST" | "NAMES" | "OFFSET" | "PASSWORD" %prec lowerThanEq | "PREPARE" | "QUICK" | "REDUNDANT"
@@ -2852,14 +2863,44 @@ UnReservedKeyword:
 
 
 NotKeywordToken:
- "ADDDATE" | "BIT_AND" | "BIT_OR" | "BIT_XOR" | "CAST" | "COPY" | "COUNT" | "CURTIME" | "DATE_ADD" | "DATE_SUB" | "EXTRACT" | "GET_FORMAT" | "GROUP_CONCAT"
+  "ADDDATE" | "BIT_AND" | "BIT_OR" | "BIT_XOR" | "CAST" | "COPY" | "COUNT" | "CURTIME" | "DATE_ADD" | "DATE_SUB" | "EXTRACT" | "GET_FORMAT" | "GROUP_CONCAT"
 | "INPLACE" | "INSTANT" | "INTERNAL" |"MIN" | "MAX" | "MAX_EXECUTION_TIME" | "NOW" | "RECENT" | "POSITION" | "SUBDATE" | "SUBSTRING" | "SUM"
 | "STD" | "STDDEV" | "STDDEV_POP" | "STDDEV_SAMP" | "VARIANCE" | "VAR_POP" | "VAR_SAMP"
 | "TIMESTAMPADD" | "TIMESTAMPDIFF" | "TOKUDB_DEFAULT" | "TOKUDB_FAST" | "TOKUDB_LZMA" | "TOKUDB_QUICKLZ" | "TOKUDB_SNAPPY" | "TOKUDB_SMALL" | "TOKUDB_UNCOMPRESSED" | "TOKUDB_ZLIB"  | "TOP" | "TRIM" | "NEXT_ROW_ID"
 
 /************************************************************************************
- *
- *  Insert Statements
+ * https://dev.mysql.com/doc/refman/5.7/en/insert.html
+ * INSERT [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE]
+ *     [INTO] tbl_name
+ *     [PARTITION (partition_name [, partition_name] ...)]
+ *     [(col_name [, col_name] ...)]
+ *     {VALUES | VALUE} (value_list) [, (value_list)] ...
+ *     [ON DUPLICATE KEY UPDATE assignment_list]
+ * 
+ * INSERT [LOW_PRIORITY | DELAYED | HIGH_PRIORITY] [IGNORE]
+ *     [INTO] tbl_name
+ *     [PARTITION (partition_name [, partition_name] ...)]
+ *     SET assignment_list
+ *     [ON DUPLICATE KEY UPDATE assignment_list]
+ * 
+ * INSERT [LOW_PRIORITY | HIGH_PRIORITY] [IGNORE]
+ *     [INTO] tbl_name
+ *     [PARTITION (partition_name [, partition_name] ...)]
+ *     [(col_name [, col_name] ...)]
+ *     SELECT ...
+ *     [ON DUPLICATE KEY UPDATE assignment_list]
+ * 
+ * value:
+ *     {expr | DEFAULT}
+ * 
+ * value_list:
+ *     value [, value] ...
+ * 
+ * assignment:
+ *     col_name = value
+ * 
+ * assignment_list:
+ *     assignment [, assignment] ...
  *
  *  TODO: support PARTITION
  **********************************************************************************/

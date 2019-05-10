@@ -71,7 +71,7 @@ const (
 
 // ColumnInfo provides meta data describing of a table column.
 type ColumnInfo struct {
-	types.FieldType                         `json:"type"`
+	types.FieldType     `json:"type"`
 	ID                  int64               `json:"id"`
 	Name                CIStr               `json:"name"`
 	Offset              int                 `json:"offset"`

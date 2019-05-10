@@ -46,16 +46,12 @@ func (s *testConsistentSuite) TestKeywordConsistent(c *C) {
 	reservedKeywords := extractKeywords(content, reservedKeywordStartMarker, unreservedKeywordStartMarker)
 
 	unreservedKeywords := extractKeywords(content, unreservedKeywordStartMarker, notKeywordTokenStartMarker)
-
-	notKeywordTokens := extractKeywords(content, notKeywordTokenStartMarker, tidbKeywordStartMarker)
-
-	tidbKeywords := extractKeywords(content, tidbKeywordStartMarker, identTokenEndMarker)
-
+	notKeywordTokens := extractKeywords(content, notKeywordTokenStartMarker, "")
 	for k, v := range aliases {
 		c.Assert(k != v, IsTrue)
 		c.Assert(tokenMap[k], Equals, tokenMap[v])
 	}
-	keywordCount := len(reservedKeywords) + len(unreservedKeywords) + len(notKeywordTokens) + len(tidbKeywords)
+	keywordCount := len(reservedKeywords) + len(unreservedKeywords)
 	c.Assert(len(tokenMap)-len(aliases), Equals, keywordCount-len(windowFuncTokenMap))
 
 	unreservedCollectionDef := extractKeywordsFromCollectionDef(content, "\nUnReservedKeyword:")

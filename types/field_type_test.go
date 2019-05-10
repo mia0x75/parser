@@ -21,7 +21,7 @@ import (
 	. "github.com/pingcap/check"
 )
 
-func TestT(t *testing.T) {
+func TestType(t *testing.T) {
 	CustomVerboseFlag = true
 	TestingT(t)
 }

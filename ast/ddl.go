@@ -100,11 +100,11 @@ func (n *CreateDatabaseStmt) Restore(ctx *format.RestoreCtx) error {
 		ctx.WriteKeyWord("IF NOT EXISTS ")
 	}
 	ctx.WriteName(n.Name)
-	for _, option := range n.Options {
+	for i, option := range n.Options {
 		ctx.WritePlain(" ")
 		err := option.Restore(ctx)
 		if err != nil {
-			return errors.Trace(err)
+			return errors.Annotatef(err, "An error occurred while splicing CreateDatabaseStmt DatabaseOption: [%v]", i)
 		}
 	}
 	return nil
@@ -125,23 +125,23 @@ func (n *CreateDatabaseStmt) Accept(v Visitor) (Node, bool) {
 type AlterDatabaseStmt struct {
 	ddlNode
 
-	IfExists bool
-	Name     string
-	Options  []*DatabaseOption
+	Name                 string
+	AlterDefaultDatabase bool
+	Options              []*DatabaseOption
 }
 
 // Restore implements Node interface.
 func (n *AlterDatabaseStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("ALTER DATABASE ")
-	if n.IfExists {
-		ctx.WriteKeyWord("IF EXISTS ")
+	if !n.AlterDefaultDatabase {
+		ctx.WritePlain(" ")
+		ctx.WriteName(n.Name)
 	}
-	ctx.WriteName(n.Name)
-	for _, option := range n.Options {
+	for i, option := range n.Options {
 		ctx.WritePlain(" ")
 		err := option.Restore(ctx)
 		if err != nil {
-			return errors.Trace(err)
+			return errors.Annotatef(err, "An error occurred while splicing AlterDatabaseStmt DatabaseOption: [%v]", i)
 		}
 	}
 	return nil
