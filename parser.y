@@ -230,7 +230,9 @@ import (
 	show              "SHOW"
 	smallIntType      "SMALLINT"
 	sql               "SQL"
+	sqlBigResult      "SQL_BIG_RESULT"
 	sqlCalcFoundRows  "SQL_CALC_FOUND_ROWS"
+	sqlSmallResult    "SQL_SMALL_RESULT"
 	ssl               "SSL"
 	starting          "STARTING"
 	straightJoin      "STRAIGHT_JOIN"
@@ -418,6 +420,7 @@ import (
 	slave                 "SLAVE"
 	slow                  "SLOW"
 	snapshot              "SNAPSHOT"
+	sqlBufferResult       "SQL_BUFFER_RESULT"
 	sqlCache              "SQL_CACHE"
 	sqlNoCache            "SQL_NO_CACHE"
 	start                 "START"
@@ -750,7 +753,7 @@ import (
 	NoWriteToBinLogAliasOpt         /* NO_WRITE_TO_BINLOG alias LOCAL or empty */
 	ObjectType                      /* Grant statement object type */
 	OnDuplicateKeyUpdate            /* ON DUPLICATE KEY UPDATE value list */
-	DuplicateOpt                    /* [IGNORE|REPLACE] in CREATE TABLE ... SELECT statement */
+	DuplicateOpt                    /* [IGNORE|REPLACE] in CREATE TABLE ... SELECT statement or LOAD DATA statement */
 	OptFull                         /* Full or empty */
 	Order                           /* ORDER BY clause optional collation specification */
 	OrderBy                         /* ORDER BY clause */
@@ -798,7 +801,10 @@ import (
 	RowValue                        /* Row value */
 	SelectLockOpt                   /* FOR UPDATE or LOCK IN SHARE MODE, */
 	SelectStmtCalcFoundRows         /* SELECT statement optional SQL_CALC_FOUND_ROWS */
+	SelectStmtSQLBigResult          /* SELECT statement optional SQL_BIG_RESULT */
+	SelectStmtSQLBufferResult       /* SELECT statement optional SQL_BUFFER_RESULT */
 	SelectStmtSQLCache              /* SELECT statement optional SQL_CAHCE/SQL_NO_CACHE */
+	SelectStmtSQLSmallResult        /* SELECT statement optional SQL_SMALL_RESULT */
 	SelectStmtStraightJoin          /* SELECT statement optional STRAIGHT_JOIN */
 	SelectStmtFieldList             /* SELECT statement field list */
 	SelectStmtLimit                 /* SELECT statement optional LIMIT clause */
@@ -984,6 +990,10 @@ import (
 
 
 %precedence empty
+
+%precedence sqlBufferResult
+%precedence sqlBigResult
+%precedence sqlSmallResult
 %precedence sqlCache sqlNoCache
 %precedence lowerThanIntervalKeyword
 %precedence interval
@@ -1956,7 +1966,7 @@ CreateTableStmt:
 		if $7 != nil {
 			stmt.Partition = $7.(*ast.PartitionOptions)
 		}
-		stmt.OnDuplicate = $8.(ast.OnDuplicateCreateTableSelectType)
+		stmt.OnDuplicate = $8.(ast.OnDuplicateKeyHandlingType)
 		stmt.Select = $10.(*ast.CreateTableStmt).Select
 		$$ = stmt
 	}
@@ -2118,9 +2128,9 @@ PartDefValuesOpt:
 
 
 DuplicateOpt:
-	/* EMPTY */ { $$ = ast.OnDuplicateCreateTableSelectError }
-|	"IGNORE"    { $$ = ast.OnDuplicateCreateTableSelectIgnore }
-|	"REPLACE"   { $$ = ast.OnDuplicateCreateTableSelectReplace }
+	/* EMPTY */ { $$ = ast.OnDuplicateKeyHandlingError }
+|	"IGNORE"    { $$ = ast.OnDuplicateKeyHandlingIgnore }
+|	"REPLACE"   { $$ = ast.OnDuplicateKeyHandlingReplace }
 
 
 AsOpt:
@@ -2860,6 +2870,7 @@ UnReservedKeyword:
 | "MICROSECOND" | "MINUTE" | "PLUGINS" | "PRECEDING" | "QUERY" | "QUERIES" | "SECOND" | "SEPARATOR" | "SHARE" | "SHARED" | "SLOW" | "MAX_CONNECTIONS_PER_HOUR" | "MAX_QUERIES_PER_HOUR" | "MAX_UPDATES_PER_HOUR"
 | "MAX_USER_CONNECTIONS" | "REPLICATION" | "CLIENT" | "SLAVE" | "RELOAD" | "TEMPORARY" | "ROUTINE" | "EVENT" | "ALGORITHM" | "DEFINER" | "INVOKER" | "MERGE" | "TEMPTABLE" | "UNDEFINED" | "SECURITY" | "CASCADED"
 | "RECOVER" | "CIPHER" | "SUBJECT" | "ISSUER" | "X509" | "NEVER" | "EXPIRE" | "ACCOUNT" | "CPU" | "MEMORY" | "BLOCK" | "IO" | "CONTEXT" | "SWITCHES" | "PAGE" | "FAULTS" | "IPC" | "SWAPS" | "SOURCE"
+| "SQL_BUFFER_RESULT"
 
 
 NotKeywordToken:
@@ -4835,7 +4846,7 @@ SelectStmtLimit:
 
 
 SelectStmtOpts:
-	TableOptimizerHints DefaultFalseDistinctOpt PriorityOpt SelectStmtSQLCache SelectStmtCalcFoundRows SelectStmtStraightJoin
+	TableOptimizerHints DefaultFalseDistinctOpt PriorityOpt SelectStmtSQLSmallResult SelectStmtSQLBigResult SelectStmtSQLBufferResult SelectStmtSQLCache SelectStmtCalcFoundRows SelectStmtStraightJoin
 	{
 		opt := &ast.SelectStmtOpts{}
 		if $1 != nil {
@@ -4848,17 +4859,27 @@ SelectStmtOpts:
 			opt.Priority = $3.(mysql.PriorityEnum)
 		}
 		if $4 != nil {
-			opt.SQLCache = $4.(bool)
+			opt.SQLSmallResult = $4.(bool)
 		}
 		if $5 != nil {
-			opt.CalcFoundRows = $5.(bool)
+			opt.SQLBigResult = $5.(bool)
 		}
 		if $6 != nil {
-			opt.StraightJoin = $6.(bool)
+			opt.SQLBufferResult = $6.(bool)
+		}
+		if $7 != nil {
+			opt.SQLCache = $7.(bool)
+		}
+		if $8 != nil {
+			opt.CalcFoundRows = $8.(bool)
+		}
+		if $9 != nil {
+			opt.StraightJoin = $9.(bool)
 		}
 
 		$$ = opt
 	}
+
 
 TableOptimizerHints:
 	/* EMPTY */
@@ -4876,6 +4897,7 @@ TableOptimizerHints:
 		$$ = nil
 	}
 
+
 HintTableList:
 	Identifier
 	{
@@ -4885,6 +4907,7 @@ HintTableList:
 	{
 		$$ = append($1.([]model.CIStr), model.NewCIStr($3))
 	}
+
 
 TableOptimizerHintList:
 	TableOptimizerHintOpt
@@ -4896,38 +4919,44 @@ TableOptimizerHintList:
 		$$ = append($1.([]*ast.TableOptimizerHint), $2.(*ast.TableOptimizerHint))
 	}
 
+
 TableOptimizerHintOpt:
 	maxExecutionTime '(' NUM ')'
 	{
 		$$ = &ast.TableOptimizerHint{HintName: model.NewCIStr($1), MaxExecutionTime: getUint64FromNUM($3)}
 	}
 
+
 SelectStmtCalcFoundRows:
 	/* EMPTY */           { $$ = false }
 |	"SQL_CALC_FOUND_ROWS" { $$ = true }
 
+
+SelectStmtSQLBigResult:
+	%prec empty      { $$ = false }
+|	"SQL_BIG_RESULT" { $$ = true }
+
+
+SelectStmtSQLBufferResult:
+	%prec empty         { $$ = false }
+|	"SQL_BUFFER_RESULT" { $$ = true }
+
+
 SelectStmtSQLCache:
-	%prec empty
-	{
-		$$ = true
-	}
-|	"SQL_CACHE"
-	{
-		$$ = true
-	}
-|	"SQL_NO_CACHE"
-	{
-		$$ = false
-	}
+	%prec empty    { $$ = true }
+|	"SQL_CACHE"    { $$ = true }
+|	"SQL_NO_CACHE" { $$ = false }
+
+
+SelectStmtSQLSmallResult:
+	%prec empty        { $$ = false }
+|	"SQL_SMALL_RESULT" { $$ = true }
+
+
 SelectStmtStraightJoin:
-	%prec empty
-	{
-		$$ = false
-	}
-|	"STRAIGHT_JOIN"
-	{
-		$$ = true
-	}
+	%prec empty     { $$ = false }
+|	"STRAIGHT_JOIN" { $$ = true }
+
 
 SelectStmtFieldList:
 	FieldList
@@ -4935,12 +4964,14 @@ SelectStmtFieldList:
 		$$ = &ast.FieldList{Fields: $1.([]*ast.SelectField)}
 	}
 
+
 SelectStmtGroup:
 	/* EMPTY */
 	{
 		$$ = nil
 	}
 |	GroupByClause
+
 
 // See https://dev.mysql.com/doc/refman/5.7/en/subqueries.html
 SubSelect:
@@ -4983,18 +5014,17 @@ UnionStmt:
 		parser.setLastSelectFieldText(lastSelect, endOffset)
 		union.SelectList.Selects = append(union.SelectList.Selects, st)
 		if $5 != nil {
-		    union.OrderBy = $5.(*ast.OrderByClause)
+			union.OrderBy = $5.(*ast.OrderByClause)
 		}
 		if $6 != nil {
-		    union.Limit = $6.(*ast.Limit)
+			union.Limit = $6.(*ast.Limit)
 		}
 		if $5 == nil && $6 == nil {
-		    st.LockTp = $7.(ast.SelectLockType)
+			st.LockTp = $7.(ast.SelectLockType)
 		}
 		$$ = union
 	}
-|	UnionClauseList "UNION" UnionOpt SelectStmtFromDualTable OrderByOptional
-    SelectStmtLimit SelectLockOpt
+|	UnionClauseList "UNION" UnionOpt SelectStmtFromDualTable OrderByOptional SelectStmtLimit SelectLockOpt
 	{
 		st := $4.(*ast.SelectStmt)
 		union := $1.(*ast.UnionStmt)
@@ -7053,25 +7083,31 @@ RevokeRoleStmt:
  * See https://dev.mysql.com/doc/refman/5.7/en/load-data.html
  *******************************************************************************************/
 LoadDataStmt:
-	"LOAD" "DATA" LocalOpt "INFILE" stringLit "INTO" "TABLE" TableName CharsetOpt Fields Lines IgnoreLines ColumnNameOrUserVarListOptWithBrackets LoadDataSetSpecOpt
+	"LOAD" "DATA" LocalOpt "INFILE" stringLit DuplicateOpt "INTO" "TABLE" TableName CharsetOpt Fields Lines IgnoreLines ColumnNameOrUserVarListOptWithBrackets LoadDataSetSpecOpt
 	{
 		x := &ast.LoadDataStmt{
 			Path:               $5,
-			Table:              $8.(*ast.TableName),
-			ColumnsAndUserVars: $13.([]*ast.ColumnNameOrUserVar),
-			IgnoreLines:        $12.(uint64),
+			OnDuplicate:        $6.(ast.OnDuplicateKeyHandlingType),
+			Table:              $9.(*ast.TableName),
+			ColumnsAndUserVars: $14.([]*ast.ColumnNameOrUserVar),
+			IgnoreLines:        $13.(uint64),
 		}
 		if $3 != nil {
 			x.IsLocal = true
-		}
-		if $10 != nil {
-			x.FieldsInfo = $10.(*ast.FieldsClause)
+			// See https://dev.mysql.com/doc/refman/5.7/en/load-data.html#load-data-duplicate-key-handling
+			// If you do not specify IGNORE or REPLACE modifier , then we set default behavior to IGNORE when LOCAL modifier is specified
+			if x.OnDuplicate == ast.OnDuplicateKeyHandlingError {
+				x.OnDuplicate = ast.OnDuplicateKeyHandlingIgnore
+			}
 		}
 		if $11 != nil {
-			x.LinesInfo = $11.(*ast.LinesClause)
+			x.FieldsInfo = $11.(*ast.FieldsClause)
 		}
-		if $14 != nil {
-			x.ColumnAssignments = $14.([]*ast.Assignment)
+		if $12 != nil {
+			x.LinesInfo = $12.(*ast.LinesClause)
+		}
+		if $15 != nil {
+			x.ColumnAssignments = $15.([]*ast.Assignment)
 		}
 		columns := []*ast.ColumnName{}
 		for _, v := range x.ColumnsAndUserVars {
