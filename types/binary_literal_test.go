@@ -14,15 +14,11 @@
 package types
 
 import (
-	. "github.com/pingcap/check"
+	"reflect"
+	"testing"
 )
 
-var _ = Suite(&testBinaryLiteralSuite{})
-
-type testBinaryLiteralSuite struct {
-}
-
-func (s *testBinaryLiteralSuite) TestTrimLeadingZeroBytes(c *C) {
+func TestTrimLeadingZeroBytes(t *testing.T) {
 	tbl := []struct {
 		Input    []byte
 		Expected []byte
@@ -37,13 +33,15 @@ func (s *testBinaryLiteralSuite) TestTrimLeadingZeroBytes(c *C) {
 		{[]byte{0x0, 0x1, 0x0, 0x0, 0x1, 0x0, 0x0}, []byte{0x1, 0x0, 0x0, 0x1, 0x0, 0x0}},
 		{[]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x0, 0x0, 0x1, 0x0, 0x0}, []byte{0x1, 0x0, 0x0, 0x1, 0x0, 0x0}},
 	}
-	for _, t := range tbl {
-		b := trimLeadingZeroBytes(t.Input)
-		c.Assert(b, DeepEquals, t.Expected, Commentf("%#v", t))
+	for _, tt := range tbl {
+		b := trimLeadingZeroBytes(tt.Input)
+		if !reflect.DeepEqual(b, tt.Expected) {
+			t.Fatalf("got %#v, want %#v: %#v", b, tt.Expected, tt)
+		}
 	}
 }
 
-func (s *testBinaryLiteralSuite) TestParseBitStr(c *C) {
+func TestParseBitStr(t *testing.T) {
 	tbl := []struct {
 		Input    string
 		Expected []byte
@@ -93,18 +91,24 @@ func (s *testBinaryLiteralSuite) TestParseBitStr(c *C) {
 		{"b'01101000011001010110110001101100011011110010000001110111011011110111001001101100011001000010000001100110011011110110111100100000011000100110000101110010'", []byte("hello world foo bar"), false},
 		{"B'01101000011001010110110001101100011011110010000001110111011011110111001001101100011001000010000001100110011011110110111100100000011000100110000101110010'", []byte("hello world foo bar"), false},
 	}
-	for _, t := range tbl {
-		b, err := ParseBitStr(t.Input)
-		if t.IsError {
-			c.Assert(err, NotNil, Commentf("%#v", t))
+	for _, tt := range tbl {
+		b, err := ParseBitStr(tt.Input)
+		if tt.IsError {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(err, IsNil, Commentf("%#v", t))
-			c.Assert([]byte(b), DeepEquals, t.Expected, Commentf("%#v", t))
+			if err != nil {
+				t.Fatalf("unexpected error %v: %#v", err, tt)
+			}
+			if !reflect.DeepEqual([]byte(b), tt.Expected) {
+				t.Fatalf("got %#v, want %#v: %#v", []byte(b), tt.Expected, tt)
+			}
 		}
 	}
 }
 
-func (s *testBinaryLiteralSuite) TestParseHexStr(c *C) {
+func TestParseHexStr(t *testing.T) {
 	tbl := []struct {
 		Input    string
 		Expected []byte
@@ -125,18 +129,24 @@ func (s *testBinaryLiteralSuite) TestParseHexStr(c *C) {
 		{"X'4920616D2061206C6F6E672068657820737472696E67'", []byte("I am a long hex string"), false},
 		{"x''", []byte{}, false},
 	}
-	for _, t := range tbl {
-		hex, err := ParseHexStr(t.Input)
-		if t.IsError {
-			c.Assert(err, NotNil, Commentf("%#v", t))
+	for _, tt := range tbl {
+		hex, err := ParseHexStr(tt.Input)
+		if tt.IsError {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(err, IsNil, Commentf("%#v", t))
-			c.Assert([]byte(hex), DeepEquals, t.Expected, Commentf("%#v", t))
+			if err != nil {
+				t.Fatalf("unexpected error %v: %#v", err, tt)
+			}
+			if !reflect.DeepEqual([]byte(hex), tt.Expected) {
+				t.Fatalf("got %#v, want %#v: %#v", []byte(hex), tt.Expected, tt)
+			}
 		}
 	}
 }
 
-func (s *testBinaryLiteralSuite) TestString(c *C) {
+func TestBinaryLiteral_String(t *testing.T) {
 	tbl := []struct {
 		Input    BinaryLiteral
 		Expected string
@@ -146,13 +156,15 @@ func (s *testBinaryLiteralSuite) TestString(c *C) {
 		{BinaryLiteral{0x1}, "0x01"},
 		{BinaryLiteral{0xff, 0x01}, "0xff01"},
 	}
-	for _, t := range tbl {
-		str := t.Input.String()
-		c.Assert(str, Equals, t.Expected)
+	for _, tt := range tbl {
+		str := tt.Input.String()
+		if str != tt.Expected {
+			t.Fatalf("got %#v, want %#v", str, tt.Expected)
+		}
 	}
 }
 
-func (s *testBinaryLiteralSuite) TestToBitLiteralString(c *C) {
+func TestToBitLiteralString(t *testing.T) {
 	tbl := []struct {
 		Input           BinaryLiteral
 		TrimLeadingZero bool
@@ -171,13 +183,15 @@ func (s *testBinaryLiteralSuite) TestToBitLiteralString(c *C) {
 		{BinaryLiteral{0x0, 0xff, 0x01}, true, "b'1111111100000001'"},
 		{BinaryLiteral{0x0, 0xff, 0x01}, false, "b'000000001111111100000001'"},
 	}
-	for _, t := range tbl {
-		str := t.Input.ToBitLiteralString(t.TrimLeadingZero)
-		c.Assert(str, Equals, t.Expected)
+	for _, tt := range tbl {
+		str := tt.Input.ToBitLiteralString(tt.TrimLeadingZero)
+		if str != tt.Expected {
+			t.Fatalf("got %#v, want %#v", str, tt.Expected)
+		}
 	}
 }
 
-func (s *testBinaryLiteralSuite) TestNewBinaryLiteralFromUint(c *C) {
+func TestNewBinaryLiteralFromUint(t *testing.T) {
 	tbl := []struct {
 		Input    uint64
 		ByteSize int
@@ -201,13 +215,15 @@ func (s *testBinaryLiteralSuite) TestNewBinaryLiteralFromUint(c *C) {
 		{0x4920616D2061206C, 8, []byte{0x49, 0x20, 0x61, 0x6D, 0x20, 0x61, 0x20, 0x6C}},
 		{0x4920616D2061206C, 5, []byte{0x6D, 0x20, 0x61, 0x20, 0x6C}},
 	}
-	for _, t := range tbl {
-		hex := NewBinaryLiteralFromUint(t.Input, t.ByteSize)
-		c.Assert([]byte(hex), DeepEquals, t.Expected, Commentf("%#v", t))
+	for _, tt := range tbl {
+		hex := NewBinaryLiteralFromUint(tt.Input, tt.ByteSize)
+		if !reflect.DeepEqual([]byte(hex), tt.Expected) {
+			t.Fatalf("got %#v, want %#v: %#v", []byte(hex), tt.Expected, tt)
+		}
 	}
 }
 
-func (s *testBinaryLiteralSuite) TestCompare(c *C) {
+func TestBinaryLiteral_Compare(t *testing.T) {
 	tbl := []struct {
 		a   BinaryLiteral
 		b   BinaryLiteral
@@ -218,7 +234,9 @@ func (s *testBinaryLiteralSuite) TestCompare(c *C) {
 		{BinaryLiteral{0, 1}, BinaryLiteral{1}, 0},
 		{BinaryLiteral{0, 2, 1}, BinaryLiteral{1, 2}, 1},
 	}
-	for _, t := range tbl {
-		c.Assert(t.a.Compare(t.b), Equals, t.cmp)
+	for _, tt := range tbl {
+		if got := tt.a.Compare(tt.b); got != tt.cmp {
+			t.Fatalf("got %#v, want %#v", got, tt.cmp)
+		}
 	}
 }

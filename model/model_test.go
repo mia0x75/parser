@@ -15,32 +15,27 @@ package model
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
-
-	. "github.com/pingcap/check"
 
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/types"
 )
 
 func TestT(t *testing.T) {
-	CustomVerboseFlag = true
-	TestingT(t)
-}
-
-var _ = Suite(&testModelSuite{})
-
-type testModelSuite struct {
-}
-
-func (*testModelSuite) TestT(c *C) {
 	abc := NewCIStr("aBC")
-	c.Assert(abc.O, Equals, "aBC")
-	c.Assert(abc.L, Equals, "abc")
-	c.Assert(abc.String(), Equals, "aBC")
+	if abc.O != "aBC" {
+		t.Fatalf("got %#v, want %#v", abc.O, "aBC")
+	}
+	if abc.L != "abc" {
+		t.Fatalf("got %#v, want %#v", abc.L, "abc")
+	}
+	if abc.String() != "aBC" {
+		t.Fatalf("got %#v, want %#v", abc.String(), "aBC")
+	}
 }
 
-func (*testModelSuite) TestModelBasic(c *C) {
+func TestModelBasic(t *testing.T) {
 	column := &ColumnInfo{
 		ID:           1,
 		Name:         NewCIStr("c"),
@@ -88,44 +83,70 @@ func (*testModelSuite) TestModelBasic(c *C) {
 	}
 
 	n := dbInfo.Clone()
-	c.Assert(n, DeepEquals, dbInfo)
+	if !reflect.DeepEqual(n, dbInfo) {
+		t.Fatalf("got %#v, want %#v", n, dbInfo)
+	}
 
 	pkName := table.GetPkName()
-	c.Assert(pkName, Equals, NewCIStr("c"))
+	if !reflect.DeepEqual(pkName, NewCIStr("c")) {
+		t.Fatalf("got %#v, want %#v", pkName, NewCIStr("c"))
+	}
 	newColumn := table.GetPkColInfo()
-	c.Assert(newColumn, DeepEquals, column)
+	if !reflect.DeepEqual(newColumn, column) {
+		t.Fatalf("got %#v, want %#v", newColumn, column)
+	}
 	inIdx := table.ColumnIsInIndex(column)
-	c.Assert(inIdx, Equals, true)
+	if inIdx != true {
+		t.Fatalf("got %#v, want %#v", inIdx, true)
+	}
 	tp := IndexTypeBtree
-	c.Assert(tp.String(), Equals, "BTREE")
+	if tp.String() != "BTREE" {
+		t.Fatalf("got %#v, want %#v", tp.String(), "BTREE")
+	}
 	tp = IndexTypeHash
-	c.Assert(tp.String(), Equals, "HASH")
+	if tp.String() != "HASH" {
+		t.Fatalf("got %#v, want %#v", tp.String(), "HASH")
+	}
 	tp = 1e5
-	c.Assert(tp.String(), Equals, "")
+	if tp.String() != "" {
+		t.Fatalf("got %#v, want %#v", tp.String(), "")
+	}
 	has := index.HasPrefixIndex()
-	c.Assert(has, Equals, true)
-	t := table.GetUpdateTime()
-	c.Assert(t, Equals, TSConvert2Time(table.UpdateTS))
+	if has != true {
+		t.Fatalf("got %#v, want %#v", has, true)
+	}
+	updateTime := table.GetUpdateTime()
+	if !reflect.DeepEqual(updateTime, TSConvert2Time(table.UpdateTS)) {
+		t.Fatalf("got %#v, want %#v", updateTime, TSConvert2Time(table.UpdateTS))
+	}
 
 	// Corner cases
 	column.Flag ^= mysql.PriKeyFlag
 	pkName = table.GetPkName()
-	c.Assert(pkName, Equals, NewCIStr(""))
+	if !reflect.DeepEqual(pkName, NewCIStr("")) {
+		t.Fatalf("got %#v, want %#v", pkName, NewCIStr(""))
+	}
 	newColumn = table.GetPkColInfo()
-	c.Assert(newColumn, IsNil)
+	if newColumn != nil {
+		t.Fatalf("got %#v, want nil", newColumn)
+	}
 	anCol := &ColumnInfo{
 		Name: NewCIStr("d"),
 	}
 	exIdx := table.ColumnIsInIndex(anCol)
-	c.Assert(exIdx, Equals, false)
+	if exIdx != false {
+		t.Fatalf("got %#v, want %#v", exIdx, false)
+	}
 	anIndex := &IndexInfo{
 		Columns: []*IndexColumn{},
 	}
 	no := anIndex.HasPrefixIndex()
-	c.Assert(no, Equals, false)
+	if no != false {
+		t.Fatalf("got %#v, want %#v", no, false)
+	}
 }
 
-func (testModelSuite) TestString(c *C) {
+func TestString(t *testing.T) {
 	acts := []struct {
 		act    ActionType
 		result string
@@ -150,24 +171,41 @@ func (testModelSuite) TestString(c *C) {
 
 	for _, v := range acts {
 		str := v.act.String()
-		c.Assert(str, Equals, v.result)
+		if str != v.result {
+			t.Fatalf("got %#v, want %#v", str, v.result)
+		}
 	}
 }
 
-func (testModelSuite) TestUnmarshalCIStr(c *C) {
+func TestUnmarshalCIStr(t *testing.T) {
 	var ci CIStr
 
 	// Test unmarshal CIStr from a single string.
 	str := "aaBB"
 	buf, err := json.Marshal(str)
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ci.UnmarshalJSON(buf)
-	c.Assert(ci.O, Equals, str)
-	c.Assert(ci.L, Equals, "aabb")
+	if ci.O != str {
+		t.Fatalf("got %#v, want %#v", ci.O, str)
+	}
+	if ci.L != "aabb" {
+		t.Fatalf("got %#v, want %#v", ci.L, "aabb")
+	}
 
 	buf, err = json.Marshal(ci)
-	c.Assert(string(buf), Equals, `{"O":"aaBB","L":"aabb"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(buf) != `{"O":"aaBB","L":"aabb"}` {
+		t.Fatalf("got %#v, want %#v", string(buf), `{"O":"aaBB","L":"aabb"}`)
+	}
 	ci.UnmarshalJSON(buf)
-	c.Assert(ci.O, Equals, str)
-	c.Assert(ci.L, Equals, "aabb")
+	if ci.O != str {
+		t.Fatalf("got %#v, want %#v", ci.O, str)
+	}
+	if ci.L != "aabb" {
+		t.Fatalf("got %#v, want %#v", ci.L, "aabb")
+	}
 }

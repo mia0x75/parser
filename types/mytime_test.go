@@ -14,24 +14,32 @@
 package types
 
 import (
-	. "github.com/pingcap/check"
+	"testing"
 )
 
-type testMyTimeSuite struct{}
+func TestWeekBehaviour(t *testing.T) {
+	if weekBehaviourMondayFirst != weekBehaviour(1) {
+		t.Fatalf("got %#v, want %#v", weekBehaviourMondayFirst, weekBehaviour(1))
+	}
+	if weekBehaviourYear != weekBehaviour(2) {
+		t.Fatalf("got %#v, want %#v", weekBehaviourYear, weekBehaviour(2))
+	}
+	if weekBehaviourFirstWeekday != weekBehaviour(4) {
+		t.Fatalf("got %#v, want %#v", weekBehaviourFirstWeekday, weekBehaviour(4))
+	}
 
-var _ = Suite(&testMyTimeSuite{})
-
-func (s *testMyTimeSuite) TestWeekBehaviour(c *C) {
-	c.Assert(weekBehaviourMondayFirst, Equals, weekBehaviour(1))
-	c.Assert(weekBehaviourYear, Equals, weekBehaviour(2))
-	c.Assert(weekBehaviourFirstWeekday, Equals, weekBehaviour(4))
-
-	c.Check(weekBehaviour(1).test(weekBehaviourMondayFirst), IsTrue)
-	c.Check(weekBehaviour(2).test(weekBehaviourYear), IsTrue)
-	c.Check(weekBehaviour(4).test(weekBehaviourFirstWeekday), IsTrue)
+	if !weekBehaviour(1).test(weekBehaviourMondayFirst) {
+		t.Errorf("expected true")
+	}
+	if !weekBehaviour(2).test(weekBehaviourYear) {
+		t.Errorf("expected true")
+	}
+	if !weekBehaviour(4).test(weekBehaviourFirstWeekday) {
+		t.Errorf("expected true")
+	}
 }
 
-func (s *testMyTimeSuite) TestWeek(c *C) {
+func TestWeek(t *testing.T) {
 	tests := []struct {
 		Input  MysqlTime
 		Mode   int
@@ -44,20 +52,34 @@ func (s *testMyTimeSuite) TestWeek(c *C) {
 
 	for ith, tt := range tests {
 		_, week := calcWeek(&tt.Input, weekMode(tt.Mode))
-		c.Check(week, Equals, tt.Expect, Commentf("%d failed.", ith))
+		if week != tt.Expect {
+			t.Errorf("%d failed.", ith)
+		}
 	}
 }
 
-func (s *testMyTimeSuite) TestCalcDaynr(c *C) {
-	c.Assert(calcDaynr(0, 0, 0), Equals, 0)
-	c.Assert(calcDaynr(9999, 12, 31), Equals, 3652424)
-	c.Assert(calcDaynr(1970, 1, 1), Equals, 719528)
-	c.Assert(calcDaynr(2006, 12, 16), Equals, 733026)
-	c.Assert(calcDaynr(10, 1, 2), Equals, 3654)
-	c.Assert(calcDaynr(2008, 2, 20), Equals, 733457)
+func TestCalcDaynr(t *testing.T) {
+	if calcDaynr(0, 0, 0) != 0 {
+		t.Fatalf("got %#v, want %#v", calcDaynr(0, 0, 0), 0)
+	}
+	if calcDaynr(9999, 12, 31) != 3652424 {
+		t.Fatalf("got %#v, want %#v", calcDaynr(9999, 12, 31), 3652424)
+	}
+	if calcDaynr(1970, 1, 1) != 719528 {
+		t.Fatalf("got %#v, want %#v", calcDaynr(1970, 1, 1), 719528)
+	}
+	if calcDaynr(2006, 12, 16) != 733026 {
+		t.Fatalf("got %#v, want %#v", calcDaynr(2006, 12, 16), 733026)
+	}
+	if calcDaynr(10, 1, 2) != 3654 {
+		t.Fatalf("got %#v, want %#v", calcDaynr(10, 1, 2), 3654)
+	}
+	if calcDaynr(2008, 2, 20) != 733457 {
+		t.Fatalf("got %#v, want %#v", calcDaynr(2008, 2, 20), 733457)
+	}
 }
 
-func (s *testMyTimeSuite) TestCalcTimeDiff(c *C) {
+func TestCalcTimeDiff(t *testing.T) {
 	tests := []struct {
 		T1     MysqlTime
 		T2     MysqlTime
@@ -89,11 +111,13 @@ func (s *testMyTimeSuite) TestCalcTimeDiff(c *C) {
 		seconds, microseconds, _ := calcTimeDiff(tt.T1, tt.T2, tt.Sign)
 		var result MysqlTime
 		calcTimeFromSec(&result, seconds, microseconds)
-		c.Assert(result, Equals, tt.Expect, Commentf("%d failed.", i))
+		if result != tt.Expect {
+			t.Fatalf("%d failed.", i)
+		}
 	}
 }
 
-func (s *testMyTimeSuite) TestCompareTime(c *C) {
+func TestCompareTime(t *testing.T) {
 	tests := []struct {
 		T1     MysqlTime
 		T2     MysqlTime
@@ -107,12 +131,16 @@ func (s *testMyTimeSuite) TestCompareTime(c *C) {
 	}
 
 	for _, tt := range tests {
-		c.Assert(compareTime(tt.T1, tt.T2), Equals, tt.Expect)
-		c.Assert(compareTime(tt.T2, tt.T1), Equals, -tt.Expect)
+		if compareTime(tt.T1, tt.T2) != tt.Expect {
+			t.Fatalf("got %#v, want %#v", compareTime(tt.T1, tt.T2), tt.Expect)
+		}
+		if compareTime(tt.T2, tt.T1) != -tt.Expect {
+			t.Fatalf("got %#v, want %#v", compareTime(tt.T2, tt.T1), -tt.Expect)
+		}
 	}
 }
 
-func (s *testMyTimeSuite) TestGetDateFromDaynr(c *C) {
+func TestGetDateFromDaynr(t *testing.T) {
 	tests := []struct {
 		daynr uint
 		year  uint
@@ -135,13 +163,19 @@ func (s *testMyTimeSuite) TestGetDateFromDaynr(c *C) {
 
 	for _, tt := range tests {
 		yy, mm, dd := getDateFromDaynr(tt.daynr)
-		c.Assert(yy, Equals, tt.year)
-		c.Assert(mm, Equals, tt.month)
-		c.Assert(dd, Equals, tt.day)
+		if yy != tt.year {
+			t.Fatalf("got %#v, want %#v", yy, tt.year)
+		}
+		if mm != tt.month {
+			t.Fatalf("got %#v, want %#v", mm, tt.month)
+		}
+		if dd != tt.day {
+			t.Fatalf("got %#v, want %#v", dd, tt.day)
+		}
 	}
 }
 
-func (s *testMyTimeSuite) TestMixDateAndTime(c *C) {
+func TestMixDateAndTime(t *testing.T) {
 	tests := []struct {
 		date   MysqlTime
 		time   MysqlTime
@@ -180,13 +214,15 @@ func (s *testMyTimeSuite) TestMixDateAndTime(c *C) {
 		},
 	}
 
-	for ith, t := range tests {
-		mixDateAndTime(&t.date, &t.time, t.neg)
-		c.Assert(compareTime(t.date, t.expect), Equals, 0, Commentf("%d", ith))
+	for ith, tt := range tests {
+		mixDateAndTime(&tt.date, &tt.time, tt.neg)
+		if compareTime(tt.date, tt.expect) != 0 {
+			t.Fatalf("%d", ith)
+		}
 	}
 }
 
-func (s *testMyTimeSuite) TestIsLeapYear(c *C) {
+func TestIsLeapYear(t *testing.T) {
 	tests := []struct {
 		T      MysqlTime
 		Expect bool
@@ -207,10 +243,12 @@ func (s *testMyTimeSuite) TestIsLeapYear(c *C) {
 	}
 
 	for _, tt := range tests {
-		c.Assert(tt.T.IsLeapYear(), Equals, tt.Expect)
+		if tt.T.IsLeapYear() != tt.Expect {
+			t.Fatalf("got %#v, want %#v", tt.T.IsLeapYear(), tt.Expect)
+		}
 	}
 }
-func (s *testMyTimeSuite) TestGetLastDay(c *C) {
+func TestGetLastDay(t *testing.T) {
 	tests := []struct {
 		year        int
 		month       int
@@ -223,8 +261,10 @@ func (s *testMyTimeSuite) TestGetLastDay(c *C) {
 		{1996, 2, 29},
 	}
 
-	for _, t := range tests {
-		day := GetLastDay(t.year, t.month)
-		c.Assert(day, Equals, t.expectedDay)
+	for _, tt := range tests {
+		day := GetLastDay(tt.year, tt.month)
+		if day != tt.expectedDay {
+			t.Fatalf("got %#v, want %#v", day, tt.expectedDay)
+		}
 	}
 }

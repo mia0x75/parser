@@ -14,10 +14,10 @@
 package mysql
 
 import (
+	"fmt"
 	"strings"
 
 	. "github.com/mia0x75/parser/format"
-	"github.com/pkg/errors"
 )
 
 func newInvalidModeErr(s string) error {
@@ -740,7 +740,7 @@ func (n *PriorityEnum) Restore(ctx *RestoreCtx) error {
 	case DelayedPriority:
 		ctx.WriteKeyWord("DELAYED")
 	default:
-		return errors.Errorf("undefined PriorityEnum Type[%d]", *n)
+		return fmt.Errorf("undefined PriorityEnum Type[%d]", *n)
 	}
 	return nil
 }

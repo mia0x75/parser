@@ -15,15 +15,10 @@ package parser_test
 
 import (
 	"github.com/mia0x75/parser"
-	. "github.com/pingcap/check"
+	"testing"
 )
 
-var _ = Suite(&testSQLDigestSuite{})
-
-type testSQLDigestSuite struct {
-}
-
-func (s *testSQLDigestSuite) TestNormalize(c *C) {
+func TestNormalize(t *testing.T) {
 	tests := []struct {
 		input  string
 		expect string
@@ -54,11 +49,13 @@ func (s *testSQLDigestSuite) TestNormalize(c *C) {
 	}
 	for _, test := range tests {
 		actual := parser.Normalize(test.input)
-		c.Assert(actual, Equals, test.expect)
+		if actual != test.expect {
+			t.Fatalf("got %#v, want %#v", actual, test.expect)
+		}
 	}
 }
 
-func (s *testSQLDigestSuite) TestNormalizeDigest(c *C) {
+func TestNormalizeDigest(t *testing.T) {
 	tests := []struct {
 		sql        string
 		normalized string
@@ -68,12 +65,16 @@ func (s *testSQLDigestSuite) TestNormalizeDigest(c *C) {
 	}
 	for _, test := range tests {
 		normalized, digest := parser.NormalizeDigest(test.sql)
-		c.Assert(normalized, Equals, test.normalized)
-		c.Assert(digest, Equals, test.digest)
+		if normalized != test.normalized {
+			t.Fatalf("got %#v, want %#v", normalized, test.normalized)
+		}
+		if digest != test.digest {
+			t.Fatalf("got %#v, want %#v", digest, test.digest)
+		}
 	}
 }
 
-func (s *testSQLDigestSuite) TestDigestHashEqForSimpleSQL(c *C) {
+func TestDigestHashEqForSimpleSQL(t *testing.T) {
 	sqlGroups := [][]string{
 		{"select * from b where id = 1", "select * from b where id = '1'", "select * from b where id =2"},
 		{"select 2 from b, c where c.id > 1", "select 4 from b, c where c.id > 23"},
@@ -87,12 +88,14 @@ func (s *testSQLDigestSuite) TestDigestHashEqForSimpleSQL(c *C) {
 				d = dig
 				continue
 			}
-			c.Assert(d, Equals, dig)
+			if d != dig {
+				t.Fatalf("got %#v, want %#v", d, dig)
+			}
 		}
 	}
 }
 
-func (s *testSQLDigestSuite) TestDigestHashNotEqForSimpleSQL(c *C) {
+func TestDigestHashNotEqForSimpleSQL(t *testing.T) {
 	sqlGroups := [][]string{
 		{"select * from b where id = 1", "select a from b where id = 1", "select * from d where bid =1"},
 	}
@@ -104,7 +107,9 @@ func (s *testSQLDigestSuite) TestDigestHashNotEqForSimpleSQL(c *C) {
 				d = dig
 				continue
 			}
-			c.Assert(d, Not(Equals), dig)
+			if d == dig {
+				t.Fatalf("got %#v, want not %#v", d, dig)
+			}
 		}
 	}
 }

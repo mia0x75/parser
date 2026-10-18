@@ -19,78 +19,117 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/pingcap/check"
-	"github.com/pingcap/errors"
+	"github.com/mia0x75/parser/internal/errors"
 )
 
-func TestT(t *testing.T) {
-	CustomVerboseFlag = true
-	TestingT(t)
+func TestErrCode(t *testing.T) {
+	if CodeMissConnectionID != ErrCode(1) {
+		t.Fatalf("got %#v, want %#v", CodeMissConnectionID, ErrCode(1))
+	}
+	if CodeResultUndetermined != ErrCode(2) {
+		t.Fatalf("got %#v, want %#v", CodeResultUndetermined, ErrCode(2))
+	}
 }
 
-var _ = Suite(&testTErrorSuite{})
-
-type testTErrorSuite struct {
-}
-
-func (s *testTErrorSuite) TestErrCode(c *C) {
-	c.Assert(CodeMissConnectionID, Equals, ErrCode(1))
-	c.Assert(CodeResultUndetermined, Equals, ErrCode(2))
-}
-
-func (s *testTErrorSuite) TestTError(c *C) {
-	c.Assert(ClassParser.String(), Not(Equals), "")
-	c.Assert(ClassOptimizer.String(), Not(Equals), "")
-	c.Assert(ClassKV.String(), Not(Equals), "")
-	c.Assert(ClassServer.String(), Not(Equals), "")
+func TestTError(t *testing.T) {
+	if ClassParser.String() == "" {
+		t.Fatal("ClassParser.String() is empty")
+	}
+	if ClassOptimizer.String() == "" {
+		t.Fatal("ClassOptimizer.String() is empty")
+	}
+	if ClassKV.String() == "" {
+		t.Fatal("ClassKV.String() is empty")
+	}
+	if ClassServer.String() == "" {
+		t.Fatal("ClassServer.String() is empty")
+	}
 
 	parserErr := ClassParser.New(ErrCode(1), "error 1")
-	c.Assert(parserErr.Error(), Not(Equals), "")
-	c.Assert(ClassParser.EqualClass(parserErr), IsTrue)
-	c.Assert(ClassParser.NotEqualClass(parserErr), IsFalse)
+	if parserErr.Error() == "" {
+		t.Fatal("parserErr.Error() is empty")
+	}
+	if !ClassParser.EqualClass(parserErr) {
+		t.Fatal("ClassParser.EqualClass(parserErr) is false")
+	}
+	if ClassParser.NotEqualClass(parserErr) {
+		t.Fatal("ClassParser.NotEqualClass(parserErr) is true")
+	}
 
-	c.Assert(ClassOptimizer.EqualClass(parserErr), IsFalse)
+	if ClassOptimizer.EqualClass(parserErr) {
+		t.Fatal("ClassOptimizer.EqualClass(parserErr) is true")
+	}
 	optimizerErr := ClassOptimizer.New(ErrCode(2), "abc")
-	c.Assert(ClassOptimizer.EqualClass(errors.New("abc")), IsFalse)
-	c.Assert(ClassOptimizer.EqualClass(nil), IsFalse)
-	c.Assert(optimizerErr.Equal(optimizerErr.GenWithStack("def")), IsTrue)
-	c.Assert(optimizerErr.Equal(nil), IsFalse)
-	c.Assert(optimizerErr.Equal(errors.New("abc")), IsFalse)
+	if ClassOptimizer.EqualClass(errors.New("abc")) {
+		t.Fatal(`ClassOptimizer.EqualClass(errors.New("abc")) is true`)
+	}
+	if ClassOptimizer.EqualClass(nil) {
+		t.Fatal("ClassOptimizer.EqualClass(nil) is true")
+	}
+	if !optimizerErr.Equal(optimizerErr.GenWithStack("def")) {
+		t.Fatal("optimizerErr.Equal(optimizerErr.GenWithStack(def)) is false")
+	}
+	if optimizerErr.Equal(nil) {
+		t.Fatal("optimizerErr.Equal(nil) is true")
+	}
+	if optimizerErr.Equal(errors.New("abc")) {
+		t.Fatal(`optimizerErr.Equal(errors.New("abc")) is true`)
+	}
 
 	// Test case for FastGen.
-	c.Assert(optimizerErr.Equal(optimizerErr.FastGen("def")), IsTrue)
-	c.Assert(optimizerErr.Equal(optimizerErr.FastGen("def: %s", "def")), IsTrue)
+	if !optimizerErr.Equal(optimizerErr.FastGen("def")) {
+		t.Fatal("optimizerErr.Equal(optimizerErr.FastGen(def)) is false")
+	}
+	if !optimizerErr.Equal(optimizerErr.FastGen("def: %s", "def")) {
+		t.Fatal("optimizerErr.Equal(FastGen with format args) is false")
+	}
 	kvErr := ClassKV.New(1062, "key already exist")
 	e := kvErr.FastGen("Duplicate entry '%d' for key 'PRIMARY'", 1)
-	c.Assert(e.Error(), Equals, "[kv:1062]Duplicate entry '1' for key 'PRIMARY'")
+	if e.Error() != "[kv:1062]Duplicate entry '1' for key 'PRIMARY'" {
+		t.Fatalf("got %#v, want %#v", e.Error(), "[kv:1062]Duplicate entry '1' for key 'PRIMARY'")
+	}
 	kvMySQLErrCodes := map[ErrCode]uint16{
 		1062: uint16(1062),
 	}
 	ErrClassToMySQLCodes[ClassKV] = kvMySQLErrCodes
 	sqlErr := errors.Cause(e).(*Error).ToSQLError()
-	c.Assert(sqlErr.Message, Equals, "Duplicate entry '1' for key 'PRIMARY'")
-	c.Assert(sqlErr.Code, Equals, uint16(1062))
+	if sqlErr.Message != "Duplicate entry '1' for key 'PRIMARY'" {
+		t.Fatalf("got %#v, want %#v", sqlErr.Message, "Duplicate entry '1' for key 'PRIMARY'")
+	}
+	if sqlErr.Code != uint16(1062) {
+		t.Fatalf("got %#v, want %#v", sqlErr.Code, uint16(1062))
+	}
 
 	err := errors.Trace(ErrCritical.GenWithStackByArgs("test"))
-	c.Assert(ErrCritical.Equal(err), IsTrue)
+	if !ErrCritical.Equal(err) {
+		t.Fatal("ErrCritical.Equal(err) is false")
+	}
 
 	err = errors.Trace(ErrCritical)
-	c.Assert(ErrCritical.Equal(err), IsTrue)
+	if !ErrCritical.Equal(err) {
+		t.Fatal("ErrCritical.Equal(err) is false")
+	}
 }
 
-func (s *testTErrorSuite) TestJson(c *C) {
+func TestJson(t *testing.T) {
 	prevTErr := &Error{
 		class:   ClassTable,
 		code:    CodeExecResultIsEmpty,
 		message: "json test",
 	}
 	buf, err := json.Marshal(prevTErr)
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var curTErr Error
 	err = json.Unmarshal(buf, &curTErr)
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	isEqual := prevTErr.Equal(&curTErr)
-	c.Assert(isEqual, IsTrue)
+	if !isEqual {
+		t.Fatal("prevTErr.Equal(&curTErr) is false")
+	}
 }
 
 var predefinedErr = ClassExecutor.New(ErrCode(123), "predefiend error")
@@ -104,7 +143,7 @@ func call() error {
 	return predefinedErr.GenWithStack("error message:%s", "abc")
 }
 
-func (s *testTErrorSuite) TestTraceAndLocation(c *C) {
+func TestTraceAndLocation(t *testing.T) {
 	err := example()
 	stack := errors.ErrorStack(err)
 	lines := strings.Split(stack, "\n")
@@ -114,7 +153,9 @@ func (s *testTErrorSuite) TestTraceAndLocation(c *C) {
 			sysStack++
 		}
 	}
-	c.Assert(len(lines)-(2*sysStack), Greater, 2)
+	if !(len(lines)-(2*sysStack) > 2) {
+		t.Fatalf("got %#v, want > 2", len(lines)-(2*sysStack))
+	}
 	var containTerr bool
 	for _, v := range lines {
 		if strings.Contains(v, "terror_test.go") {
@@ -122,45 +163,81 @@ func (s *testTErrorSuite) TestTraceAndLocation(c *C) {
 			break
 		}
 	}
-	c.Assert(containTerr, IsTrue)
+	if !containTerr {
+		t.Fatal("stack does not contain terror_test.go")
+	}
 }
 
-func (s *testTErrorSuite) TestErrorEqual(c *C) {
+func TestErrorEqual(t *testing.T) {
 	e1 := errors.New("test error")
-	c.Assert(e1, NotNil)
+	if e1 == nil {
+		t.Fatal("got nil, want non-nil")
+	}
 
 	e2 := errors.Trace(e1)
-	c.Assert(e2, NotNil)
+	if e2 == nil {
+		t.Fatal("got nil, want non-nil")
+	}
 
 	e3 := errors.Trace(e2)
-	c.Assert(e3, NotNil)
+	if e3 == nil {
+		t.Fatal("got nil, want non-nil")
+	}
 
-	c.Assert(errors.Cause(e2), Equals, e1)
-	c.Assert(errors.Cause(e3), Equals, e1)
-	c.Assert(errors.Cause(e2), Equals, errors.Cause(e3))
+	if errors.Cause(e2) != e1 {
+		t.Fatalf("got %#v, want %#v", errors.Cause(e2), e1)
+	}
+	if errors.Cause(e3) != e1 {
+		t.Fatalf("got %#v, want %#v", errors.Cause(e3), e1)
+	}
+	if errors.Cause(e2) != errors.Cause(e3) {
+		t.Fatalf("got %#v, want %#v", errors.Cause(e2), errors.Cause(e3))
+	}
 
 	e4 := errors.New("test error")
-	c.Assert(errors.Cause(e4), Not(Equals), e1)
+	if errors.Cause(e4) == e1 {
+		t.Fatalf("got %#v, want not %#v", errors.Cause(e4), e1)
+	}
 
 	e5 := errors.Errorf("test error")
-	c.Assert(errors.Cause(e5), Not(Equals), e1)
+	if errors.Cause(e5) == e1 {
+		t.Fatalf("got %#v, want not %#v", errors.Cause(e5), e1)
+	}
 
-	c.Assert(ErrorEqual(e1, e2), IsTrue)
-	c.Assert(ErrorEqual(e1, e3), IsTrue)
-	c.Assert(ErrorEqual(e1, e4), IsTrue)
-	c.Assert(ErrorEqual(e1, e5), IsTrue)
+	if !ErrorEqual(e1, e2) {
+		t.Fatal("ErrorEqual(e1, e2) is false")
+	}
+	if !ErrorEqual(e1, e3) {
+		t.Fatal("ErrorEqual(e1, e3) is false")
+	}
+	if !ErrorEqual(e1, e4) {
+		t.Fatal("ErrorEqual(e1, e4) is false")
+	}
+	if !ErrorEqual(e1, e5) {
+		t.Fatal("ErrorEqual(e1, e5) is false")
+	}
 
 	var e6 error
 
-	c.Assert(ErrorEqual(nil, nil), IsTrue)
-	c.Assert(ErrorNotEqual(e1, e6), IsTrue)
+	if !ErrorEqual(nil, nil) {
+		t.Fatal("ErrorEqual(nil, nil) is false")
+	}
+	if !ErrorNotEqual(e1, e6) {
+		t.Fatal("ErrorNotEqual(e1, e6) is false")
+	}
 	code1 := ErrCode(1)
 	code2 := ErrCode(2)
 	te1 := ClassParser.New(code1, "abc")
 	te2 := ClassParser.New(code1, "def")
 	te3 := ClassKV.New(code1, "abc")
 	te4 := ClassKV.New(code2, "abc")
-	c.Assert(ErrorEqual(te1, te2), IsTrue)
-	c.Assert(ErrorEqual(te1, te3), IsFalse)
-	c.Assert(ErrorEqual(te3, te4), IsFalse)
+	if !ErrorEqual(te1, te2) {
+		t.Fatal("ErrorEqual(te1, te2) is false")
+	}
+	if ErrorEqual(te1, te3) {
+		t.Fatal("ErrorEqual(te1, te3) is true")
+	}
+	if ErrorEqual(te3, te4) {
+		t.Fatal("ErrorEqual(te3, te4) is true")
+	}
 }

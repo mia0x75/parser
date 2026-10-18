@@ -20,10 +20,10 @@ import (
 	"time"
 
 	"github.com/mia0x75/parser/hack"
+	"github.com/mia0x75/parser/internal/errors"
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/terror"
 	"github.com/mia0x75/parser/types/json"
-	"github.com/pingcap/errors"
 )
 
 // Kind constants.

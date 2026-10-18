@@ -14,19 +14,15 @@
 package types_test
 
 import (
+	"reflect"
+	"testing"
 	"time"
 
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/types"
-	. "github.com/pingcap/check"
 )
 
-var _ = Suite(&testTimeSuite{})
-
-type testTimeSuite struct {
-}
-
-func (s *testTimeSuite) TestYear(c *C) {
+func TestYear(t *testing.T) {
 	table := []struct {
 		Input  string
 		Expect int16
@@ -38,9 +34,13 @@ func (s *testTimeSuite) TestYear(c *C) {
 	}
 
 	for _, test := range table {
-		t, err := types.ParseYear(test.Input)
-		c.Assert(err, IsNil)
-		c.Assert(t, Equals, test.Expect)
+		year, err := types.ParseYear(test.Input)
+		if err != nil {
+			t.Fatalf("unexpected error %v", err)
+		}
+		if year != test.Expect {
+			t.Fatalf("got %#v, want %#v", year, test.Expect)
+		}
 	}
 
 	valids := []struct {
@@ -56,9 +56,13 @@ func (s *testTimeSuite) TestYear(c *C) {
 	for _, test := range valids {
 		_, err := types.AdjustYear(test.Year, false)
 		if test.Expect {
-			c.Assert(err, IsNil)
+			if err != nil {
+				t.Fatalf("unexpected error %v", err)
+			}
 		} else {
-			c.Assert(err, NotNil)
+			if err == nil {
+				t.Fatalf("expected error for %#v", test.Year)
+			}
 		}
 	}
 
@@ -70,8 +74,12 @@ func (s *testTimeSuite) TestYear(c *C) {
 	}
 	for _, test := range strYears {
 		res, err := types.AdjustYear(test.Year, true)
-		c.Assert(err, IsNil)
-		c.Assert(res, Equals, test.Expect)
+		if err != nil {
+			t.Fatalf("unexpected error %v", err)
+		}
+		if res != test.Expect {
+			t.Fatalf("got %#v, want %#v", res, test.Expect)
+		}
 	}
 
 	numYears := []struct {
@@ -82,32 +90,44 @@ func (s *testTimeSuite) TestYear(c *C) {
 	}
 	for _, test := range numYears {
 		res, err := types.AdjustYear(test.Year, false)
-		c.Assert(err, IsNil)
-		c.Assert(res, Equals, test.Expect)
+		if err != nil {
+			t.Fatalf("unexpected error %v", err)
+		}
+		if res != test.Expect {
+			t.Fatalf("got %#v, want %#v", res, test.Expect)
+		}
 	}
 }
 
-func (s *testTimeSuite) getLocation(c *C) *time.Location {
+func getLocation(t *testing.T) *time.Location {
 	locations := []string{"Asia/Shanghai", "Europe/Berlin"}
 	timeFormat := "Jan 2, 2006 at 3:04pm (MST)"
 
 	z, err := time.LoadLocation(locations[0])
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
 
 	t1, err := time.ParseInLocation(timeFormat, "Jul 9, 2012 at 5:02am (CEST)", z)
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
 	t2, err := time.Parse(timeFormat, "Jul 9, 2012 at 5:02am (CEST)")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
 
 	if t1.Equal(t2) {
 		z, err = time.LoadLocation(locations[1])
-		c.Assert(err, IsNil)
+		if err != nil {
+			t.Fatalf("unexpected error %v", err)
+		}
 	}
 
 	return z
 }
 
-func (s *testTimeSuite) TestParseFrac(c *C) {
+func TestTimeSuite_ParseFrac(t *testing.T) {
 	tbl := []struct {
 		S        string
 		Fsp      int
@@ -135,15 +155,21 @@ func (s *testTimeSuite) TestParseFrac(c *C) {
 		{"999", 3, 999000, false},
 	}
 
-	for _, t := range tbl {
-		v, overflow, err := types.ParseFrac(t.S, t.Fsp)
-		c.Assert(err, IsNil)
-		c.Assert(v, Equals, t.Ret)
-		c.Assert(overflow, Equals, t.Overflow)
+	for _, tt := range tbl {
+		v, overflow, err := types.ParseFrac(tt.S, tt.Fsp)
+		if err != nil {
+			t.Fatalf("unexpected error %v", err)
+		}
+		if v != tt.Ret {
+			t.Fatalf("got %#v, want %#v", v, tt.Ret)
+		}
+		if overflow != tt.Overflow {
+			t.Fatalf("got %#v, want %#v", overflow, tt.Overflow)
+		}
 	}
 }
 
-func (s *testTimeSuite) TestParseDateFormat(c *C) {
+func TestParseDateFormat(t *testing.T) {
 	tbl := []struct {
 		Input  string
 		Result []string
@@ -160,13 +186,15 @@ func (s *testTimeSuite) TestParseDateFormat(c *C) {
 		{"xxx 10:10:10", nil},
 	}
 
-	for _, t := range tbl {
-		r := types.ParseDateFormat(t.Input)
-		c.Assert(r, DeepEquals, t.Result)
+	for _, tt := range tbl {
+		r := types.ParseDateFormat(tt.Input)
+		if !reflect.DeepEqual(r, tt.Result) {
+			t.Fatalf("got %#v, want %#v", r, tt.Result)
+		}
 	}
 }
 
-func (s *testTimeSuite) TestTamestampDiff(c *C) {
+func TestTamestampDiff(t *testing.T) {
 	tests := []struct {
 		unit   string
 		t1     types.MysqlTime
@@ -193,11 +221,13 @@ func (s *testTimeSuite) TestTamestampDiff(c *C) {
 			Type: mysql.TypeDatetime,
 			Fsp:  6,
 		}
-		c.Assert(types.TimestampDiff(test.unit, t1, t2), Equals, test.expect)
+		if got := types.TimestampDiff(test.unit, t1, t2); got != test.expect {
+			t.Fatalf("got %#v, want %#v", got, test.expect)
+		}
 	}
 }
 
-func (s *testTimeSuite) TestDateFSP(c *C) {
+func TestDateFSP(t *testing.T) {
 	tests := []struct {
 		date   string
 		expect int
@@ -209,11 +239,13 @@ func (s *testTimeSuite) TestDateFSP(c *C) {
 	}
 
 	for _, test := range tests {
-		c.Assert(types.DateFSP(test.date), Equals, test.expect)
+		if got := types.DateFSP(test.date); got != test.expect {
+			t.Fatalf("got %#v, want %#v", got, test.expect)
+		}
 	}
 }
 
-func (s *testTimeSuite) TestConvertTimeZone(c *C) {
+func TestConvertTimeZone(t *testing.T) {
 	loc, _ := time.LoadLocation("Asia/Shanghai")
 	tests := []struct {
 		input  types.MysqlTime
@@ -227,41 +259,67 @@ func (s *testTimeSuite) TestConvertTimeZone(c *C) {
 	}
 
 	for _, test := range tests {
-		var t types.Time
-		t.Time = test.input
-		t.ConvertTimeZone(test.from, test.to)
-		c.Assert(t.Compare(types.Time{Time: test.expect}), Equals, 0)
+		var tm types.Time
+		tm.Time = test.input
+		tm.ConvertTimeZone(test.from, test.to)
+		if tm.Compare(types.Time{Time: test.expect}) != 0 {
+			t.Fatalf("got %#v, want %#v", tm.Compare(types.Time{Time: test.expect}), 0)
+		}
 	}
 }
 
-func (s *testTimeSuite) TestTruncateOverflowMySQLTime(c *C) {
-	t := types.MaxTime + 1
-	res, err := types.TruncateOverflowMySQLTime(t)
-	c.Assert(types.ErrTruncatedWrongVal.Equal(err), IsTrue)
-	c.Assert(res, Equals, types.MaxTime)
+func TestTruncateOverflowMySQLTime(t *testing.T) {
+	v := types.MaxTime + 1
+	res, err := types.TruncateOverflowMySQLTime(v)
+	if !types.ErrTruncatedWrongVal.Equal(err) {
+		t.Fatalf("got %#v, want %#v", err, types.ErrTruncatedWrongVal)
+	}
+	if res != types.MaxTime {
+		t.Fatalf("got %#v, want %#v", res, types.MaxTime)
+	}
 
-	t = types.MinTime - 1
-	res, err = types.TruncateOverflowMySQLTime(t)
-	c.Assert(types.ErrTruncatedWrongVal.Equal(err), IsTrue)
-	c.Assert(res, Equals, types.MinTime)
+	v = types.MinTime - 1
+	res, err = types.TruncateOverflowMySQLTime(v)
+	if !types.ErrTruncatedWrongVal.Equal(err) {
+		t.Fatalf("got %#v, want %#v", err, types.ErrTruncatedWrongVal)
+	}
+	if res != types.MinTime {
+		t.Fatalf("got %#v, want %#v", res, types.MinTime)
+	}
 
-	t = types.MaxTime
-	res, err = types.TruncateOverflowMySQLTime(t)
-	c.Assert(err, IsNil)
-	c.Assert(res, Equals, types.MaxTime)
+	v = types.MaxTime
+	res, err = types.TruncateOverflowMySQLTime(v)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+	if res != types.MaxTime {
+		t.Fatalf("got %#v, want %#v", res, types.MaxTime)
+	}
 
-	t = types.MinTime
-	res, err = types.TruncateOverflowMySQLTime(t)
-	c.Assert(err, IsNil)
-	c.Assert(res, Equals, types.MinTime)
+	v = types.MinTime
+	res, err = types.TruncateOverflowMySQLTime(v)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+	if res != types.MinTime {
+		t.Fatalf("got %#v, want %#v", res, types.MinTime)
+	}
 
-	t = types.MaxTime - 1
-	res, err = types.TruncateOverflowMySQLTime(t)
-	c.Assert(err, IsNil)
-	c.Assert(res, Equals, types.MaxTime-1)
+	v = types.MaxTime - 1
+	res, err = types.TruncateOverflowMySQLTime(v)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+	if res != types.MaxTime-1 {
+		t.Fatalf("got %#v, want %#v", res, types.MaxTime-1)
+	}
 
-	t = types.MinTime + 1
-	res, err = types.TruncateOverflowMySQLTime(t)
-	c.Assert(err, IsNil)
-	c.Assert(res, Equals, types.MinTime+1)
+	v = types.MinTime + 1
+	res, err = types.TruncateOverflowMySQLTime(v)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+	if res != types.MinTime+1 {
+		t.Fatalf("got %#v, want %#v", res, types.MinTime+1)
+	}
 }

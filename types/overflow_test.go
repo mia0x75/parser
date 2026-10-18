@@ -15,16 +15,10 @@ package types
 
 import (
 	"math"
-
-	. "github.com/pingcap/check"
+	"testing"
 )
 
-var _ = Suite(&testOverflowSuite{})
-
-type testOverflowSuite struct {
-}
-
-func (s *testOverflowSuite) TestAdd(c *C) {
+func TestOverflow_Add(t *testing.T) {
 	tblUint64 := []struct {
 		lsh      uint64
 		rsh      uint64
@@ -36,12 +30,16 @@ func (s *testOverflowSuite) TestAdd(c *C) {
 		{1, 1, 2, false},
 	}
 
-	for _, t := range tblUint64 {
-		ret, err := AddUint64(t.lsh, t.rsh)
-		if t.overflow {
-			c.Assert(err, NotNil)
+	for _, tt := range tblUint64 {
+		ret, err := AddUint64(tt.lsh, tt.rsh)
+		if tt.overflow {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(ret, Equals, t.ret)
+			if ret != tt.ret {
+				t.Fatalf("got %#v, want %#v", ret, tt.ret)
+			}
 		}
 	}
 
@@ -60,12 +58,16 @@ func (s *testOverflowSuite) TestAdd(c *C) {
 		{1, -1, 0, false},
 	}
 
-	for _, t := range tblInt64 {
-		ret, err := AddInt64(t.lsh, t.rsh)
-		if t.overflow {
-			c.Assert(err, NotNil)
+	for _, tt := range tblInt64 {
+		ret, err := AddInt64(tt.lsh, tt.rsh)
+		if tt.overflow {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(ret, Equals, t.ret)
+			if ret != tt.ret {
+				t.Fatalf("got %#v, want %#v", ret, tt.ret)
+			}
 		}
 	}
 
@@ -83,17 +85,21 @@ func (s *testOverflowSuite) TestAdd(c *C) {
 		{1, 1, 2, false},
 	}
 
-	for _, t := range tblInt {
-		ret, err := AddInteger(t.lsh, t.rsh)
-		if t.overflow {
-			c.Assert(err, NotNil)
+	for _, tt := range tblInt {
+		ret, err := AddInteger(tt.lsh, tt.rsh)
+		if tt.overflow {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(ret, Equals, t.ret)
+			if ret != tt.ret {
+				t.Fatalf("got %#v, want %#v", ret, tt.ret)
+			}
 		}
 	}
 }
 
-func (s *testOverflowSuite) TestSub(c *C) {
+func TestOverflow_Sub(t *testing.T) {
 	tblUint64 := []struct {
 		lsh      uint64
 		rsh      uint64
@@ -108,12 +114,16 @@ func (s *testOverflowSuite) TestSub(c *C) {
 		{1, 1, 0, false},
 	}
 
-	for _, t := range tblUint64 {
-		ret, err := SubUint64(t.lsh, t.rsh)
-		if t.overflow {
-			c.Assert(err, NotNil)
+	for _, tt := range tblUint64 {
+		ret, err := SubUint64(tt.lsh, tt.rsh)
+		if tt.overflow {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(ret, Equals, t.ret)
+			if ret != tt.ret {
+				t.Fatalf("got %#v, want %#v", ret, tt.ret)
+			}
 		}
 	}
 
@@ -134,12 +144,16 @@ func (s *testOverflowSuite) TestSub(c *C) {
 		{1, 1, 0, false},
 	}
 
-	for _, t := range tblInt64 {
-		ret, err := SubInt64(t.lsh, t.rsh)
-		if t.overflow {
-			c.Assert(err, NotNil)
+	for _, tt := range tblInt64 {
+		ret, err := SubInt64(tt.lsh, tt.rsh)
+		if tt.overflow {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(ret, Equals, t.ret)
+			if ret != tt.ret {
+				t.Fatalf("got %#v, want %#v", ret, tt.ret)
+			}
 		}
 	}
 
@@ -158,12 +172,16 @@ func (s *testOverflowSuite) TestSub(c *C) {
 		{1, 1, 0, false},
 	}
 
-	for _, t := range tblInt {
-		ret, err := SubUintWithInt(t.lsh, t.rsh)
-		if t.overflow {
-			c.Assert(err, NotNil)
+	for _, tt := range tblInt {
+		ret, err := SubUintWithInt(tt.lsh, tt.rsh)
+		if tt.overflow {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(ret, Equals, t.ret)
+			if ret != tt.ret {
+				t.Fatalf("got %#v, want %#v", ret, tt.ret)
+			}
 		}
 	}
 
@@ -181,17 +199,21 @@ func (s *testOverflowSuite) TestSub(c *C) {
 		{1, 1, 0, false},
 	}
 
-	for _, t := range tblInt2 {
-		ret, err := SubIntWithUint(t.lsh, t.rsh)
-		if t.overflow {
-			c.Assert(err, NotNil)
+	for _, tt := range tblInt2 {
+		ret, err := SubIntWithUint(tt.lsh, tt.rsh)
+		if tt.overflow {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(ret, Equals, t.ret)
+			if ret != tt.ret {
+				t.Fatalf("got %#v, want %#v", ret, tt.ret)
+			}
 		}
 	}
 }
 
-func (s *testOverflowSuite) TestMul(c *C) {
+func TestOverflow_Mul(t *testing.T) {
 	tblUint64 := []struct {
 		lsh      uint64
 		rsh      uint64
@@ -204,12 +226,16 @@ func (s *testOverflowSuite) TestMul(c *C) {
 		{1, 1, 1, false},
 	}
 
-	for _, t := range tblUint64 {
-		ret, err := MulUint64(t.lsh, t.rsh)
-		if t.overflow {
-			c.Assert(err, NotNil)
+	for _, tt := range tblUint64 {
+		ret, err := MulUint64(tt.lsh, tt.rsh)
+		if tt.overflow {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(ret, Equals, t.ret)
+			if ret != tt.ret {
+				t.Fatalf("got %#v, want %#v", ret, tt.ret)
+			}
 		}
 	}
 
@@ -231,12 +257,16 @@ func (s *testOverflowSuite) TestMul(c *C) {
 		{1, 1, 1, false},
 	}
 
-	for _, t := range tblInt64 {
-		ret, err := MulInt64(t.lsh, t.rsh)
-		if t.overflow {
-			c.Assert(err, NotNil)
+	for _, tt := range tblInt64 {
+		ret, err := MulInt64(tt.lsh, tt.rsh)
+		if tt.overflow {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(ret, Equals, t.ret)
+			if ret != tt.ret {
+				t.Fatalf("got %#v, want %#v", ret, tt.ret)
+			}
 		}
 	}
 
@@ -254,17 +284,21 @@ func (s *testOverflowSuite) TestMul(c *C) {
 		{1, 1, 1, false},
 	}
 
-	for _, t := range tblInt {
-		ret, err := MulInteger(t.lsh, t.rsh)
-		if t.overflow {
-			c.Assert(err, NotNil)
+	for _, tt := range tblInt {
+		ret, err := MulInteger(tt.lsh, tt.rsh)
+		if tt.overflow {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(ret, Equals, t.ret)
+			if ret != tt.ret {
+				t.Fatalf("got %#v, want %#v", ret, tt.ret)
+			}
 		}
 	}
 }
 
-func (s *testOverflowSuite) TestDiv(c *C) {
+func TestOverflow_Div(t *testing.T) {
 	tblInt64 := []struct {
 		lsh      int64
 		rsh      int64
@@ -281,12 +315,16 @@ func (s *testOverflowSuite) TestDiv(c *C) {
 		{math.MinInt64, 2, math.MinInt64 / 2, false},
 	}
 
-	for _, t := range tblInt64 {
-		ret, err := DivInt64(t.lsh, t.rsh)
-		if t.overflow {
-			c.Assert(err, NotNil)
+	for _, tt := range tblInt64 {
+		ret, err := DivInt64(tt.lsh, tt.rsh)
+		if tt.overflow {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(ret, Equals, t.ret)
+			if ret != tt.ret {
+				t.Fatalf("got %#v, want %#v", ret, tt.ret)
+			}
 		}
 	}
 
@@ -302,12 +340,16 @@ func (s *testOverflowSuite) TestDiv(c *C) {
 		{math.MaxInt64, -1, 0, true},
 	}
 
-	for _, t := range tblInt {
-		ret, err := DivUintWithInt(t.lsh, t.rsh)
-		if t.overflow {
-			c.Assert(err, NotNil)
+	for _, tt := range tblInt {
+		ret, err := DivUintWithInt(tt.lsh, tt.rsh)
+		if tt.overflow {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(ret, Equals, t.ret)
+			if ret != tt.ret {
+				t.Fatalf("got %#v, want %#v", ret, tt.ret)
+			}
 		}
 	}
 
@@ -322,12 +364,16 @@ func (s *testOverflowSuite) TestDiv(c *C) {
 		{-1, math.MaxInt64, 0, false},
 	}
 
-	for _, t := range tblInt2 {
-		ret, err := DivIntWithUint(t.lsh, t.rsh)
-		if t.overflow {
-			c.Assert(err, NotNil)
+	for _, tt := range tblInt2 {
+		ret, err := DivIntWithUint(tt.lsh, tt.rsh)
+		if tt.overflow {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 		} else {
-			c.Assert(ret, Equals, t.ret)
+			if ret != tt.ret {
+				t.Fatalf("got %#v, want %#v", ret, tt.ret)
+			}
 		}
 	}
 }

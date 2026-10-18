@@ -19,19 +19,9 @@ import (
 
 	"github.com/mia0x75/parser/format"
 	"github.com/mia0x75/parser/types"
-	. "github.com/pingcap/check"
 )
 
-var _ = Suite(&testValueExprRestoreSuite{})
-
-func TestT(t *testing.T) {
-	TestingT(t)
-}
-
-type testValueExprRestoreSuite struct {
-}
-
-func (s *testValueExprRestoreSuite) TestValueExprRestore(c *C) {
+func TestValueExprRestore(t *testing.T) {
 	testCases := []struct {
 		datum  types.Datum
 		expect string
@@ -53,7 +43,11 @@ func (s *testValueExprRestoreSuite) TestValueExprRestore(c *C) {
 		sb.Reset()
 		expr := &ValueExpr{Datum: testCase.datum}
 		err := expr.Restore(format.NewRestoreCtx(format.DefaultRestoreFlags, &sb))
-		c.Assert(err, IsNil)
-		c.Assert(sb.String(), Equals, testCase.expect, Commentf("Datum: %#v", testCase.datum))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sb.String() != testCase.expect {
+			t.Fatalf("got %#v, want %#v (Datum: %#v)", sb.String(), testCase.expect, testCase.datum)
+		}
 	}
 }

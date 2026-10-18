@@ -21,9 +21,9 @@ import (
 	"github.com/mia0x75/parser/ast"
 	"github.com/mia0x75/parser/format"
 	"github.com/mia0x75/parser/hack"
+	"github.com/mia0x75/parser/internal/errors"
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/types"
-	"github.com/pingcap/errors"
 )
 
 // The purpose of driver package is to decompose the dependency of the parser and

@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pingcap/errors"
+	"github.com/mia0x75/parser/internal/errors"
 )
 
 // BinaryLiteral is the internal type for storing bit / hex literal type.

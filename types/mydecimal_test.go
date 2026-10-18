@@ -16,16 +16,9 @@ package types
 import (
 	"strings"
 	"testing"
-
-	. "github.com/pingcap/check"
 )
 
-var _ = Suite(&testMyDecimalSuite{})
-
-type testMyDecimalSuite struct {
-}
-
-func (s *testMyDecimalSuite) TestFromInt(c *C) {
+func TestMyDecimal_FromInt(t *testing.T) {
 	tests := []struct {
 		input  int64
 		output string
@@ -39,11 +32,13 @@ func (s *testMyDecimalSuite) TestFromInt(c *C) {
 	for _, tt := range tests {
 		dec := NewDecFromInt(tt.input)
 		str := dec.ToString()
-		c.Check(string(str), Equals, tt.output)
+		if string(str) != tt.output {
+			t.Errorf("got %#v, want %#v", string(str), tt.output)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestFromUint(c *C) {
+func TestMyDecimal_FromUint(t *testing.T) {
 	tests := []struct {
 		input  uint64
 		output string
@@ -56,11 +51,13 @@ func (s *testMyDecimalSuite) TestFromUint(c *C) {
 		var dec MyDecimal
 		dec.FromUint(tt.input)
 		str := dec.ToString()
-		c.Check(string(str), Equals, tt.output)
+		if string(str) != tt.output {
+			t.Errorf("got %#v, want %#v", string(str), tt.output)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestToInt(c *C) {
+func TestMyDecimal_ToInt(t *testing.T) {
 	tests := []struct {
 		input  string
 		output int64
@@ -79,12 +76,16 @@ func (s *testMyDecimalSuite) TestToInt(c *C) {
 		var dec MyDecimal
 		dec.FromString([]byte(tt.input))
 		result, ec := dec.ToInt()
-		c.Check(ec, Equals, tt.err)
-		c.Check(result, Equals, tt.output)
+		if ec != tt.err {
+			t.Errorf("got error %v, want %v", ec, tt.err)
+		}
+		if result != tt.output {
+			t.Errorf("got %d, want %d", result, tt.output)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestToUint(c *C) {
+func TestMyDecimal_ToUint(t *testing.T) {
 	tests := []struct {
 		input  string
 		output uint64
@@ -103,12 +104,16 @@ func (s *testMyDecimalSuite) TestToUint(c *C) {
 		var dec MyDecimal
 		dec.FromString([]byte(tt.input))
 		result, ec := dec.ToUint()
-		c.Check(ec, Equals, tt.err)
-		c.Check(result, Equals, tt.output)
+		if ec != tt.err {
+			t.Errorf("got error %v, want %v", ec, tt.err)
+		}
+		if result != tt.output {
+			t.Errorf("got %d, want %d", result, tt.output)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestFromFloat(c *C) {
+func TestMyDecimal_FromFloat(t *testing.T) {
 	tests := []struct {
 		s string
 		f float64
@@ -122,11 +127,13 @@ func (s *testMyDecimalSuite) TestFromFloat(c *C) {
 	for _, tt := range tests {
 		dec := NewDecFromFloatForTest(tt.f)
 		str := dec.ToString()
-		c.Check(string(str), Equals, tt.s)
+		if string(str) != tt.s {
+			t.Errorf("got %#v, want %#v", string(str), tt.s)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestToFloat(c *C) {
+func TestMyDecimal_ToFloat(t *testing.T) {
 	tests := []struct {
 		s string
 		f float64
@@ -141,12 +148,16 @@ func (s *testMyDecimalSuite) TestToFloat(c *C) {
 		var dec MyDecimal
 		dec.FromString([]byte(ca.s))
 		f, err := dec.ToFloat64()
-		c.Check(err, IsNil)
-		c.Check(f, Equals, ca.f)
+		if err != nil {
+			t.Errorf("got error %v, want nil", err)
+		}
+		if f != ca.f {
+			t.Errorf("got %v, want %v", f, ca.f)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestToHashKey(c *C) {
+func TestMyDecimal_ToHashKey(t *testing.T) {
 	tests := []struct {
 		numbers []string
 	}{
@@ -164,14 +175,20 @@ func (s *testMyDecimalSuite) TestToHashKey(c *C) {
 		keys := make([]string, 0, len(ca.numbers))
 		for _, num := range ca.numbers {
 			var dec MyDecimal
-			c.Check(dec.FromString([]byte(num)), IsNil)
+			if err := dec.FromString([]byte(num)); err != nil {
+				t.Errorf("got error %v, want nil", err)
+			}
 			key, err := dec.ToHashKey()
-			c.Check(err, IsNil)
+			if err != nil {
+				t.Errorf("got error %v, want nil", err)
+			}
 			keys = append(keys, string(key))
 		}
 
 		for i := 1; i < len(keys); i++ {
-			c.Check(keys[0], Equals, keys[i])
+			if keys[0] != keys[i] {
+				t.Errorf("got %#v, want %#v", keys[i], keys[0])
+			}
 		}
 	}
 
@@ -201,27 +218,37 @@ func (s *testMyDecimalSuite) TestToHashKey(c *C) {
 		keys := make([]string, 0, len(ca.hashNumbers)+len(ca.binNumbers))
 		for _, num := range ca.hashNumbers {
 			var dec MyDecimal
-			c.Check(dec.FromString([]byte(num)), IsNil)
+			if err := dec.FromString([]byte(num)); err != nil {
+				t.Errorf("got error %v, want nil", err)
+			}
 			key, err := dec.ToHashKey()
-			c.Check(err, IsNil)
+			if err != nil {
+				t.Errorf("got error %v, want nil", err)
+			}
 			keys = append(keys, string(key))
 		}
 		for _, num := range ca.binNumbers {
 			var dec MyDecimal
-			c.Check(dec.FromString([]byte(num)), IsNil)
+			if err := dec.FromString([]byte(num)); err != nil {
+				t.Errorf("got error %v, want nil", err)
+			}
 			prec, frac := dec.PrecisionAndFrac() // remove leading zeros but trailing zeros remain
 			key, err := dec.ToBin(prec, frac)
-			c.Check(err, IsNil)
+			if err != nil {
+				t.Errorf("got error %v, want nil", err)
+			}
 			keys = append(keys, string(key))
 		}
 
 		for i := 1; i < len(keys); i++ {
-			c.Check(keys[0], Equals, keys[i])
+			if keys[0] != keys[i] {
+				t.Errorf("got %#v, want %#v", keys[i], keys[0])
+			}
 		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestRemoveTrailingZeros(c *C) {
+func TestMyDecimal_RemoveTrailingZeros(t *testing.T) {
 	tests := []string{
 		"0", "0.0", ".0", ".00000000", "0.0000", "0000", "0000.0", "0000.000",
 		"-0", "-0.0", "-.0", "-.00000000", "-0.0000", "-0000", "-0000.0", "-0000.000",
@@ -232,7 +259,9 @@ func (s *testMyDecimalSuite) TestRemoveTrailingZeros(c *C) {
 	}
 	for _, ca := range tests {
 		var dec MyDecimal
-		c.Check(dec.FromString([]byte(ca)), IsNil)
+		if err := dec.FromString([]byte(ca)); err != nil {
+			t.Errorf("got error %v, want nil", err)
+		}
 
 		// calculate the number of digits after point but trailing zero
 		digitsFracExp := 0
@@ -250,27 +279,35 @@ func (s *testMyDecimalSuite) TestRemoveTrailingZeros(c *C) {
 		}
 
 		_, digitsFrac := dec.removeTrailingZeros()
-		c.Check(digitsFrac, Equals, digitsFracExp)
+		if digitsFrac != digitsFracExp {
+			t.Errorf("got %d, want %d", digitsFrac, digitsFracExp)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestShift(c *C) {
+func TestMyDecimal_Shift(t *testing.T) {
 	type tcase struct {
 		input  string
 		shift  int
 		output string
 		err    error
 	}
-	var dotest = func(c *C, tests []tcase) {
+	var dotest = func(t *testing.T, tests []tcase) {
 		for _, ca := range tests {
 			var dec MyDecimal
 			err := dec.FromString([]byte(ca.input))
-			c.Check(err, IsNil)
+			if err != nil {
+				t.Errorf("got error %v, want nil", err)
+			}
 			origin := dec
 			err = dec.Shift(ca.shift)
-			c.Check(err, Equals, ca.err)
+			if err != ca.err {
+				t.Errorf("got error %v, want %v", err, ca.err)
+			}
 			result := dec.ToString()
-			c.Check(string(result), Equals, ca.output, Commentf("origin:%s\ndec:%s", origin.String(), string(result)))
+			if string(result) != ca.output {
+				t.Errorf("origin:%s\ndec:%s, got %#v, want %#v", origin.String(), string(result), string(result), ca.output)
+			}
 		}
 	}
 	wordBufLen = maxWordBufLen
@@ -311,7 +348,7 @@ func (s *testMyDecimalSuite) TestShift(c *C) {
 		{"123987654321.123456789000", -14, "0.00123987654321123456789", nil},
 		{"00000087654321.123456789000", -14, "0.00000087654321123456789", nil},
 	}
-	dotest(c, tests)
+	dotest(t, tests)
 	wordBufLen = 2
 	tests = []tcase{
 		{"123.123", -2, "1.23123", nil},
@@ -364,11 +401,11 @@ func (s *testMyDecimalSuite) TestShift(c *C) {
 		{"123456789.987654321", 10, "123456789.987654321", ErrOverflow},
 		{"123456789.987654321", 0, "123456789.987654321", nil},
 	}
-	dotest(c, tests)
+	dotest(t, tests)
 	wordBufLen = maxWordBufLen
 }
 
-func (s *testMyDecimalSuite) TestRoundWithHalfEven(c *C) {
+func TestMyDecimal_RoundWithHalfEven(t *testing.T) {
 	tests := []struct {
 		input  string
 		scale  int
@@ -397,13 +434,17 @@ func (s *testMyDecimalSuite) TestRoundWithHalfEven(c *C) {
 		dec.FromString([]byte(ca.input))
 		var rounded MyDecimal
 		err := dec.Round(&rounded, ca.scale, ModeHalfEven)
-		c.Check(err, Equals, ca.err)
+		if err != ca.err {
+			t.Errorf("got error %v, want %v", err, ca.err)
+		}
 		result := rounded.ToString()
-		c.Check(string(result), Equals, ca.output)
+		if string(result) != ca.output {
+			t.Errorf("got %#v, want %#v", string(result), ca.output)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestRoundWithTruncate(c *C) {
+func TestMyDecimal_RoundWithTruncate(t *testing.T) {
 	tests := []struct {
 		input  string
 		scale  int
@@ -431,13 +472,17 @@ func (s *testMyDecimalSuite) TestRoundWithTruncate(c *C) {
 		dec.FromString([]byte(ca.input))
 		var rounded MyDecimal
 		err := dec.Round(&rounded, ca.scale, ModeTruncate)
-		c.Check(err, Equals, ca.err)
+		if err != ca.err {
+			t.Errorf("got error %v, want %v", err, ca.err)
+		}
 		result := rounded.ToString()
-		c.Check(string(result), Equals, ca.output)
+		if string(result) != ca.output {
+			t.Errorf("got %#v, want %#v", string(result), ca.output)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestRoundWithCeil(c *C) {
+func TestMyDecimal_RoundWithCeil(t *testing.T) {
 	tests := []struct {
 		input  string
 		scale  int
@@ -466,13 +511,17 @@ func (s *testMyDecimalSuite) TestRoundWithCeil(c *C) {
 		dec.FromString([]byte(ca.input))
 		var rounded MyDecimal
 		err := dec.Round(&rounded, ca.scale, modeCeiling)
-		c.Check(err, Equals, ca.err)
+		if err != ca.err {
+			t.Errorf("got error %v, want %v", err, ca.err)
+		}
 		result := rounded.ToString()
-		c.Check(string(result), Equals, ca.output)
+		if string(result) != ca.output {
+			t.Errorf("got %#v, want %#v", string(result), ca.output)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestFromString(c *C) {
+func TestMyDecimal_FromString(t *testing.T) {
 	type tcase struct {
 		input  string
 		output string
@@ -503,9 +552,13 @@ func (s *testMyDecimalSuite) TestFromString(c *C) {
 	for _, ca := range tests {
 		var dec MyDecimal
 		err := dec.FromString([]byte(ca.input))
-		c.Check(err, Equals, ca.err, Commentf("input: %s", ca.input))
+		if err != ca.err {
+			t.Errorf("input: %s, got error %v, want %v", ca.input, err, ca.err)
+		}
 		result := dec.ToString()
-		c.Check(string(result), Equals, ca.output, Commentf("dec:%s", dec.String()))
+		if string(result) != ca.output {
+			t.Errorf("dec:%s, got %#v, want %#v", dec.String(), string(result), ca.output)
+		}
 	}
 	wordBufLen = 1
 	tests = []tcase{
@@ -515,14 +568,18 @@ func (s *testMyDecimalSuite) TestFromString(c *C) {
 	for _, ca := range tests {
 		var dec MyDecimal
 		err := dec.FromString([]byte(ca.input))
-		c.Check(err, Equals, ca.err)
+		if err != ca.err {
+			t.Errorf("input: %s, got error %v, want %v", ca.input, err, ca.err)
+		}
 		result := dec.ToString()
-		c.Check(string(result), Equals, ca.output, Commentf("dec:%s", dec.String()))
+		if string(result) != ca.output {
+			t.Errorf("dec:%s, got %#v, want %#v", dec.String(), string(result), ca.output)
+		}
 	}
 	wordBufLen = maxWordBufLen
 }
 
-func (s *testMyDecimalSuite) TestToString(c *C) {
+func TestMyDecimal_ToString(t *testing.T) {
 	type tcase struct {
 		input  string
 		output string
@@ -536,11 +593,13 @@ func (s *testMyDecimalSuite) TestToString(c *C) {
 		var dec MyDecimal
 		dec.FromString([]byte(ca.input))
 		result := dec.ToString()
-		c.Check(string(result), Equals, ca.output)
+		if string(result) != ca.output {
+			t.Errorf("got %#v, want %#v", string(result), ca.output)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestToBinFromBin(c *C) {
+func TestMyDecimal_ToBinFromBin(t *testing.T) {
 	type tcase struct {
 		input     string
 		precision int
@@ -568,14 +627,22 @@ func (s *testMyDecimalSuite) TestToBinFromBin(c *C) {
 	for _, ca := range tests {
 		var dec MyDecimal
 		err := dec.FromString([]byte(ca.input))
-		c.Assert(err, IsNil)
+		if err != nil {
+			t.Fatalf("got error %v, want nil", err)
+		}
 		buf, err := dec.ToBin(ca.precision, ca.frac)
-		c.Assert(err, Equals, ca.err, Commentf(ca.input))
+		if err != ca.err {
+			t.Fatalf("%s: got error %v, want %v", ca.input, err, ca.err)
+		}
 		var dec2 MyDecimal
 		_, err = dec2.FromBin(buf, ca.precision, ca.frac)
-		c.Assert(err, IsNil)
+		if err != nil {
+			t.Fatalf("got error %v, want nil", err)
+		}
 		str := dec2.ToString()
-		c.Assert(string(str), Equals, ca.output)
+		if string(str) != ca.output {
+			t.Fatalf("got %#v, want %#v", string(str), ca.output)
+		}
 	}
 	var dec MyDecimal
 	dec.FromInt(1)
@@ -590,11 +657,13 @@ func (s *testMyDecimalSuite) TestToBinFromBin(c *C) {
 	}
 	for _, tt := range errTests {
 		_, err := dec.ToBin(tt.prec, tt.frac)
-		c.Assert(ErrBadNumber.Equal(err), IsTrue)
+		if !ErrBadNumber.Equal(err) {
+			t.Fatalf("got error %v, want ErrBadNumber", err)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestCompare(c *C) {
+func TestMyDecimal_Compare(t *testing.T) {
 	type tcase struct {
 		a   string
 		b   string
@@ -617,11 +686,13 @@ func (s *testMyDecimalSuite) TestCompare(c *C) {
 		var a, b MyDecimal
 		a.FromString([]byte(tt.a))
 		b.FromString([]byte(tt.b))
-		c.Assert(a.Compare(&b), Equals, tt.cmp)
+		if got := a.Compare(&b); got != tt.cmp {
+			t.Fatalf("got %d, want %d", got, tt.cmp)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestMaxDecimal(c *C) {
+func TestMyDecimal_MaxDecimal(t *testing.T) {
 	type tcase struct {
 		prec   int
 		frac   int
@@ -648,11 +719,13 @@ func (s *testMyDecimalSuite) TestMaxDecimal(c *C) {
 		var dec MyDecimal
 		maxDecimal(tt.prec, tt.frac, &dec)
 		str := dec.ToString()
-		c.Assert(string(str), Equals, tt.result)
+		if string(str) != tt.result {
+			t.Fatalf("got %#v, want %#v", string(str), tt.result)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestNeg(c *C) {
+func TestMyDecimal_Neg(t *testing.T) {
 	type testCase struct {
 		a      string
 		result string
@@ -667,11 +740,13 @@ func (s *testMyDecimalSuite) TestNeg(c *C) {
 		a := NewDecFromStringForTest(tt.a)
 		negResult := DecimalNeg(a)
 		result := negResult.ToString()
-		c.Assert(string(result), Equals, tt.result)
+		if string(result) != tt.result {
+			t.Fatalf("got %#v, want %#v", string(result), tt.result)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestAdd(c *C) {
+func TestMyDecimal_Add(t *testing.T) {
 	type testCase struct {
 		a      string
 		b      string
@@ -700,13 +775,17 @@ func (s *testMyDecimalSuite) TestAdd(c *C) {
 		b := NewDecFromStringForTest(tt.b)
 		var sum MyDecimal
 		err := DecimalAdd(a, b, &sum)
-		c.Assert(err, Equals, tt.err)
+		if err != tt.err {
+			t.Fatalf("got error %v, want %v", err, tt.err)
+		}
 		result := sum.ToString()
-		c.Assert(string(result), Equals, tt.result)
+		if string(result) != tt.result {
+			t.Fatalf("got %#v, want %#v", string(result), tt.result)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestSub(c *C) {
+func TestMyDecimal_Sub(t *testing.T) {
 	type tcase struct {
 		a      string
 		b      string
@@ -734,13 +813,17 @@ func (s *testMyDecimalSuite) TestSub(c *C) {
 		a.FromString([]byte(tt.a))
 		b.FromString([]byte(tt.b))
 		err := DecimalSub(&a, &b, &sum)
-		c.Assert(err, Equals, tt.err)
+		if err != tt.err {
+			t.Fatalf("got error %v, want %v", err, tt.err)
+		}
 		result := sum.ToString()
-		c.Assert(string(result), Equals, tt.result)
+		if string(result) != tt.result {
+			t.Fatalf("got %#v, want %#v", string(result), tt.result)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestMul(c *C) {
+func TestMyDecimal_Mul(t *testing.T) {
 	type tcase struct {
 		a      string
 		b      string
@@ -765,13 +848,17 @@ func (s *testMyDecimalSuite) TestMul(c *C) {
 		a.FromString([]byte(tt.a))
 		b.FromString([]byte(tt.b))
 		err := DecimalMul(&a, &b, &product)
-		c.Check(err, Equals, tt.err)
+		if err != tt.err {
+			t.Errorf("got error %v, want %v", err, tt.err)
+		}
 		result := product.String()
-		c.Assert(result, Equals, tt.result)
+		if result != tt.result {
+			t.Fatalf("got %#v, want %#v", result, tt.result)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestDivMod(c *C) {
+func TestMyDecimal_DivMod(t *testing.T) {
 	type tcase struct {
 		a      string
 		b      string
@@ -800,12 +887,16 @@ func (s *testMyDecimalSuite) TestDivMod(c *C) {
 		a.FromString([]byte(tt.a))
 		b.FromString([]byte(tt.b))
 		err := doDivMod(&a, &b, &to, nil, 5)
-		c.Check(err, Equals, tt.err)
+		if err != tt.err {
+			t.Errorf("got error %v, want %v", err, tt.err)
+		}
 		if tt.err == ErrDivByZero {
 			continue
 		}
 		result := to.ToString()
-		c.Assert(string(result), Equals, tt.result)
+		if string(result) != tt.result {
+			t.Fatalf("got %#v, want %#v", string(result), tt.result)
+		}
 	}
 
 	tests = []tcase{
@@ -822,12 +913,16 @@ func (s *testMyDecimalSuite) TestDivMod(c *C) {
 		a.FromString([]byte(tt.a))
 		b.FromString([]byte(tt.b))
 		ec := doDivMod(&a, &b, nil, &to, 0)
-		c.Check(ec, Equals, tt.err)
+		if ec != tt.err {
+			t.Errorf("got error %v, want %v", ec, tt.err)
+		}
 		if tt.err == ErrDivByZero {
 			continue
 		}
 		result := to.ToString()
-		c.Assert(string(result), Equals, tt.result)
+		if string(result) != tt.result {
+			t.Fatalf("got %#v, want %#v", string(result), tt.result)
+		}
 	}
 
 	tests = []tcase{
@@ -842,11 +937,15 @@ func (s *testMyDecimalSuite) TestDivMod(c *C) {
 		a.FromString([]byte(tt.a))
 		b.FromString([]byte(tt.b))
 		ec := DecimalDiv(&a, &b, &to, DivFracIncr)
-		c.Check(ec, Equals, tt.err)
+		if ec != tt.err {
+			t.Errorf("got error %v, want %v", ec, tt.err)
+		}
 		if tt.err == ErrDivByZero {
 			continue
 		}
-		c.Assert(to.String(), Equals, tt.result)
+		if to.String() != tt.result {
+			t.Fatalf("got %#v, want %#v", to.String(), tt.result)
+		}
 	}
 
 	tests = []tcase{
@@ -860,15 +959,19 @@ func (s *testMyDecimalSuite) TestDivMod(c *C) {
 		a.FromString([]byte(tt.a))
 		b.FromString([]byte(tt.b))
 		ec := DecimalMod(&a, &b, &to)
-		c.Check(ec, Equals, tt.err)
+		if ec != tt.err {
+			t.Errorf("got error %v, want %v", ec, tt.err)
+		}
 		if tt.err == ErrDivByZero {
 			continue
 		}
-		c.Assert(to.String(), Equals, tt.result)
+		if to.String() != tt.result {
+			t.Fatalf("got %#v, want %#v", to.String(), tt.result)
+		}
 	}
 }
 
-func (s *testMyDecimalSuite) TestMaxOrMin(c *C) {
+func TestMyDecimal_MaxOrMin(t *testing.T) {
 	type tcase struct {
 		neg    bool
 		prec   int
@@ -884,7 +987,9 @@ func (s *testMyDecimalSuite) TestMaxOrMin(c *C) {
 	}
 	for _, tt := range tests {
 		dec := NewMaxOrMinDec(tt.neg, tt.prec, tt.frac)
-		c.Assert(dec.String(), Equals, tt.result)
+		if dec.String() != tt.result {
+			t.Fatalf("got %#v, want %#v", dec.String(), tt.result)
+		}
 	}
 }
 

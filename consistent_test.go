@@ -17,25 +17,24 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"reflect"
 	"runtime"
 	"sort"
 	"strings"
-
-	. "github.com/pingcap/check"
+	"testing"
 )
 
-var _ = Suite(&testConsistentSuite{})
-
-type testConsistentSuite struct {
-}
-
-func (s *testConsistentSuite) TestKeywordConsistent(c *C) {
+func TestKeywordConsistent(t *testing.T) {
 	_, filename, _, _ := runtime.Caller(0)
 	parserFilename := path.Join(path.Dir(filename), "parser.y")
 	parserFile, err := os.Open(parserFilename)
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	data, err := ioutil.ReadAll(parserFile)
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	content := string(data)
 
 	reservedKeywordStartMarker := "\t/* The following tokens belong to ReservedKeyword. */"
@@ -48,17 +47,27 @@ func (s *testConsistentSuite) TestKeywordConsistent(c *C) {
 	unreservedKeywords := extractKeywords(content, unreservedKeywordStartMarker, notKeywordTokenStartMarker)
 	notKeywordTokens := extractKeywords(content, notKeywordTokenStartMarker, identTokenEndMarker)
 	for k, v := range aliases {
-		c.Assert(k != v, IsTrue)
-		c.Assert(tokenMap[k], Equals, tokenMap[v])
+		if !(k != v) {
+			t.Fatalf("expected true")
+		}
+		if tokenMap[k] != tokenMap[v] {
+			t.Fatalf("got %#v, want %#v", tokenMap[k], tokenMap[v])
+		}
 	}
 	keywordCount := len(reservedKeywords) + len(unreservedKeywords) + len(notKeywordTokens)
-	c.Assert(len(tokenMap)-len(aliases), Equals, keywordCount-len(windowFuncTokenMap))
+	if len(tokenMap)-len(aliases) != keywordCount-len(windowFuncTokenMap) {
+		t.Fatalf("got %#v, want %#v", len(tokenMap)-len(aliases), keywordCount-len(windowFuncTokenMap))
+	}
 
 	unreservedCollectionDef := extractKeywordsFromCollectionDef(content, "\nUnReservedKeyword:")
-	c.Assert(unreservedKeywords, DeepEquals, unreservedCollectionDef)
+	if !reflect.DeepEqual(unreservedKeywords, unreservedCollectionDef) {
+		t.Fatalf("got %#v, want %#v", unreservedKeywords, unreservedCollectionDef)
+	}
 
 	notKeywordTokensCollectionDef := extractKeywordsFromCollectionDef(content, "\nNotKeywordToken:")
-	c.Assert(notKeywordTokens, DeepEquals, notKeywordTokensCollectionDef)
+	if !reflect.DeepEqual(notKeywordTokens, notKeywordTokensCollectionDef) {
+		t.Fatalf("got %#v, want %#v", notKeywordTokens, notKeywordTokensCollectionDef)
+	}
 }
 
 func extractMiddle(str, startMarker, endMarker string) string {

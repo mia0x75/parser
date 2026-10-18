@@ -14,10 +14,10 @@
 package json
 
 import (
-	. "github.com/pingcap/check"
+	"testing"
 )
 
-func (s *testJSONSuite) TestContainsAnyAsterisk(c *C) {
+func TestContainsAnyAsterisk(t *testing.T) {
 	var tests = []struct {
 		exprString        string
 		containsAsterisks bool
@@ -29,12 +29,16 @@ func (s *testJSONSuite) TestContainsAnyAsterisk(c *C) {
 	}
 	for _, tt := range tests {
 		pe, err := ParseJSONPathExpr(tt.exprString)
-		c.Assert(err, IsNil)
-		c.Assert(pe.flags.containsAnyAsterisk(), Equals, tt.containsAsterisks)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if pe.flags.containsAnyAsterisk() != tt.containsAsterisks {
+			t.Fatalf("got %#v, want %#v", pe.flags.containsAnyAsterisk(), tt.containsAsterisks)
+		}
 	}
 }
 
-func (s *testJSONSuite) TestValidatePathExpr(c *C) {
+func TestValidatePathExpr(t *testing.T) {
 	var tests = []struct {
 		exprString string
 		success    bool
@@ -55,10 +59,16 @@ func (s *testJSONSuite) TestValidatePathExpr(c *C) {
 	for _, tt := range tests {
 		pe, err := ParseJSONPathExpr(tt.exprString)
 		if tt.success {
-			c.Assert(err, IsNil)
-			c.Assert(len(pe.legs), Equals, tt.legs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(pe.legs) != tt.legs {
+				t.Fatalf("got %#v, want %#v", len(pe.legs), tt.legs)
+			}
 		} else {
-			c.Assert(err, NotNil)
+			if err == nil {
+				t.Fatal("got nil, want error")
+			}
 		}
 	}
 }

@@ -15,27 +15,19 @@ package charset
 
 import (
 	"math/rand"
+	"reflect"
+	"regexp"
 	"testing"
-
-	. "github.com/pingcap/check"
 )
 
-func TestT(t *testing.T) {
-	CustomVerboseFlag = true
-	TestingT(t)
-}
-
-var _ = Suite(&testCharsetSuite{})
-
-type testCharsetSuite struct {
-}
-
-func testValidCharset(c *C, charset string, collation string, expect bool) {
+func testValidCharset(t *testing.T, charset string, collation string, expect bool) {
 	b := ValidCharsetAndCollation(charset, collation)
-	c.Assert(b, Equals, expect)
+	if b != expect {
+		t.Fatalf("got %#v, want %#v", b, expect)
+	}
 }
 
-func (s *testCharsetSuite) TestValidCharset(c *C) {
+func TestValidCharset(t *testing.T) {
 	tests := []struct {
 		cs   string
 		co   string
@@ -56,27 +48,33 @@ func (s *testCharsetSuite) TestValidCharset(c *C) {
 		{"Utf8", "uTf8_bIN", true},
 	}
 	for _, tt := range tests {
-		testValidCharset(c, tt.cs, tt.co, tt.succ)
+		testValidCharset(t, tt.cs, tt.co, tt.succ)
 	}
 }
 
-func (s *testCharsetSuite) TestGetAllCharsets(c *C) {
+func TestGetAllCharsets(t *testing.T) {
 	charset := &Charset{"test", "test_bin", nil, "Test", 5}
 	charsetInfos = append(charsetInfos, charset)
 	descs := GetAllCharsets()
-	c.Assert(len(descs), Equals, len(charsetInfos)-1)
+	if len(descs) != len(charsetInfos)-1 {
+		t.Fatalf("got %#v, want %#v", len(descs), len(charsetInfos)-1)
+	}
 }
 
-func testGetDefaultCollation(c *C, charset string, expectCollation string, succ bool) {
+func testGetDefaultCollation(t *testing.T, charset string, expectCollation string, succ bool) {
 	b, err := GetDefaultCollation(charset)
 	if !succ {
-		c.Assert(err, NotNil)
+		if err == nil {
+			t.Fatal("got nil, want error")
+		}
 		return
 	}
-	c.Assert(b, Equals, expectCollation)
+	if b != expectCollation {
+		t.Fatalf("got %#v, want %#v", b, expectCollation)
+	}
 }
 
-func (s *testCharsetSuite) TestGetDefaultCollation(c *C) {
+func TestGetDefaultCollation(t *testing.T) {
 	tests := []struct {
 		cs   string
 		co   string
@@ -92,11 +90,11 @@ func (s *testCharsetSuite) TestGetDefaultCollation(c *C) {
 		{"", "utf8_bin", false},
 	}
 	for _, tt := range tests {
-		testGetDefaultCollation(c, tt.cs, tt.co, tt.succ)
+		testGetDefaultCollation(t, tt.cs, tt.co, tt.succ)
 	}
 }
 
-func (s *testCharsetSuite) TestGetCharsetDesc(c *C) {
+func TestGetCharsetDesc(t *testing.T) {
 	tests := []struct {
 		cs     string
 		result string
@@ -114,22 +112,32 @@ func (s *testCharsetSuite) TestGetCharsetDesc(c *C) {
 	for _, tt := range tests {
 		desc, err := GetCharsetDesc(tt.cs)
 		if !tt.succ {
-			c.Assert(err, NotNil)
+			if err == nil {
+				t.Fatal("got nil, want error")
+			}
 		} else {
-			c.Assert(desc.Name, Equals, tt.result)
+			if desc.Name != tt.result {
+				t.Fatalf("got %#v, want %#v", desc.Name, tt.result)
+			}
 		}
 	}
 }
 
-func (s *testCharsetSuite) TestGetCollationByName(c *C) {
+func TestGetCollationByName(t *testing.T) {
 	for _, collation := range collations {
 		coll, err := GetCollationByName(collation.Name)
-		c.Assert(err, IsNil)
-		c.Assert(coll, Equals, collation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(coll, collation) {
+			t.Fatalf("got %#v, want %#v", coll, collation)
+		}
 	}
 
 	_, err := GetCollationByName("non_exist")
-	c.Assert(err, ErrorMatches, "\\[ddl:1273\\]Unknown collation: 'non_exist'")
+	if err == nil || !regexp.MustCompile("\\[ddl:1273\\]Unknown collation: 'non_exist'").MatchString(err.Error()) {
+		t.Fatalf("got %#v, want match for %#v", err, "\\[ddl:1273\\]Unknown collation: 'non_exist'")
+	}
 }
 
 func BenchmarkGetCharsetDesc(b *testing.B) {

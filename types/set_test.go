@@ -14,15 +14,10 @@
 package types
 
 import (
-	. "github.com/pingcap/check"
+	"testing"
 )
 
-var _ = Suite(&testSetSuite{})
-
-type testSetSuite struct {
-}
-
-func (s *testSetSuite) TestSet(c *C) {
+func TestSet(t *testing.T) {
 	elems := []string{"a", "b", "c", "d"}
 	tbl := []struct {
 		Name          string
@@ -38,11 +33,17 @@ func (s *testSetSuite) TestSet(c *C) {
 		{"0", 0, ""},
 	}
 
-	for _, t := range tbl {
-		e, err := ParseSetName(elems, t.Name)
-		c.Assert(err, IsNil)
-		c.Assert(e.ToNumber(), Equals, float64(t.ExpectedValue))
-		c.Assert(e.String(), Equals, t.ExpectedName)
+	for _, tt := range tbl {
+		e, err := ParseSetName(elems, tt.Name)
+		if err != nil {
+			t.Fatalf("unexpected error %v", err)
+		}
+		if e.ToNumber() != float64(tt.ExpectedValue) {
+			t.Fatalf("got %#v, want %#v", e.ToNumber(), float64(tt.ExpectedValue))
+		}
+		if e.String() != tt.ExpectedName {
+			t.Fatalf("got %#v, want %#v", e.String(), tt.ExpectedName)
+		}
 	}
 
 	tblNumber := []struct {
@@ -55,27 +56,37 @@ func (s *testSetSuite) TestSet(c *C) {
 		{9, "a,d"},
 	}
 
-	for _, t := range tblNumber {
-		e, err := ParseSetValue(elems, t.Number)
-		c.Assert(err, IsNil)
-		c.Assert(e.String(), Equals, t.ExpectedName)
-		c.Assert(e.ToNumber(), Equals, float64(t.Number))
+	for _, tt := range tblNumber {
+		e, err := ParseSetValue(elems, tt.Number)
+		if err != nil {
+			t.Fatalf("unexpected error %v", err)
+		}
+		if e.String() != tt.ExpectedName {
+			t.Fatalf("got %#v, want %#v", e.String(), tt.ExpectedName)
+		}
+		if e.ToNumber() != float64(tt.Number) {
+			t.Fatalf("got %#v, want %#v", e.ToNumber(), float64(tt.Number))
+		}
 	}
 
 	tblErr := []string{
 		"a.e",
 		"e.f",
 	}
-	for _, t := range tblErr {
-		_, err := ParseSetName(elems, t)
-		c.Assert(err, NotNil)
+	for _, tt := range tblErr {
+		_, err := ParseSetName(elems, tt)
+		if err == nil {
+			t.Fatalf("expected error for %q", tt)
+		}
 	}
 
 	tblNumberErr := []uint64{
 		100, 16, 64,
 	}
-	for _, t := range tblNumberErr {
-		_, err := ParseSetValue(elems, t)
-		c.Assert(err, NotNil)
+	for _, tt := range tblNumberErr {
+		_, err := ParseSetValue(elems, tt)
+		if err == nil {
+			t.Fatalf("expected error for %#v", tt)
+		}
 	}
 }

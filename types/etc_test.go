@@ -8,6 +8,7 @@
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
@@ -19,92 +20,92 @@ import (
 
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/terror"
-	. "github.com/pingcap/check"
 )
 
-func TestT(t *testing.T) {
-	TestingT(t)
-}
-
-var _ = Suite(&testTypeEtcSuite{})
-
-type testTypeEtcSuite struct {
-}
-
-func testIsTypeBlob(c *C, tp byte, expect bool) {
+func testIsTypeBlob(t *testing.T, tp byte, expect bool) {
 	v := IsTypeBlob(tp)
-	c.Assert(v, Equals, expect)
+	if v != expect {
+		t.Fatalf("got %#v, want %#v", v, expect)
+	}
 }
 
-func testIsTypeChar(c *C, tp byte, expect bool) {
+func testIsTypeChar(t *testing.T, tp byte, expect bool) {
 	v := IsTypeChar(tp)
-	c.Assert(v, Equals, expect)
+	if v != expect {
+		t.Fatalf("got %#v, want %#v", v, expect)
+	}
 }
 
-func (s *testTypeEtcSuite) TestIsType(c *C) {
-	testIsTypeBlob(c, mysql.TypeTinyBlob, true)
-	testIsTypeBlob(c, mysql.TypeMediumBlob, true)
-	testIsTypeBlob(c, mysql.TypeBlob, true)
-	testIsTypeBlob(c, mysql.TypeLongBlob, true)
-	testIsTypeBlob(c, mysql.TypeInt24, false)
+func TestIsType(t *testing.T) {
+	testIsTypeBlob(t, mysql.TypeTinyBlob, true)
+	testIsTypeBlob(t, mysql.TypeMediumBlob, true)
+	testIsTypeBlob(t, mysql.TypeBlob, true)
+	testIsTypeBlob(t, mysql.TypeLongBlob, true)
+	testIsTypeBlob(t, mysql.TypeInt24, false)
 
-	testIsTypeChar(c, mysql.TypeString, true)
-	testIsTypeChar(c, mysql.TypeVarchar, true)
-	testIsTypeChar(c, mysql.TypeLong, false)
+	testIsTypeChar(t, mysql.TypeString, true)
+	testIsTypeChar(t, mysql.TypeVarchar, true)
+	testIsTypeChar(t, mysql.TypeLong, false)
 }
 
-func testTypeStr(c *C, tp byte, expect string) {
+func testTypeStr(t *testing.T, tp byte, expect string) {
 	v := TypeStr(tp)
-	c.Assert(v, Equals, expect)
+	if v != expect {
+		t.Fatalf("got %#v, want %#v", v, expect)
+	}
 }
 
-func testTypeToStr(c *C, tp byte, charset string, expect string) {
+func testTypeToStr(t *testing.T, tp byte, charset string, expect string) {
 	v := TypeToStr(tp, charset)
-	c.Assert(v, Equals, expect)
+	if v != expect {
+		t.Fatalf("got %#v, want %#v", v, expect)
+	}
 }
 
-func (s *testTypeEtcSuite) TestTypeToStr(c *C) {
-	testTypeStr(c, mysql.TypeYear, "year")
-	testTypeStr(c, 0xdd, "")
+func TestTypeToStr(t *testing.T) {
+	testTypeStr(t, mysql.TypeYear, "year")
+	testTypeStr(t, 0xdd, "")
 
-	testTypeToStr(c, mysql.TypeBlob, "utf8", "text")
-	testTypeToStr(c, mysql.TypeLongBlob, "utf8", "longtext")
-	testTypeToStr(c, mysql.TypeTinyBlob, "utf8", "tinytext")
-	testTypeToStr(c, mysql.TypeMediumBlob, "utf8", "mediumtext")
-	testTypeToStr(c, mysql.TypeVarchar, "binary", "varbinary")
-	testTypeToStr(c, mysql.TypeString, "binary", "binary")
-	testTypeToStr(c, mysql.TypeTiny, "binary", "tinyint")
-	testTypeToStr(c, mysql.TypeBlob, "binary", "blob")
-	testTypeToStr(c, mysql.TypeLongBlob, "binary", "longblob")
-	testTypeToStr(c, mysql.TypeTinyBlob, "binary", "tinyblob")
-	testTypeToStr(c, mysql.TypeMediumBlob, "binary", "mediumblob")
-	testTypeToStr(c, mysql.TypeVarchar, "utf8", "varchar")
-	testTypeToStr(c, mysql.TypeString, "utf8", "char")
-	testTypeToStr(c, mysql.TypeShort, "binary", "smallint")
-	testTypeToStr(c, mysql.TypeInt24, "binary", "mediumint")
-	testTypeToStr(c, mysql.TypeLong, "binary", "int")
-	testTypeToStr(c, mysql.TypeLonglong, "binary", "bigint")
-	testTypeToStr(c, mysql.TypeFloat, "binary", "float")
-	testTypeToStr(c, mysql.TypeDouble, "binary", "double")
-	testTypeToStr(c, mysql.TypeYear, "binary", "year")
-	testTypeToStr(c, mysql.TypeDuration, "binary", "time")
-	testTypeToStr(c, mysql.TypeDatetime, "binary", "datetime")
-	testTypeToStr(c, mysql.TypeDate, "binary", "date")
-	testTypeToStr(c, mysql.TypeTimestamp, "binary", "timestamp")
-	testTypeToStr(c, mysql.TypeNewDecimal, "binary", "decimal")
-	testTypeToStr(c, mysql.TypeUnspecified, "binary", "unspecified")
-	testTypeToStr(c, 0xdd, "binary", "")
-	testTypeToStr(c, mysql.TypeBit, "binary", "bit")
-	testTypeToStr(c, mysql.TypeEnum, "binary", "enum")
-	testTypeToStr(c, mysql.TypeSet, "binary", "set")
+	testTypeToStr(t, mysql.TypeBlob, "utf8", "text")
+	testTypeToStr(t, mysql.TypeLongBlob, "utf8", "longtext")
+	testTypeToStr(t, mysql.TypeTinyBlob, "utf8", "tinytext")
+	testTypeToStr(t, mysql.TypeMediumBlob, "utf8", "mediumtext")
+	testTypeToStr(t, mysql.TypeVarchar, "binary", "varbinary")
+	testTypeToStr(t, mysql.TypeString, "binary", "binary")
+	testTypeToStr(t, mysql.TypeTiny, "binary", "tinyint")
+	testTypeToStr(t, mysql.TypeBlob, "binary", "blob")
+	testTypeToStr(t, mysql.TypeLongBlob, "binary", "longblob")
+	testTypeToStr(t, mysql.TypeTinyBlob, "binary", "tinyblob")
+	testTypeToStr(t, mysql.TypeMediumBlob, "binary", "mediumblob")
+	testTypeToStr(t, mysql.TypeVarchar, "utf8", "varchar")
+	testTypeToStr(t, mysql.TypeString, "utf8", "char")
+	testTypeToStr(t, mysql.TypeShort, "binary", "smallint")
+	testTypeToStr(t, mysql.TypeInt24, "binary", "mediumint")
+	testTypeToStr(t, mysql.TypeLong, "binary", "int")
+	testTypeToStr(t, mysql.TypeLonglong, "binary", "bigint")
+	testTypeToStr(t, mysql.TypeFloat, "binary", "float")
+	testTypeToStr(t, mysql.TypeDouble, "binary", "double")
+	testTypeToStr(t, mysql.TypeYear, "binary", "year")
+	testTypeToStr(t, mysql.TypeDuration, "binary", "time")
+	testTypeToStr(t, mysql.TypeDatetime, "binary", "datetime")
+	testTypeToStr(t, mysql.TypeDate, "binary", "date")
+	testTypeToStr(t, mysql.TypeTimestamp, "binary", "timestamp")
+	testTypeToStr(t, mysql.TypeNewDecimal, "binary", "decimal")
+	testTypeToStr(t, mysql.TypeUnspecified, "binary", "unspecified")
+	testTypeToStr(t, 0xdd, "binary", "")
+	testTypeToStr(t, mysql.TypeBit, "binary", "bit")
+	testTypeToStr(t, mysql.TypeEnum, "binary", "enum")
+	testTypeToStr(t, mysql.TypeSet, "binary", "set")
 }
 
-func (s *testTypeEtcSuite) TestEOFAsNil(c *C) {
+func TestEOFAsNil(t *testing.T) {
 	err := EOFAsNil(io.EOF)
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("got %#v, want nil", err)
+	}
 }
 
-func (s *testTypeEtcSuite) TestMaxFloat(c *C) {
+func TestMaxFloat(t *testing.T) {
 	tbl := []struct {
 		Flen    int
 		Decimal int
@@ -116,13 +117,15 @@ func (s *testTypeEtcSuite) TestMaxFloat(c *C) {
 		{5, 5, 0.99999},
 	}
 
-	for _, t := range tbl {
-		f := GetMaxFloat(t.Flen, t.Decimal)
-		c.Assert(f, Equals, t.Expect)
+	for _, tt := range tbl {
+		f := GetMaxFloat(tt.Flen, tt.Decimal)
+		if f != tt.Expect {
+			t.Fatalf("got %#v, want %#v", f, tt.Expect)
+		}
 	}
 }
 
-func (s *testTypeEtcSuite) TestRoundFloat(c *C) {
+func TestRoundFloat(t *testing.T) {
 	tbl := []struct {
 		Input  float64
 		Expect float64
@@ -138,13 +141,15 @@ func (s *testTypeEtcSuite) TestRoundFloat(c *C) {
 		{-1.5, -2},
 	}
 
-	for _, t := range tbl {
-		f := RoundFloat(t.Input)
-		c.Assert(f, Equals, t.Expect)
+	for _, tt := range tbl {
+		f := RoundFloat(tt.Input)
+		if f != tt.Expect {
+			t.Fatalf("got %#v, want %#v", f, tt.Expect)
+		}
 	}
 }
 
-func (s *testTypeEtcSuite) TestRound(c *C) {
+func TestRound(t *testing.T) {
 	tbl := []struct {
 		Input  float64
 		Dec    int
@@ -158,13 +163,15 @@ func (s *testTypeEtcSuite) TestRound(c *C) {
 		{23.298, -1, 20},
 	}
 
-	for _, t := range tbl {
-		f := Round(t.Input, t.Dec)
-		c.Assert(f, Equals, t.Expect)
+	for _, tt := range tbl {
+		f := Round(tt.Input, tt.Dec)
+		if f != tt.Expect {
+			t.Fatalf("got %#v, want %#v", f, tt.Expect)
+		}
 	}
 }
 
-func (s *testTypeEtcSuite) TestTruncate(c *C) {
+func TestTruncate(t *testing.T) {
 	tbl := []struct {
 		Input   float64
 		Flen    int
@@ -179,9 +186,13 @@ func (s *testTypeEtcSuite) TestTruncate(c *C) {
 		{1.36, 10, 2, 1.36, nil},
 	}
 
-	for _, t := range tbl {
-		f, err := TruncateFloat(t.Input, t.Flen, t.Decimal)
-		c.Assert(f, Equals, t.Expect)
-		c.Assert(terror.ErrorEqual(err, t.Err), IsTrue, Commentf("err %v", err))
+	for _, tt := range tbl {
+		f, err := TruncateFloat(tt.Input, tt.Flen, tt.Decimal)
+		if f != tt.Expect {
+			t.Fatalf("got %#v, want %#v", f, tt.Expect)
+		}
+		if !terror.ErrorEqual(err, tt.Err) {
+			t.Fatalf("err %v", err)
+		}
 	}
 }

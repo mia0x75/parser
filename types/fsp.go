@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pingcap/errors"
+	"github.com/mia0x75/parser/internal/errors"
 )
 
 const (

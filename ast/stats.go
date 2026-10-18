@@ -14,7 +14,7 @@
 package ast
 
 import (
-	"github.com/pingcap/errors"
+	"github.com/mia0x75/parser/internal/errors"
 
 	"github.com/mia0x75/parser/format"
 	"github.com/mia0x75/parser/model"

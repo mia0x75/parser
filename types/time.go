@@ -24,9 +24,9 @@ import (
 	gotime "time"
 	"unicode"
 
+	"github.com/mia0x75/parser/internal/errors"
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/terror"
-	"github.com/pingcap/errors"
 )
 
 // Portable analogs of some common call errors.

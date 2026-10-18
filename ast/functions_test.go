@@ -14,7 +14,7 @@
 package ast_test
 
 import (
-	. "github.com/pingcap/check"
+	"testing"
 
 	"github.com/mia0x75/parser"
 	"github.com/mia0x75/parser/ast"
@@ -22,12 +22,7 @@ import (
 	driver "github.com/mia0x75/parser/driver"
 )
 
-var _ = Suite(&testFunctionsSuite{})
-
-type testFunctionsSuite struct {
-}
-
-func (ts *testFunctionsSuite) TestFunctionsVisitorCover(c *C) {
+func TestFunctionsVisitorCover(t *testing.T) {
 	valueExpr := NewValueExpr(42)
 	stmts := []Node{
 		&AggregateFuncExpr{Args: []ExprNode{valueExpr}},
@@ -42,7 +37,7 @@ func (ts *testFunctionsSuite) TestFunctionsVisitorCover(c *C) {
 	}
 }
 
-func (ts *testFunctionsSuite) TestFuncCallExprRestore(c *C) {
+func TestFuncCallExprRestore(t *testing.T) {
 	testCases := []NodeRestoreTestCase{
 		{"JSON_ARRAYAGG(attribute)", "JSON_ARRAYAGG(`attribute`)"},
 		{"JSON_OBJECTAGG(attribute, value)", "JSON_OBJECTAGG(`attribute`, `value`)"},
@@ -79,10 +74,10 @@ func (ts *testFunctionsSuite) TestFuncCallExprRestore(c *C) {
 	extractNodeFunc := func(node Node) Node {
 		return node.(*SelectStmt).Fields.Fields[0].Expr
 	}
-	RunNodeRestoreTest(c, testCases, "select %s", extractNodeFunc)
+	RunNodeRestoreTest(t, testCases, "select %s", extractNodeFunc)
 }
 
-func (ts *testFunctionsSuite) TestFuncCastExprRestore(c *C) {
+func TestFuncCastExprRestore(t *testing.T) {
 	testCases := []NodeRestoreTestCase{
 		{"CONVERT('Müller' USING UtF8Mb4)", "CONVERT('Müller' USING UTF8MB4)"},
 		{"CONVERT('Müller', CHAR(32) CHARACTER SET UtF8)", "CONVERT('Müller', CHAR(32) CHARACTER SET utf8)"},
@@ -92,10 +87,10 @@ func (ts *testFunctionsSuite) TestFuncCastExprRestore(c *C) {
 	extractNodeFunc := func(node Node) Node {
 		return node.(*SelectStmt).Fields.Fields[0].Expr
 	}
-	RunNodeRestoreTest(c, testCases, "select %s", extractNodeFunc)
+	RunNodeRestoreTest(t, testCases, "select %s", extractNodeFunc)
 }
 
-func (ts *testFunctionsSuite) TestAggregateFuncExprRestore(c *C) {
+func TestAggregateFuncExprRestore(t *testing.T) {
 	testCases := []NodeRestoreTestCase{
 		{"AVG(test_score)", "AVG(`test_score`)"},
 		{"AVG(distinct test_score)", "AVG(DISTINCT `test_score`)"},
@@ -122,10 +117,10 @@ func (ts *testFunctionsSuite) TestAggregateFuncExprRestore(c *C) {
 	extractNodeFunc := func(node Node) Node {
 		return node.(*SelectStmt).Fields.Fields[0].Expr
 	}
-	RunNodeRestoreTest(c, testCases, "select %s", extractNodeFunc)
+	RunNodeRestoreTest(t, testCases, "select %s", extractNodeFunc)
 }
 
-func (ts *testFunctionsSuite) TestConvert(c *C) {
+func TestConvert(t *testing.T) {
 	// Test case for CONVERT(expr USING transcoding_name).
 	cases := []struct {
 		SQL          string
@@ -142,19 +137,25 @@ func (ts *testFunctionsSuite) TestConvert(c *C) {
 	for _, testCase := range cases {
 		stmt, err := parser.New().ParseOneStmt(testCase.SQL, "", "")
 		if testCase.ErrorMessage != "" {
-			c.Assert(err.Error(), Equals, testCase.ErrorMessage)
+			if err == nil || err.Error() != testCase.ErrorMessage {
+				t.Fatalf("got error %v, want %v", err, testCase.ErrorMessage)
+			}
 			continue
 		}
-		c.Assert(err, IsNil)
+		if err != nil {
+			t.Fatalf("got error %v, want nil", err)
+		}
 
 		st := stmt.(*ast.SelectStmt)
 		expr := st.Fields.Fields[0].Expr.(*FuncCallExpr)
 		charsetArg := expr.Args[1].(*driver.ValueExpr)
-		c.Assert(charsetArg.GetString(), Equals, testCase.CharsetName)
+		if got := charsetArg.GetString(); got != testCase.CharsetName {
+			t.Fatalf("got %#v, want %#v", got, testCase.CharsetName)
+		}
 	}
 }
 
-func (ts *testFunctionsSuite) TestChar(c *C) {
+func TestChar(t *testing.T) {
 	// Test case for CHAR(N USING charset_name)
 	cases := []struct {
 		SQL          string
@@ -171,19 +172,25 @@ func (ts *testFunctionsSuite) TestChar(c *C) {
 	for _, testCase := range cases {
 		stmt, err := parser.New().ParseOneStmt(testCase.SQL, "", "")
 		if testCase.ErrorMessage != "" {
-			c.Assert(err.Error(), Equals, testCase.ErrorMessage)
+			if err == nil || err.Error() != testCase.ErrorMessage {
+				t.Fatalf("got error %v, want %v", err, testCase.ErrorMessage)
+			}
 			continue
 		}
-		c.Assert(err, IsNil)
+		if err != nil {
+			t.Fatalf("got error %v, want nil", err)
+		}
 
 		st := stmt.(*ast.SelectStmt)
 		expr := st.Fields.Fields[0].Expr.(*FuncCallExpr)
 		charsetArg := expr.Args[1].(*driver.ValueExpr)
-		c.Assert(charsetArg.GetString(), Equals, testCase.CharsetName)
+		if got := charsetArg.GetString(); got != testCase.CharsetName {
+			t.Fatalf("got %#v, want %#v", got, testCase.CharsetName)
+		}
 	}
 }
 
-func (ts *testDMLSuite) TestWindowFuncExprRestore(c *C) {
+func TestWindowFuncExprRestore(t *testing.T) {
 	testCases := []NodeRestoreTestCase{
 		{"RANK() OVER w", "RANK() OVER `w`"},
 		{"RANK() OVER (PARTITION BY a)", "RANK() OVER (PARTITION BY `a`)"},
@@ -199,5 +206,5 @@ func (ts *testDMLSuite) TestWindowFuncExprRestore(c *C) {
 	extractNodeFunc := func(node Node) Node {
 		return node.(*SelectStmt).Fields.Fields[0].Expr
 	}
-	RunNodeRestoreTest(c, testCases, "select %s from t", extractNodeFunc)
+	RunNodeRestoreTest(t, testCases, "select %s from t", extractNodeFunc)
 }

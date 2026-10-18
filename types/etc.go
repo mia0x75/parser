@@ -22,10 +22,10 @@ import (
 	"strings"
 
 	"github.com/mia0x75/parser/charset"
+	"github.com/mia0x75/parser/internal/errors"
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/opcode"
 	"github.com/mia0x75/parser/terror"
-	"github.com/pingcap/errors"
 )
 
 // IsTypeBlob returns a boolean indicating whether the tp is a blob type.

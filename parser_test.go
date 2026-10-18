@@ -15,6 +15,7 @@ package parser
 
 import (
 	"fmt"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -23,26 +24,14 @@ import (
 	"github.com/mia0x75/parser/charset"
 	driver "github.com/mia0x75/parser/driver"
 	. "github.com/mia0x75/parser/format"
+	"github.com/mia0x75/parser/internal/errors"
 	"github.com/mia0x75/parser/model"
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/terror"
 	"github.com/mia0x75/parser/types"
-	. "github.com/pingcap/check"
-	"github.com/pingcap/errors"
 )
 
-func TestT(t *testing.T) {
-	CustomVerboseFlag = true
-	TestingT(t)
-}
-
-var _ = Suite(&testParserSuite{})
-
-type testParserSuite struct {
-	enableWindowFunc bool
-}
-
-func (s *testParserSuite) TestSimple(c *C) {
+func TestSimple(t *testing.T) {
 	parser := New()
 
 	reservedKws := []string{
@@ -75,15 +64,21 @@ func (s *testParserSuite) TestSimple(c *C) {
 	for _, kw := range reservedKws {
 		src := fmt.Sprintf("SELECT * FROM db.%s;", kw)
 		_, err := parser.ParseOneStmt(src, "", "")
-		c.Assert(err, IsNil, Commentf("source %s", src))
+		if err != nil {
+			t.Fatalf("%s: expected nil, got %#v", fmt.Sprintf("source %s", src), err)
+		}
 
 		src = fmt.Sprintf("SELECT * FROM %s.desc", kw)
 		_, err = parser.ParseOneStmt(src, "", "")
-		c.Assert(err, IsNil, Commentf("source %s", src))
+		if err != nil {
+			t.Fatalf("%s: expected nil, got %#v", fmt.Sprintf("source %s", src), err)
+		}
 
 		src = fmt.Sprintf("SELECT t.%s FROM t", kw)
 		_, err = parser.ParseOneStmt(src, "", "")
-		c.Assert(err, IsNil, Commentf("source %s", src))
+		if err != nil {
+			t.Fatalf("%s: expected nil, got %#v", fmt.Sprintf("source %s", src), err)
+		}
 	}
 
 	// Testcase for unreserved keywords
@@ -108,51 +103,85 @@ func (s *testParserSuite) TestSimple(c *C) {
 	for _, kw := range unreservedKws {
 		src := fmt.Sprintf("SELECT %s FROM tbl;", kw)
 		_, err := parser.ParseOneStmt(src, "", "")
-		c.Assert(err, IsNil, Commentf("source %s", src))
+		if err != nil {
+			t.Fatalf("%s: expected nil, got %#v", fmt.Sprintf("source %s", src), err)
+		}
 	}
 
 	// Testcase for prepared statement
 	src := "SELECT id+?, id+? from t;"
 	_, err := parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 
 	// Testcase for -- Comment and unary -- operator
 	src = "CREATE TABLE foo (a SMALLINT UNSIGNED, b INT UNSIGNED); -- foo\nSelect --1 from foo;"
 	stmts, _, err := parser.Parse(src, "", "")
-	c.Assert(err, IsNil)
-	c.Assert(stmts, HasLen, 2)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
+	if len(stmts) != 2 {
+		t.Fatalf("got len %d, want %d", len(stmts), 2)
+	}
 
 	// Testcase for /*! xx */
 	// See http://dev.mysql.com/doc/refman/5.7/en/comments.html
 	// Fix: https://github.com/mia0x75/tidb/issues/971
 	src = "/*!40101 SET character_set_client = utf8 */;"
 	stmts, _, err = parser.Parse(src, "", "")
-	c.Assert(err, IsNil)
-	c.Assert(stmts, HasLen, 1)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
+	if len(stmts) != 1 {
+		t.Fatalf("got len %d, want %d", len(stmts), 1)
+	}
 	stmt := stmts[0]
 	_, ok := stmt.(*ast.SetStmt)
-	c.Assert(ok, IsTrue)
+	if !ok {
+		t.Fatalf("expected true")
+	}
 
 	// for issue #2017
 	src = "insert into blobtable (a) values ('/*! truncated */');"
 	stmt, err = parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	is, ok := stmt.(*ast.InsertStmt)
-	c.Assert(ok, IsTrue)
-	c.Assert(is.Lists, HasLen, 1)
-	c.Assert(is.Lists[0], HasLen, 1)
-	c.Assert(is.Lists[0][0].(ast.ValueExpr).GetDatumString(), Equals, "/*! truncated */")
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if len(is.Lists) != 1 {
+		t.Fatalf("got len %d, want %d", len(is.Lists), 1)
+	}
+	if len(is.Lists[0]) != 1 {
+		t.Fatalf("got len %d, want %d", len(is.Lists[0]), 1)
+	}
+	if is.Lists[0][0].(ast.ValueExpr).GetDatumString() != "/*! truncated */" {
+		t.Fatalf("got %#v, want %#v", is.Lists[0][0].(ast.ValueExpr).GetDatumString(), "/*! truncated */")
+	}
 
 	// Testcase for CONVERT(expr,type)
 	src = "SELECT CONVERT('111', SIGNED);"
 	st, err := parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	ss, ok := st.(*ast.SelectStmt)
-	c.Assert(ok, IsTrue)
-	c.Assert(len(ss.Fields.Fields), Equals, 1)
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if len(ss.Fields.Fields) != 1 {
+		t.Fatalf("got %#v, want %#v", len(ss.Fields.Fields), 1)
+	}
 	cv, ok := ss.Fields.Fields[0].Expr.(*ast.FuncCastExpr)
-	c.Assert(ok, IsTrue)
-	c.Assert(cv.FunctionType, Equals, ast.CastConvertFunction)
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if cv.FunctionType != ast.CastConvertFunction {
+		t.Fatalf("got %#v, want %#v", cv.FunctionType, ast.CastConvertFunction)
+	}
 
 	// for query start with comment
 	srcs := []string{
@@ -164,54 +193,80 @@ func (s *testParserSuite) TestSimple(c *C) {
 	}
 	for _, src := range srcs {
 		st, err = parser.ParseOneStmt(src, "", "")
-		c.Assert(err, IsNil)
+		if err != nil {
+			t.Fatalf("expected nil, got %#v", err)
+		}
 		ss, ok = st.(*ast.SelectStmt)
-		c.Assert(ok, IsTrue)
+		if !ok {
+			t.Fatalf("expected true")
+		}
 	}
 
 	// for issue #961
 	src = "create table t (c int key);"
 	st, err = parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	cs, ok := st.(*ast.CreateTableStmt)
-	c.Assert(ok, IsTrue)
-	c.Assert(cs.Cols, HasLen, 1)
-	c.Assert(cs.Cols[0].Options, HasLen, 1)
-	c.Assert(cs.Cols[0].Options[0].Tp, Equals, ast.ColumnOptionPrimaryKey)
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if len(cs.Cols) != 1 {
+		t.Fatalf("got len %d, want %d", len(cs.Cols), 1)
+	}
+	if len(cs.Cols[0].Options) != 1 {
+		t.Fatalf("got len %d, want %d", len(cs.Cols[0].Options), 1)
+	}
+	if cs.Cols[0].Options[0].Tp != ast.ColumnOptionPrimaryKey {
+		t.Fatalf("got %#v, want %#v", cs.Cols[0].Options[0].Tp, ast.ColumnOptionPrimaryKey)
+	}
 
 	// for issue #4497
 	src = "create table t1(a NVARCHAR(100));"
 	_, err = parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 
 	// for issue 2803
 	src = "use quote;"
 	_, err = parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 
 	// issue #4354
 	src = "select b'';"
 	_, err = parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 
 	src = "select B'';"
 	_, err = parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 
 	// src = "select 0b'';"
 	// _, err = parser.ParseOneStmt(src, "", "")
-	// c.Assert(err, NotNil)
+	// if err == nil { t.Fatalf("expected non-nil") }
 
 	// for #4909, support numericType `signed` filedOpt.
 	src = "CREATE TABLE t(_sms smallint signed, _smu smallint unsigned);"
 	_, err = parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 
 	// for #7371, support NATIONAL CHARACTER
 	// reference link: https://dev.mysql.com/doc/refman/5.7/en/charset-national.html
 	src = "CREATE TABLE t(c1 NATIONAL CHARACTER(10));"
 	_, err = parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 
 	src = `CREATE TABLE t(a tinyint signed,
 		b smallint signed,
@@ -229,67 +284,111 @@ func (s *testParserSuite) TestSimple(c *C) {
 		);`
 
 	st, err = parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	ct, ok := st.(*ast.CreateTableStmt)
-	c.Assert(ok, IsTrue)
+	if !ok {
+		t.Fatalf("expected true")
+	}
 	for _, col := range ct.Cols {
-		c.Assert(col.Tp.Flag&mysql.UnsignedFlag, Equals, uint(0))
+		if col.Tp.Flag&mysql.UnsignedFlag != uint(0) {
+			t.Fatalf("got %#v, want %#v", col.Tp.Flag&mysql.UnsignedFlag, uint(0))
+		}
 	}
 
 	// for issue #4006
 	src = `insert into tb(v) (select v from tb);`
 	_, err = parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 
 	// for issue #9823
 	src = "SELECT 9223372036854775807;"
 	st, err = parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	sel, ok := st.(*ast.SelectStmt)
-	c.Assert(ok, IsTrue)
+	if !ok {
+		t.Fatalf("expected true")
+	}
 	expr := sel.Fields.Fields[0]
 	vExpr := expr.Expr.(*driver.ValueExpr)
-	c.Assert(vExpr.Kind(), Equals, types.KindInt64)
+	if vExpr.Kind() != types.KindInt64 {
+		t.Fatalf("got %#v, want %#v", vExpr.Kind(), types.KindInt64)
+	}
 	src = "SELECT 9223372036854775808;"
 	st, err = parser.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	sel, ok = st.(*ast.SelectStmt)
-	c.Assert(ok, IsTrue)
+	if !ok {
+		t.Fatalf("expected true")
+	}
 	expr = sel.Fields.Fields[0]
 	vExpr = expr.Expr.(*driver.ValueExpr)
-	c.Assert(vExpr.Kind(), Equals, types.KindUint64)
+	if vExpr.Kind() != types.KindUint64 {
+		t.Fatalf("got %#v, want %#v", vExpr.Kind(), types.KindUint64)
+	}
 }
 
-func (s *testParserSuite) TestSpecialComments(c *C) {
+func TestSpecialComments(t *testing.T) {
 	parser := New()
 
 	// 1. Make sure /*! ... */ respects the same SQL mode.
 	_, err := parser.ParseOneStmt(`SELECT /*! '\' */;`, "", "")
-	c.Assert(err, NotNil)
+	if err == nil {
+		t.Fatalf("expected non-nil")
+	}
 
 	parser.SetSQLMode(mysql.ModeNoBackslashEscapes)
 	st, err := parser.ParseOneStmt(`SELECT /*! '\' */;`, "", "")
-	c.Assert(err, IsNil)
-	c.Assert(st, FitsTypeOf, &ast.SelectStmt{})
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
+	if reflect.TypeOf(st) != reflect.TypeOf(&ast.SelectStmt{}) {
+		t.Fatalf("got %T, want %T", st, &ast.SelectStmt{})
+	}
 
 	// 2. Make sure multiple statements inside /*! ... */ will not crash
 	// (this is issue #330)
 	stmts, _, err := parser.Parse("/*! SET x = 1; SELECT 2 */", "", "")
-	c.Assert(err, IsNil)
-	c.Assert(stmts, HasLen, 2)
-	c.Assert(stmts[0], FitsTypeOf, &ast.SetStmt{})
-	c.Assert(stmts[0].Text(), Equals, "SET x = 1;")
-	c.Assert(stmts[1], FitsTypeOf, &ast.SelectStmt{})
-	c.Assert(stmts[1].Text(), Equals, "/*! SET x = 1; SELECT 2 */")
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
+	if len(stmts) != 2 {
+		t.Fatalf("got len %d, want %d", len(stmts), 2)
+	}
+	if reflect.TypeOf(stmts[0]) != reflect.TypeOf(&ast.SetStmt{}) {
+		t.Fatalf("got %T, want %T", stmts[0], &ast.SetStmt{})
+	}
+	if stmts[0].Text() != "SET x = 1;" {
+		t.Fatalf("got %#v, want %#v", stmts[0].Text(), "SET x = 1;")
+	}
+	if reflect.TypeOf(stmts[1]) != reflect.TypeOf(&ast.SelectStmt{}) {
+		t.Fatalf("got %T, want %T", stmts[1], &ast.SelectStmt{})
+	}
+	if stmts[1].Text() != "/*! SET x = 1; SELECT 2 */" {
+		t.Fatalf("got %#v, want %#v", stmts[1].Text(), "/*! SET x = 1; SELECT 2 */")
+	}
 	// ^ not sure if correct approach; having multiple statements in MySQL is a syntax error.
 
 	// 3. Make sure invalid text won't cause infinite loop
 	// (this is issue #336)
 	st, err = parser.ParseOneStmt("SELECT /*+ 😅 */ SLEEP(1);", "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	sel, ok := st.(*ast.SelectStmt)
-	c.Assert(ok, IsTrue)
-	c.Assert(sel.TableHints, HasLen, 0)
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if len(sel.TableHints) != 0 {
+		t.Fatalf("got len %d, want %d", len(sel.TableHints), 0)
+	}
 }
 
 type testCase struct {
@@ -304,69 +403,87 @@ type testErrMsgCase struct {
 	err error
 }
 
-func (s *testParserSuite) RunTest(c *C, table []testCase) {
+func RunTest(t *testing.T, table []testCase, enableWindowFunc bool) {
 	parser := New()
-	parser.EnableWindowFunc(s.enableWindowFunc)
-	for _, t := range table {
-		_, _, err := parser.Parse(t.src, "", "")
-		comment := Commentf("source %v", t.src)
-		if !t.ok {
-			c.Assert(err, NotNil, comment)
+	parser.EnableWindowFunc(enableWindowFunc)
+	for _, tt := range table {
+		_, _, err := parser.Parse(tt.src, "", "")
+		comment := fmt.Sprintf("source %v", tt.src)
+		if !tt.ok {
+			if err == nil {
+				t.Fatalf("%s: expected error, got nil", comment)
+			}
 			continue
 		}
-		c.Assert(err, IsNil, comment)
+		if err != nil {
+			t.Fatalf("%s: got err %v, want nil", comment, err)
+		}
 		// restore correctness test
-		if t.ok {
-			s.RunRestoreTest(c, t.src, t.restore)
+		if tt.ok {
+			RunRestoreTest(t, tt.src, tt.restore, enableWindowFunc)
 		}
 	}
 }
 
-func (s *testParserSuite) RunRestoreTest(c *C, sourceSQLs, expectSQLs string) {
+func RunRestoreTest(t *testing.T, sourceSQLs, expectSQLs string, enableWindowFunc bool) {
 	var sb strings.Builder
 	parser := New()
-	parser.EnableWindowFunc(s.enableWindowFunc)
-	comment := Commentf("source %v", sourceSQLs)
+	parser.EnableWindowFunc(enableWindowFunc)
+	comment := fmt.Sprintf("source %v", sourceSQLs)
 	stmts, _, err := parser.Parse(sourceSQLs, "", "")
-	c.Assert(err, IsNil, comment)
+	if err != nil {
+		t.Fatalf("%s: got err %v, want nil", comment, err)
+	}
 	restoreSQLs := ""
 	for _, stmt := range stmts {
 		sb.Reset()
 		err = stmt.Restore(NewRestoreCtx(DefaultRestoreFlags, &sb))
-		c.Assert(err, IsNil, comment)
+		if err != nil {
+			t.Fatalf("%s: got err %v, want nil", comment, err)
+		}
 		restoreSQL := sb.String()
 		if restoreSQL == "" {
 			continue
 		}
-		comment = Commentf("source %v; restore %v", sourceSQLs, restoreSQL)
+		comment = fmt.Sprintf("source %v; restore %v", sourceSQLs, restoreSQL)
 		restoreStmt, err := parser.ParseOneStmt(restoreSQL, "", "")
-		c.Assert(err, IsNil, comment)
+		if err != nil {
+			t.Fatalf("%s: got err %v, want nil", comment, err)
+		}
 		CleanNodeText(stmt)
 		CleanNodeText(restoreStmt)
-		c.Assert(restoreStmt, DeepEquals, stmt, comment)
+		if !reflect.DeepEqual(restoreStmt, stmt) {
+			t.Fatalf("%s: got %#v, want %#v", comment, restoreStmt, stmt)
+		}
 		if restoreSQLs != "" {
 			restoreSQLs += "; "
 		}
 		restoreSQLs += restoreSQL
 	}
-	comment = Commentf("restore %v; expect %v", restoreSQLs, expectSQLs)
-	c.Assert(restoreSQLs, Equals, expectSQLs, comment)
+	comment = fmt.Sprintf("restore %v; expect %v", restoreSQLs, expectSQLs)
+	if restoreSQLs != expectSQLs {
+		t.Fatalf("%s: got %#v, want %#v", comment, restoreSQLs, expectSQLs)
+	}
 }
 
-func (s *testParserSuite) RunErrMsgTest(c *C, table []testErrMsgCase) {
+func RunErrMsgTest(t *testing.T, table []testErrMsgCase) {
 	parser := New()
-	for _, t := range table {
-		_, _, err := parser.Parse(t.src, "", "")
-		comment := Commentf("source %v", t.src)
-		if t.err != nil {
-			c.Assert(terror.ErrorEqual(err, t.err), IsTrue, comment)
+	for _, tt := range table {
+		_, _, err := parser.Parse(tt.src, "", "")
+		comment := fmt.Sprintf("source %v", tt.src)
+		if tt.err != nil {
+			if !terror.ErrorEqual(err, tt.err) {
+				t.Fatalf("%s: got %v, want %v", comment, err, tt.err)
+			}
 		} else {
-			c.Assert(err, IsNil, comment)
+			if err != nil {
+				t.Fatalf("%s: got err %v, want nil", comment, err)
+			}
 		}
 	}
 }
 
-func (s *testParserSuite) TestDMLStmt(c *C) {
+func TestDMLStmt(t *testing.T) {
 	table := []testCase{
 		{"", true, ""},
 		{";", true, ""},
@@ -651,10 +768,10 @@ AAAAAAAAAAAA5gm5Mg==
 		{"select * from t1 partition (`p1`, p2, p3)", true, "SELECT * FROM `t1` PARTITION(`p1`, `p2`, `p3`)"},
 		{`select * from t1 partition ()`, false, ""},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestDBAStmt(c *C) {
+func TestDBAStmt(t *testing.T) {
 	table := []testCase{
 		// for SHOW statement
 		{"SHOW VARIABLES LIKE 'character_set_results'", true, "SHOW SESSION VARIABLES LIKE 'character_set_results'"},
@@ -799,30 +916,46 @@ func (s *testParserSuite) TestDBAStmt(c *C) {
 		{"flush privileges", true, "FLUSH PRIVILEGES"},
 		{"flush status", true, "FLUSH STATUS"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestFlushTable(c *C) {
+func TestFlushTable(t *testing.T) {
 	parser := New()
 	stmt, _, err := parser.Parse("flush local tables tbl1,tbl2 with read lock", "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	flushTable := stmt[0].(*ast.FlushStmt)
-	c.Assert(flushTable.Tp, Equals, ast.FlushTables)
-	c.Assert(flushTable.Tables[0].Name.L, Equals, "tbl1")
-	c.Assert(flushTable.Tables[1].Name.L, Equals, "tbl2")
-	c.Assert(flushTable.NoWriteToBinLog, IsTrue)
-	c.Assert(flushTable.ReadLock, IsTrue)
+	if flushTable.Tp != ast.FlushTables {
+		t.Fatalf("got %#v, want %#v", flushTable.Tp, ast.FlushTables)
+	}
+	if flushTable.Tables[0].Name.L != "tbl1" {
+		t.Fatalf("got %#v, want %#v", flushTable.Tables[0].Name.L, "tbl1")
+	}
+	if flushTable.Tables[1].Name.L != "tbl2" {
+		t.Fatalf("got %#v, want %#v", flushTable.Tables[1].Name.L, "tbl2")
+	}
+	if !flushTable.NoWriteToBinLog {
+		t.Fatalf("expected true")
+	}
+	if !flushTable.ReadLock {
+		t.Fatalf("expected true")
+	}
 }
 
-func (s *testParserSuite) TestFlushPrivileges(c *C) {
+func TestFlushPrivileges(t *testing.T) {
 	parser := New()
 	stmt, _, err := parser.Parse("flush privileges", "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	flushPrivilege := stmt[0].(*ast.FlushStmt)
-	c.Assert(flushPrivilege.Tp, Equals, ast.FlushPrivileges)
+	if flushPrivilege.Tp != ast.FlushPrivileges {
+		t.Fatalf("got %#v, want %#v", flushPrivilege.Tp, ast.FlushPrivileges)
+	}
 }
 
-func (s *testParserSuite) TestExpression(c *C) {
+func TestExpression(t *testing.T) {
 	table := []testCase{
 		// sign expression
 		{"SELECT ++1", true, "SELECT ++1"},
@@ -865,10 +998,10 @@ func (s *testParserSuite) TestExpression(c *C) {
 		{"select {ts123 123}", true, "SELECT 123"},
 		{"select {ts123 1 xor 1}", true, "SELECT 1 XOR 1"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestBuiltin(c *C) {
+func TestBuiltin(t *testing.T) {
 	table := []testCase{
 		// for builtin functions
 		{"SELECT POW(1, 2)", true, "SELECT POW(1, 2)"},
@@ -1509,10 +1642,10 @@ func (s *testParserSuite) TestBuiltin(c *C) {
 		// Test that quoted identifier can be a function name.
 		{"SELECT `uuid`()", true, "SELECT UUID()"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestIdentifier(c *C) {
+func TestIdentifier(t *testing.T) {
 	table := []testCase{
 		// for quote identifier
 		{"select `a`, `a.b`, `a b` from t", true, "SELECT `a`,`a.b`,`a b` FROM `t`"},
@@ -1563,10 +1696,10 @@ func (s *testParserSuite) TestIdentifier(c *C) {
 		{"select .78`123`", true, "SELECT 0.78 AS `123`"},
 		{`select .78"123"`, true, "SELECT 0.78 AS `123`"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestDDL(c *C) {
+func TestDDL(t *testing.T) {
 	table := []testCase{
 		{"CREATE", false, ""},
 		{"CREATE TABLE", false, ""},
@@ -1992,87 +2125,151 @@ func (s *testParserSuite) TestDDL(c *C) {
 		{"alter table t add column (f timestamp as (a+1) default '2019-01-01 11:11:11');", false, ""},
 		{"alter table t modify column f int as (a+1) default 55;", false, ""},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestHintError(c *C) {
+func TestHintError(t *testing.T) {
 	parser := New()
 	stmt, warns, err := parser.Parse("select /*+ tidb_unknow(T1,t2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1", "", "")
-	c.Assert(err, IsNil)
-	c.Assert(len(warns), Equals, 1)
-	c.Assert(warns[0].Error(), Equals, "line 1 column 32 near \"tidb_unknow(T1,t2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" ")
-	c.Assert(len(stmt[0].(*ast.SelectStmt).TableHints), Equals, 0)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
+	if len(warns) != 1 {
+		t.Fatalf("got %#v, want %#v", len(warns), 1)
+	}
+	if warns[0].Error() != "line 1 column 32 near \"tidb_unknow(T1,t2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" " {
+		t.Fatalf("got %#v, want %#v", warns[0].Error(), "line 1 column 32 near \"tidb_unknow(T1,t2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" ")
+	}
+	if len(stmt[0].(*ast.SelectStmt).TableHints) != 0 {
+		t.Fatalf("got %#v, want %#v", len(stmt[0].(*ast.SelectStmt).TableHints), 0)
+	}
 	stmt, warns, err = parser.Parse("select /*+ tidb_unknow(T1,t2, 1) TIDB_INLJ(t1, T2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1", "", "")
-	c.Assert(len(stmt[0].(*ast.SelectStmt).TableHints), Equals, 0)
-	c.Assert(err, IsNil)
-	c.Assert(len(warns), Equals, 1)
-	c.Assert(warns[0].Error(), Equals, "line 1 column 53 near \"tidb_unknow(T1,t2, 1) TIDB_INLJ(t1, T2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" ")
+	if len(stmt[0].(*ast.SelectStmt).TableHints) != 0 {
+		t.Fatalf("got %#v, want %#v", len(stmt[0].(*ast.SelectStmt).TableHints), 0)
+	}
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
+	if len(warns) != 1 {
+		t.Fatalf("got %#v, want %#v", len(warns), 1)
+	}
+	if warns[0].Error() != "line 1 column 53 near \"tidb_unknow(T1,t2, 1) TIDB_INLJ(t1, T2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" " {
+		t.Fatalf("got %#v, want %#v", warns[0].Error(), "line 1 column 53 near \"tidb_unknow(T1,t2, 1) TIDB_INLJ(t1, T2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" ")
+	}
 	stmt, _, err = parser.Parse("select c1, c2 from /*+ tidb_unknow(T1,t2) */ t1, t2 where t1.c1 = t2.c1", "", "")
-	c.Assert(err, NotNil)
+	if err == nil {
+		t.Fatalf("expected non-nil")
+	}
 	stmt, _, err = parser.Parse("select1 /*+ TIDB_INLJ(t1, T2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1", "", "")
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "line 1 column 7 near \"select1 /*+ TIDB_INLJ(t1, T2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" ")
+	if err == nil {
+		t.Fatalf("expected non-nil")
+	}
+	if err.Error() != "line 1 column 7 near \"select1 /*+ TIDB_INLJ(t1, T2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" " {
+		t.Fatalf("got %#v, want %#v", err.Error(), "line 1 column 7 near \"select1 /*+ TIDB_INLJ(t1, T2) */ c1, c2 from t1, t2 where t1.c1 = t2.c1\" ")
+	}
 	stmt, _, err = parser.Parse("select /*+ TIDB_INLJ(t1, T2) */ c1, c2 fromt t1, t2 where t1.c1 = t2.c1", "", "")
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "line 1 column 47 near \"t1, t2 where t1.c1 = t2.c1\" ")
+	if err == nil {
+		t.Fatalf("expected non-nil")
+	}
+	if err.Error() != "line 1 column 47 near \"t1, t2 where t1.c1 = t2.c1\" " {
+		t.Fatalf("got %#v, want %#v", err.Error(), "line 1 column 47 near \"t1, t2 where t1.c1 = t2.c1\" ")
+	}
 	_, _, err = parser.Parse("SELECT 1 FROM DUAL WHERE 1 IN (SELECT /*+ DEBUG_HINT3 */ 1)", "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 }
 
-func (s *testParserSuite) TestErrorMsg(c *C) {
+func TestErrorMsg(t *testing.T) {
 	parser := New()
 	_, _, err := parser.Parse("select1 1", "", "")
-	c.Assert(err.Error(), Equals, "line 1 column 7 near \"select1 1\" ")
+	if err.Error() != "line 1 column 7 near \"select1 1\" " {
+		t.Fatalf("got %#v, want %#v", err.Error(), "line 1 column 7 near \"select1 1\" ")
+	}
 	_, _, err = parser.Parse("select 1 from1 dual", "", "")
-	c.Assert(err.Error(), Equals, "line 1 column 19 near \"dual\" ")
+	if err.Error() != "line 1 column 19 near \"dual\" " {
+		t.Fatalf("got %#v, want %#v", err.Error(), "line 1 column 19 near \"dual\" ")
+	}
 	_, _, err = parser.Parse("select * from t1 join t2 from t1.a = t2.a;", "", "")
-	c.Assert(err.Error(), Equals, "line 1 column 29 near \"from t1.a = t2.a;\" ")
+	if err.Error() != "line 1 column 29 near \"from t1.a = t2.a;\" " {
+		t.Fatalf("got %#v, want %#v", err.Error(), "line 1 column 29 near \"from t1.a = t2.a;\" ")
+	}
 	_, _, err = parser.Parse("select * from t1 join t2 one t1.a = t2.a;", "", "")
-	c.Assert(err.Error(), Equals, "line 1 column 31 near \"t1.a = t2.a;\" ")
+	if err.Error() != "line 1 column 31 near \"t1.a = t2.a;\" " {
+		t.Fatalf("got %#v, want %#v", err.Error(), "line 1 column 31 near \"t1.a = t2.a;\" ")
+	}
 	_, _, err = parser.Parse("select * from t1 join t2 on t1.a >>> t2.a;", "", "")
-	c.Assert(err.Error(), Equals, "line 1 column 36 near \"> t2.a;\" ")
+	if err.Error() != "line 1 column 36 near \"> t2.a;\" " {
+		t.Fatalf("got %#v, want %#v", err.Error(), "line 1 column 36 near \"> t2.a;\" ")
+	}
 
 	_, _, err = parser.Parse("create table t(f_year year(5))ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;", "", "")
-	c.Assert(err.Error(), Equals, "[parser:1818]Supports only YEAR or YEAR(4) column")
+	if err.Error() != "[parser:1818]Supports only YEAR or YEAR(4) column" {
+		t.Fatalf("got %#v, want %#v", err.Error(), "[parser:1818]Supports only YEAR or YEAR(4) column")
+	}
 
 	_, _, err = parser.Parse("select ifnull(a,0) & ifnull(a,0) like '55' ESCAPE '\\\\a' from t;", "", "")
-	c.Assert(err.Error(), Equals, "[parser:1210]Incorrect arguments to ESCAPE")
+	if err.Error() != "[parser:1210]Incorrect arguments to ESCAPE" {
+		t.Fatalf("got %#v, want %#v", err.Error(), "[parser:1210]Incorrect arguments to ESCAPE")
+	}
 
 	_, _, err = parser.Parse("load data infile 'aaa' into table aaa FIELDS  Enclosed by '\\\\b';", "", "")
-	c.Assert(err.Error(), Equals, "[parser:1083]Field separator argument is not what is expected; check the manual")
+	if err.Error() != "[parser:1083]Field separator argument is not what is expected; check the manual" {
+		t.Fatalf("got %#v, want %#v", err.Error(), "[parser:1083]Field separator argument is not what is expected; check the manual")
+	}
 
 	_, _, err = parser.Parse("load data infile 'aaa' into table aaa FIELDS  Escaped by '\\\\b';", "", "")
-	c.Assert(err.Error(), Equals, "[parser:1083]Field separator argument is not what is expected; check the manual")
+	if err.Error() != "[parser:1083]Field separator argument is not what is expected; check the manual" {
+		t.Fatalf("got %#v, want %#v", err.Error(), "[parser:1083]Field separator argument is not what is expected; check the manual")
+	}
 
 	_, _, err = parser.Parse("load data infile 'aaa' into table aaa FIELDS  Enclosed by '\\\\b' Escaped by '\\\\b' ;", "", "")
-	c.Assert(err.Error(), Equals, "[parser:1083]Field separator argument is not what is expected; check the manual")
+	if err.Error() != "[parser:1083]Field separator argument is not what is expected; check the manual" {
+		t.Fatalf("got %#v, want %#v", err.Error(), "[parser:1083]Field separator argument is not what is expected; check the manual")
+	}
 
 	_, _, err = parser.Parse("ALTER DATABASE `` CHARACTER SET = ''", "", "")
-	c.Assert(err.Error(), Equals, "[parser:1115]Unknown character set: ''")
+	if err.Error() != "[parser:1115]Unknown character set: ''" {
+		t.Fatalf("got %#v, want %#v", err.Error(), "[parser:1115]Unknown character set: ''")
+	}
 
 	_, _, err = parser.Parse("ALTER DATABASE t CHARACTER SET = ''", "", "")
-	c.Assert(err.Error(), Equals, "[parser:1115]Unknown character set: ''")
+	if err.Error() != "[parser:1115]Unknown character set: ''" {
+		t.Fatalf("got %#v, want %#v", err.Error(), "[parser:1115]Unknown character set: ''")
+	}
 
 	_, _, err = parser.Parse("ALTER SCHEMA t CHARACTER SET = 'SOME_INVALID_CHARSET'", "", "")
-	c.Assert(err.Error(), Equals, "[parser:1115]Unknown character set: 'SOME_INVALID_CHARSET'")
+	if err.Error() != "[parser:1115]Unknown character set: 'SOME_INVALID_CHARSET'" {
+		t.Fatalf("got %#v, want %#v", err.Error(), "[parser:1115]Unknown character set: 'SOME_INVALID_CHARSET'")
+	}
 
 	_, _, err = parser.Parse("ALTER DATABASE t COLLATE = ''", "", "")
-	c.Assert(err.Error(), Equals, "[ddl:1273]Unknown collation: ''")
+	if err.Error() != "[ddl:1273]Unknown collation: ''" {
+		t.Fatalf("got %#v, want %#v", err.Error(), "[ddl:1273]Unknown collation: ''")
+	}
 
 	_, _, err = parser.Parse("ALTER SCHEMA t COLLATE = 'SOME_INVALID_COLLATION'", "", "")
-	c.Assert(err.Error(), Equals, "[ddl:1273]Unknown collation: 'SOME_INVALID_COLLATION'")
+	if err.Error() != "[ddl:1273]Unknown collation: 'SOME_INVALID_COLLATION'" {
+		t.Fatalf("got %#v, want %#v", err.Error(), "[ddl:1273]Unknown collation: 'SOME_INVALID_COLLATION'")
+	}
 
 	_, _, err = parser.Parse("ALTER DATABASE CHARSET = 'utf8mb4' COLLATE = 'utf8_bin'", "", "")
-	c.Assert(err.Error(), Equals, "line 1 column 24 near \"= 'utf8mb4' COLLATE = 'utf8_bin'\" ")
+	if err.Error() != "line 1 column 24 near \"= 'utf8mb4' COLLATE = 'utf8_bin'\" " {
+		t.Fatalf("got %#v, want %#v", err.Error(), "line 1 column 24 near \"= 'utf8mb4' COLLATE = 'utf8_bin'\" ")
+	}
 
 	_, _, err = parser.Parse("ALTER DATABASE", "", "")
-	c.Assert(err.Error(), Equals, "line 1 column 14 near \"\" ")
+	if err.Error() != "line 1 column 14 near \"\" " {
+		t.Fatalf("got %#v, want %#v", err.Error(), "line 1 column 14 near \"\" ")
+	}
 
 	_, _, err = parser.Parse("ALTER SCHEMA `ANY_DB_NAME`", "", "")
-	c.Assert(err.Error(), Equals, "line 1 column 26 near \"\" ")
+	if err.Error() != "line 1 column 26 near \"\" " {
+		t.Fatalf("got %#v, want %#v", err.Error(), "line 1 column 26 near \"\" ")
+	}
 }
 
-func (s *testParserSuite) TestType(c *C) {
+func TestType(t *testing.T) {
 	table := []testCase{
 		// for time fsp
 		{"CREATE TABLE t( c1 TIME(2), c2 DATETIME(2), c3 TIMESTAMP(2) );", true, "CREATE TABLE `t` (`c1` TIME(2),`c2` DATETIME(2),`c3` TIMESTAMP(2))"},
@@ -2108,10 +2305,10 @@ func (s *testParserSuite) TestType(c *C) {
 		// for json type
 		{`create table t (a JSON);`, true, "CREATE TABLE `t` (`a` JSON)"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestPrivilege(c *C) {
+func TestPrivilege(t *testing.T) {
 	table := []testCase{
 		// for create user
 		{`CREATE USER 'ttt' REQUIRE X509;`, true, "CREATE USER `ttt`@`%` REQUIRE X509"},
@@ -2195,10 +2392,10 @@ func (s *testParserSuite) TestPrivilege(c *C) {
 		{"REVOKE all privileges on zabbix.* FROM 'zabbix'@'localhost' identified by 'password';", true, "REVOKE ALL ON `zabbix`.* FROM `zabbix`@`localhost` IDENTIFIED BY 'password'"},
 		{"REVOKE 'role1', 'role2' FROM 'user1'@'localhost', 'user2'@'localhost';", true, "REVOKE `role1`@`%`, `role2`@`%` FROM `user1`@`localhost`, `user2`@`localhost`"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestComment(c *C) {
+func TestComment(t *testing.T) {
 	table := []testCase{
 		{"create table t (c int comment 'comment')", true, "CREATE TABLE `t` (`c` INT COMMENT 'comment')"},
 		{"create table t (c int) comment = 'comment'", true, "CREATE TABLE `t` (`c` INT) COMMENT = 'comment'"},
@@ -2221,28 +2418,30 @@ func (s *testParserSuite) TestComment(c *C) {
 		{"create table t (subject int)", true, "CREATE TABLE `t` (`subject` INT)"},
 		{"create table t (x509 int)", true, "CREATE TABLE `t` (`x509` INT)"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestCommentErrMsg(c *C) {
+func TestCommentErrMsg(t *testing.T) {
 	table := []testErrMsgCase{
 		{"delete from t where a = 7 or 1=1/*' and b = 'p'", false, errors.New("near '/*' and b = 'p'' at line 1")},
 		{"delete from t where a = 7 or\n 1=1/*' and b = 'p'", false, errors.New("near '/*' and b = 'p'' at line 2")},
 		{"select 1/*", false, errors.New("near '/*' at line 1")},
 		{"select 1/* comment */", false, nil},
 	}
-	s.RunErrMsgTest(c, table)
+	RunErrMsgTest(t, table)
 }
 
 type subqueryChecker struct {
 	text string
-	c    *C
+	t    *testing.T
 }
 
 // Enter implements ast.Visitor interface.
 func (sc *subqueryChecker) Enter(inNode ast.Node) (outNode ast.Node, skipChildren bool) {
 	if expr, ok := inNode.(*ast.SubqueryExpr); ok {
-		sc.c.Assert(expr.Query.Text(), Equals, sc.text)
+		if expr.Query.Text() != sc.text {
+			sc.t.Fatalf("got %#v, want %#v", expr.Query.Text(), sc.text)
+		}
 		return inNode, true
 	}
 	return inNode, false
@@ -2253,7 +2452,7 @@ func (sc *subqueryChecker) Leave(inNode ast.Node) (node ast.Node, ok bool) {
 	return inNode, true
 }
 
-func (s *testParserSuite) TestSubquery(c *C) {
+func TestSubquery(t *testing.T) {
 	table := []testCase{
 		// for compare subquery
 		{"SELECT 1 > (select 1)", true, "SELECT 1>(SELECT 1)"},
@@ -2270,7 +2469,7 @@ func (s *testParserSuite) TestSubquery(c *C) {
 		{"SELECT + NOT EXISTS (select 1)", false, ""},
 		{"SELECT - NOT EXISTS (select 1)", false, ""},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 
 	tests := []struct {
 		input string
@@ -2280,16 +2479,18 @@ func (s *testParserSuite) TestSubquery(c *C) {
 		{"SELECT 1 > (select 1 union select 2)", "select 1 union select 2"},
 	}
 	parser := New()
-	for _, t := range tests {
-		stmt, err := parser.ParseOneStmt(t.input, "", "")
-		c.Assert(err, IsNil)
+	for _, tt := range tests {
+		stmt, err := parser.ParseOneStmt(tt.input, "", "")
+		if err != nil {
+			t.Fatalf("expected nil, got %#v", err)
+		}
 		stmt.Accept(&subqueryChecker{
-			text: t.text,
-			c:    c,
+			text: tt.text,
+			t:    t,
 		})
 	}
 }
-func (s *testParserSuite) TestUnion(c *C) {
+func TestUnion(t *testing.T) {
 	table := []testCase{
 		{"select c1 from t1 union select c2 from t2", true, "SELECT `c1` FROM `t1` UNION SELECT `c2` FROM `t2`"},
 		{"select c1 from t1 union (select c2 from t2)", true, "SELECT `c1` FROM `t1` UNION (SELECT `c2` FROM `t2`)"},
@@ -2312,12 +2513,12 @@ func (s *testParserSuite) TestUnion(c *C) {
 		{"insert into t (c) select c1 from t1 union select c2 from t2", true, "INSERT INTO `t` (`c`) SELECT `c1` FROM `t1` UNION SELECT `c2` FROM `t2`"},
 		{"select 2 as a from dual union select 1 as b from dual order by a", true, "SELECT 2 AS `a` UNION SELECT 1 AS `b` ORDER BY `a`"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestUnionOrderBy(c *C) {
+func TestUnionOrderBy(t *testing.T) {
 	parser := New()
-	parser.EnableWindowFunc(s.enableWindowFunc)
+	parser.EnableWindowFunc(false)
 
 	tests := []struct {
 		src        string
@@ -2330,26 +2531,34 @@ func (s *testParserSuite) TestUnionOrderBy(c *C) {
 		{"select 1 a, 2 b from dual", []bool{false}},
 	}
 
-	for _, t := range tests {
-		stmt, _, err := parser.Parse(t.src, "", "")
-		c.Assert(err, IsNil)
+	for _, tt := range tests {
+		stmt, _, err := parser.Parse(tt.src, "", "")
+		if err != nil {
+			t.Fatalf("expected nil, got %#v", err)
+		}
 		us, ok := stmt[0].(*ast.UnionStmt)
 		if ok {
 			var i int
 			for _, s := range us.SelectList.Selects {
-				c.Assert(s.OrderBy != nil, Equals, t.hasOrderBy[i])
+				if s.OrderBy != nil != tt.hasOrderBy[i] {
+					t.Fatalf("got %#v, want %#v", s.OrderBy != nil, tt.hasOrderBy[i])
+				}
 				i++
 			}
-			c.Assert(us.OrderBy != nil, Equals, t.hasOrderBy[i])
+			if us.OrderBy != nil != tt.hasOrderBy[i] {
+				t.Fatalf("got %#v, want %#v", us.OrderBy != nil, tt.hasOrderBy[i])
+			}
 		}
 		ss, ok := stmt[0].(*ast.SelectStmt)
 		if ok {
-			c.Assert(ss.OrderBy != nil, Equals, t.hasOrderBy[0])
+			if ss.OrderBy != nil != tt.hasOrderBy[0] {
+				t.Fatalf("got %#v, want %#v", ss.OrderBy != nil, tt.hasOrderBy[0])
+			}
 		}
 	}
 }
 
-func (s *testParserSuite) TestLikeEscape(c *C) {
+func TestLikeEscape(t *testing.T) {
 	table := []testCase{
 		// for like escape
 		{`select "abc_" like "abc\\_" escape ''`, true, "SELECT 'abc_' LIKE 'abc\\_'"},
@@ -2359,10 +2568,10 @@ func (s *testParserSuite) TestLikeEscape(c *C) {
 		{"select '''_' like '''_' escape ''''", true, "SELECT '''_' LIKE '''_' ESCAPE ''''"},
 	}
 
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestMysqlDump(c *C) {
+func TestMysqlDump(t *testing.T) {
 	// Statements used by mysqldump.
 	table := []testCase{
 		{`UNLOCK TABLES;`, true, ""},
@@ -2377,10 +2586,10 @@ func (s *testParserSuite) TestMysqlDump(c *C) {
 		{`LOCK TABLE t2 WRITE`, true, ""},
 		{`LOCK TABLE t1 WRITE, t3 READ`, true, ""},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestIndexHint(c *C) {
+func TestIndexHint(t *testing.T) {
 	table := []testCase{
 		{`select * from t use index (primary)`, true, "SELECT * FROM `t` USE INDEX (`primary`)"},
 		{"select * from t use index (`primary`)", true, "SELECT * FROM `t` USE INDEX (`primary`)"},
@@ -2393,10 +2602,10 @@ func (s *testParserSuite) TestIndexHint(c *C) {
 		{`select * from t force index for group by (idx1)`, true, "SELECT * FROM `t` FORCE INDEX FOR GROUP BY (`idx1`)"},
 		{`select * from t use index for group by (idx1) use index for order by (idx2), t2`, true, "SELECT * FROM (`t` USE INDEX FOR GROUP BY (`idx1`) USE INDEX FOR ORDER BY (`idx2`)) JOIN `t2`"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestPriority(c *C) {
+func TestPriority(t *testing.T) {
 	table := []testCase{
 		{`select high_priority * from t`, true, "SELECT HIGH_PRIORITY * FROM `t`"},
 		{`select low_priority * from t`, true, "SELECT LOW_PRIORITY * FROM `t`"},
@@ -2414,26 +2623,30 @@ func (s *testParserSuite) TestPriority(c *C) {
 		{`replace LOW_PRIORITY into t values (1)`, true, "REPLACE LOW_PRIORITY INTO `t` VALUES (1)"},
 		{`replace delayed into t values (1)`, true, "REPLACE DELAYED INTO `t` VALUES (1)"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 
 	parser := New()
 	stmt, _, err := parser.Parse("select HIGH_PRIORITY * from t", "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	sel := stmt[0].(*ast.SelectStmt)
-	c.Assert(sel.SelectStmtOpts.Priority, Equals, mysql.HighPriority)
+	if sel.SelectStmtOpts.Priority != mysql.HighPriority {
+		t.Fatalf("got %#v, want %#v", sel.SelectStmtOpts.Priority, mysql.HighPriority)
+	}
 }
 
-func (s *testParserSuite) TestSQLResult(c *C) {
+func TestSQLResult(t *testing.T) {
 	table := []testCase{
 		{`select SQL_BIG_RESULT c1 from t group by c1`, true, "SELECT SQL_BIG_RESULT `c1` FROM `t` GROUP BY `c1`"},
 		{`select SQL_SMALL_RESULT c1 from t group by c1`, true, "SELECT SQL_SMALL_RESULT `c1` FROM `t` GROUP BY `c1`"},
 		{`select SQL_BUFFER_RESULT * from t`, true, "SELECT SQL_BUFFER_RESULT * FROM `t`"},
 		{`select sql_small_result sql_big_result sql_buffer_result 1`, true, "SELECT SQL_SMALL_RESULT SQL_BIG_RESULT SQL_BUFFER_RESULT 1"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestSQLNoCache(c *C) {
+func TestSQLNoCache(t *testing.T) {
 	table := []testCase{
 		{`select SQL_NO_CACHE * from t`, false, ""},
 		{`select SQL_CACHE * from t`, true, "SELECT * FROM `t`"},
@@ -2443,14 +2656,18 @@ func (s *testParserSuite) TestSQLNoCache(c *C) {
 	parser := New()
 	for _, tt := range table {
 		stmt, _, err := parser.Parse(tt.src, "", "")
-		c.Assert(err, IsNil)
+		if err != nil {
+			t.Fatalf("expected nil, got %#v", err)
+		}
 
 		sel := stmt[0].(*ast.SelectStmt)
-		c.Assert(sel.SelectStmtOpts.SQLCache, Equals, tt.ok)
+		if sel.SelectStmtOpts.SQLCache != tt.ok {
+			t.Fatalf("got %#v, want %#v", sel.SelectStmtOpts.SQLCache, tt.ok)
+		}
 	}
 }
 
-func (s *testParserSuite) TestEscape(c *C) {
+func TestEscape(t *testing.T) {
 	table := []testCase{
 		{`select """;`, false, ""},
 		{`select """";`, true, "SELECT '\"'"},
@@ -2460,20 +2677,24 @@ func (s *testParserSuite) TestEscape(c *C) {
 		{`select "\a\r\n"`, true, "SELECT 'a\r\n'"},
 		{`select "\xFF"`, true, "SELECT 'xFF'"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestInsertStatementMemoryAllocation(c *C) {
+func TestInsertStatementMemoryAllocation(t *testing.T) {
 	sql := "insert t values (1)" + strings.Repeat(",(1)", 1000)
 	var oldStats, newStats runtime.MemStats
 	runtime.ReadMemStats(&oldStats)
 	_, err := New().ParseOneStmt(sql, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	runtime.ReadMemStats(&newStats)
-	c.Assert(int(newStats.TotalAlloc-oldStats.TotalAlloc), Less, 1024*500)
+	if !(int(newStats.TotalAlloc-oldStats.TotalAlloc) < 1024*500) {
+		t.Fatalf("got %#v, want less than %#v", int(newStats.TotalAlloc-oldStats.TotalAlloc), 1024*500)
+	}
 }
 
-func (s *testParserSuite) TestExplain(c *C) {
+func TestExplain(t *testing.T) {
 	table := []testCase{
 		{"explain select c1 from t1", true, "EXPLAIN FORMAT = 'row' SELECT `c1` FROM `t1`"},
 		{"explain delete t1, t2 from t1 inner join t2 inner join t3 where t1.id=t2.id and t2.id=t3.id;", true, "EXPLAIN FORMAT = 'row' DELETE `t1`,`t2` FROM (`t1` JOIN `t2`) JOIN `t3` WHERE `t1`.`id`=`t2`.`id` AND `t2`.`id`=`t3`.`id`"},
@@ -2495,36 +2716,36 @@ func (s *testParserSuite) TestExplain(c *C) {
 		{"EXPLAIN FORMAT = 'dot' FOR CONNECTION 1", true, "EXPLAIN FORMAT = 'dot' FOR CONNECTION 1"},
 		{"EXPLAIN FORMAT = 'row' FOR connection 1", true, "EXPLAIN FORMAT = 'row' FOR CONNECTION 1"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestPrepare(c *C) {
+func TestPrepare(t *testing.T) {
 	table := []testCase{
 		{"PREPARE pname FROM 'SELECT ?'", true, "PREPARE `pname` FROM 'SELECT ?'"},
 		{"PREPARE pname FROM @test", true, "PREPARE `pname` FROM @`test`"},
 		{"PREPARE `` FROM @test", true, "PREPARE `` FROM @`test`"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestDeallocate(c *C) {
+func TestDeallocate(t *testing.T) {
 	table := []testCase{
 		{"DEALLOCATE PREPARE test", true, "DEALLOCATE PREPARE `test`"},
 		{"DEALLOCATE PREPARE ``", true, "DEALLOCATE PREPARE ``"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestExecute(c *C) {
+func TestExecute(t *testing.T) {
 	table := []testCase{
 		{"EXECUTE test", true, "EXECUTE `test`"},
 		{"EXECUTE test USING @var1,@var2", true, "EXECUTE `test` USING @`var1`,@`var2`"},
 		{"EXECUTE `` USING @var1,@var2", true, "EXECUTE `` USING @`var1`,@`var2`"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestView(c *C) {
+func TestView(t *testing.T) {
 	table := []testCase{
 		{"create view v as select * from t", true, "CREATE ALGORITHM = UNDEFINED DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"},
 		{"create or replace view v as select * from t", true, "CREATE OR REPLACE ALGORITHM = UNDEFINED DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"},
@@ -2538,18 +2759,30 @@ func (s *testParserSuite) TestView(c *C) {
 		{"create or replace algorithm = merge definer = 'root' sql security invoker view v(a,b) as select * from t with local check option", true, "CREATE OR REPLACE ALGORITHM = MERGE DEFINER = `root`@`%` SQL SECURITY INVOKER VIEW `v` (`a`,`b`) AS SELECT * FROM `t` WITH LOCAL CHECK OPTION"},
 		{"create or replace algorithm = merge definer = 'root' sql security invoker view v(a,b) as select * from t with cascaded check option", true, "CREATE OR REPLACE ALGORITHM = MERGE DEFINER = `root`@`%` SQL SECURITY INVOKER VIEW `v` (`a`,`b`) AS SELECT * FROM `t`"},
 		{"create or replace algorithm = merge definer = current_user view v as select * from t", true, "CREATE OR REPLACE ALGORITHM = MERGE DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"}}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 
 	// Test case for the text of the select statement in create view statement.
 	p := New()
 	sms, _, err := p.Parse("create view v as select * from t", "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	v, ok := sms[0].(*ast.CreateViewStmt)
-	c.Assert(ok, IsTrue)
-	c.Assert(v.Algorithm, Equals, model.AlgorithmUndefined)
-	c.Assert(v.Select.Text(), Equals, "select * from t")
-	c.Assert(v.Security, Equals, model.SecurityDefiner)
-	c.Assert(v.CheckOption, Equals, model.CheckOptionCascaded)
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if v.Algorithm != model.AlgorithmUndefined {
+		t.Fatalf("got %#v, want %#v", v.Algorithm, model.AlgorithmUndefined)
+	}
+	if v.Select.Text() != "select * from t" {
+		t.Fatalf("got %#v, want %#v", v.Select.Text(), "select * from t")
+	}
+	if v.Security != model.SecurityDefiner {
+		t.Fatalf("got %#v, want %#v", v.Security, model.SecurityDefiner)
+	}
+	if v.CheckOption != model.CheckOptionCascaded {
+		t.Fatalf("got %#v, want %#v", v.CheckOption, model.CheckOptionCascaded)
+	}
 
 	src := `CREATE OR REPLACE ALGORITHM = UNDEFINED DEFINER = root@localhost
                   SQL SECURITY DEFINER
@@ -2558,22 +2791,46 @@ func (s *testParserSuite) TestView(c *C) {
 
 	var st ast.StmtNode
 	st, err = p.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	v, ok = st.(*ast.CreateViewStmt)
-	c.Assert(ok, IsTrue)
-	c.Assert(v.OrReplace, IsTrue)
-	c.Assert(v.Algorithm, Equals, model.AlgorithmUndefined)
-	c.Assert(v.Definer.Username, Equals, "root")
-	c.Assert(v.Definer.Hostname, Equals, "localhost")
-	c.Assert(v.Cols[0], Equals, model.NewCIStr("a"))
-	c.Assert(v.Cols[1], Equals, model.NewCIStr("b"))
-	c.Assert(v.Cols[2], Equals, model.NewCIStr("c"))
-	c.Assert(v.Select.Text(), Equals, "select c,d,e from t")
-	c.Assert(v.Security, Equals, model.SecurityDefiner)
-	c.Assert(v.CheckOption, Equals, model.CheckOptionCascaded)
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if !v.OrReplace {
+		t.Fatalf("expected true")
+	}
+	if v.Algorithm != model.AlgorithmUndefined {
+		t.Fatalf("got %#v, want %#v", v.Algorithm, model.AlgorithmUndefined)
+	}
+	if v.Definer.Username != "root" {
+		t.Fatalf("got %#v, want %#v", v.Definer.Username, "root")
+	}
+	if v.Definer.Hostname != "localhost" {
+		t.Fatalf("got %#v, want %#v", v.Definer.Hostname, "localhost")
+	}
+	if v.Cols[0] != model.NewCIStr("a") {
+		t.Fatalf("got %#v, want %#v", v.Cols[0], model.NewCIStr("a"))
+	}
+	if v.Cols[1] != model.NewCIStr("b") {
+		t.Fatalf("got %#v, want %#v", v.Cols[1], model.NewCIStr("b"))
+	}
+	if v.Cols[2] != model.NewCIStr("c") {
+		t.Fatalf("got %#v, want %#v", v.Cols[2], model.NewCIStr("c"))
+	}
+	if v.Select.Text() != "select c,d,e from t" {
+		t.Fatalf("got %#v, want %#v", v.Select.Text(), "select c,d,e from t")
+	}
+	if v.Security != model.SecurityDefiner {
+		t.Fatalf("got %#v, want %#v", v.Security, model.SecurityDefiner)
+	}
+	if v.CheckOption != model.CheckOptionCascaded {
+		t.Fatalf("got %#v, want %#v", v.CheckOption, model.CheckOptionCascaded)
+	}
 }
 
-func (s *testParserSuite) TestAlterView(c *C) {
+func TestAlterView(t *testing.T) {
 	table := []testCase{
 		{"alter view v as select * from t", true, "ALTER ALGORITHM = UNDEFINED DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"},
 		{"alter algorithm = undefined view v as select * from t", true, "ALTER ALGORITHM = UNDEFINED DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"},
@@ -2588,19 +2845,33 @@ func (s *testParserSuite) TestAlterView(c *C) {
 		{"alter algorithm = merge definer = current_user view v as select * from t", true, "ALTER ALGORITHM = MERGE DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"},
 		{"alter view db.v as select * from db.t", true, "ALTER ALGORITHM = UNDEFINED DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `db`.`v` AS SELECT * FROM `db`.`t`"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 
 	// Verify the AST fields and that the select text is preserved.
 	p := New()
 	sms, _, err := p.Parse("alter view v as select * from t", "", "")
-	c.Assert(err, IsNil)
-	c.Assert(sms, HasLen, 1)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
+	if len(sms) != 1 {
+		t.Fatalf("got len %d, want %d", len(sms), 1)
+	}
 	v, ok := sms[0].(*ast.AlterViewStmt)
-	c.Assert(ok, IsTrue)
-	c.Assert(v.Algorithm, Equals, model.AlgorithmUndefined)
-	c.Assert(v.Security, Equals, model.SecurityDefiner)
-	c.Assert(v.CheckOption, Equals, model.CheckOptionCascaded)
-	c.Assert(v.Select.Text(), Equals, "select * from t")
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if v.Algorithm != model.AlgorithmUndefined {
+		t.Fatalf("got %#v, want %#v", v.Algorithm, model.AlgorithmUndefined)
+	}
+	if v.Security != model.SecurityDefiner {
+		t.Fatalf("got %#v, want %#v", v.Security, model.SecurityDefiner)
+	}
+	if v.CheckOption != model.CheckOptionCascaded {
+		t.Fatalf("got %#v, want %#v", v.CheckOption, model.CheckOptionCascaded)
+	}
+	if v.Select.Text() != "select * from t" {
+		t.Fatalf("got %#v, want %#v", v.Select.Text(), "select * from t")
+	}
 
 	src := `ALTER ALGORITHM = MERGE DEFINER = root@localhost
                   SQL SECURITY INVOKER
@@ -2608,23 +2879,43 @@ func (s *testParserSuite) TestAlterView(c *C) {
                   WITH LOCAL CHECK OPTION;`
 	var st ast.StmtNode
 	st, err = p.ParseOneStmt(src, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	v, ok = st.(*ast.AlterViewStmt)
-	c.Assert(ok, IsTrue)
-	c.Assert(v.Algorithm, Equals, model.AlgorithmMerge)
-	c.Assert(v.Definer.Username, Equals, "root")
-	c.Assert(v.Definer.Hostname, Equals, "localhost")
-	c.Assert(v.Cols, DeepEquals, []model.CIStr{model.NewCIStr("a"), model.NewCIStr("b"), model.NewCIStr("c")})
-	c.Assert(v.Select.Text(), Equals, "select c,d,e from t")
-	c.Assert(v.Security, Equals, model.SecurityInvoker)
-	c.Assert(v.CheckOption, Equals, model.CheckOptionLocal)
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if v.Algorithm != model.AlgorithmMerge {
+		t.Fatalf("got %#v, want %#v", v.Algorithm, model.AlgorithmMerge)
+	}
+	if v.Definer.Username != "root" {
+		t.Fatalf("got %#v, want %#v", v.Definer.Username, "root")
+	}
+	if v.Definer.Hostname != "localhost" {
+		t.Fatalf("got %#v, want %#v", v.Definer.Hostname, "localhost")
+	}
+	if !reflect.DeepEqual(v.Cols, []model.CIStr{model.NewCIStr("a"), model.NewCIStr("b"), model.NewCIStr("c")}) {
+		t.Fatalf("got %#v, want %#v", v.Cols, []model.CIStr{model.NewCIStr("a"), model.NewCIStr("b"), model.NewCIStr("c")})
+	}
+	if v.Select.Text() != "select c,d,e from t" {
+		t.Fatalf("got %#v, want %#v", v.Select.Text(), "select c,d,e from t")
+	}
+	if v.Security != model.SecurityInvoker {
+		t.Fatalf("got %#v, want %#v", v.Security, model.SecurityInvoker)
+	}
+	if v.CheckOption != model.CheckOptionLocal {
+		t.Fatalf("got %#v, want %#v", v.CheckOption, model.CheckOptionLocal)
+	}
 
 	// ALTER VIEW must not accept CREATE's OR REPLACE clause.
 	_, err = p.ParseOneStmt("alter or replace view v as select * from t", "", "")
-	c.Assert(err, NotNil)
+	if err == nil {
+		t.Fatalf("expected non-nil")
+	}
 }
 
-func (s *testParserSuite) TestDropRoutineObjects(c *C) {
+func TestDropRoutineObjects(t *testing.T) {
 	table := []testCase{
 		{"drop function f", true, "DROP FUNCTION `f`"},
 		{"drop function if exists f", true, "DROP FUNCTION IF EXISTS `f`"},
@@ -2648,7 +2939,7 @@ func (s *testParserSuite) TestDropRoutineObjects(c *C) {
 		{"drop event", false, ""},
 		{"drop function f, g", false, ""},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 
 	// Verify node types and fields.
 	p := New()
@@ -2666,48 +2957,74 @@ func (s *testParserSuite) TestDropRoutineObjects(c *C) {
 	}
 	for _, tc := range cases {
 		st, err := p.ParseOneStmt(tc.src, "", "")
-		c.Assert(err, IsNil, Commentf("source %v", tc.src))
+		if err != nil {
+			t.Fatalf("%s: expected nil, got %#v", fmt.Sprintf("source %v", tc.src), err)
+		}
 		var gotIfExists bool
 		var gotName string
 		switch x := st.(type) {
 		case *ast.DropFunctionStmt:
-			c.Assert(tc.typ, Equals, "DROP FUNCTION")
+			if tc.typ != "DROP FUNCTION" {
+				t.Fatalf("got %#v, want %#v", tc.typ, "DROP FUNCTION")
+			}
 			gotIfExists, gotName = x.IfExists, x.Name.Name.O
 		case *ast.DropProcedureStmt:
-			c.Assert(tc.typ, Equals, "DROP PROCEDURE")
+			if tc.typ != "DROP PROCEDURE" {
+				t.Fatalf("got %#v, want %#v", tc.typ, "DROP PROCEDURE")
+			}
 			gotIfExists, gotName = x.IfExists, x.Name.Name.O
 		case *ast.DropTriggerStmt:
-			c.Assert(tc.typ, Equals, "DROP TRIGGER")
+			if tc.typ != "DROP TRIGGER" {
+				t.Fatalf("got %#v, want %#v", tc.typ, "DROP TRIGGER")
+			}
 			gotIfExists, gotName = x.IfExists, x.Name.Name.O
 		case *ast.DropEventStmt:
-			c.Assert(tc.typ, Equals, "DROP EVENT")
+			if tc.typ != "DROP EVENT" {
+				t.Fatalf("got %#v, want %#v", tc.typ, "DROP EVENT")
+			}
 			gotIfExists, gotName = x.IfExists, x.Name.Name.O
 		default:
-			c.Fatalf("unexpected stmt type %T for %v", st, tc.src)
+			t.Fatalf("unexpected stmt type %T for %v", st, tc.src)
 		}
-		c.Assert(gotIfExists, Equals, tc.ifExists, Commentf("source %v", tc.src))
-		c.Assert(gotName, Equals, tc.name, Commentf("source %v", tc.src))
+		if gotIfExists != tc.ifExists {
+			t.Fatalf("%s: got %#v, want %#v", fmt.Sprintf("source %v", tc.src), gotIfExists, tc.ifExists)
+		}
+		if gotName != tc.name {
+			t.Fatalf("%s: got %#v, want %#v", fmt.Sprintf("source %v", tc.src), gotName, tc.name)
+		}
 	}
 }
 
-func (s *testParserSuite) TestTimestampDiffUnit(c *C) {
+func TestTimestampDiffUnit(t *testing.T) {
 	// Test case for timestampdiff unit.
 	// TimeUnit should be unified to upper case.
 	parser := New()
 	stmt, _, err := parser.Parse("SELECT TIMESTAMPDIFF(MONTH,'2003-02-01','2003-05-01'), TIMESTAMPDIFF(month,'2003-02-01','2003-05-01');", "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	ss := stmt[0].(*ast.SelectStmt)
 	fields := ss.Fields.Fields
-	c.Assert(len(fields), Equals, 2)
+	if len(fields) != 2 {
+		t.Fatalf("got %#v, want %#v", len(fields), 2)
+	}
 	expr := fields[0].Expr
 	f, ok := expr.(*ast.FuncCallExpr)
-	c.Assert(ok, IsTrue)
-	c.Assert(f.Args[0].(ast.ValueExpr).GetDatumString(), Equals, "MONTH")
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if f.Args[0].(ast.ValueExpr).GetDatumString() != "MONTH" {
+		t.Fatalf("got %#v, want %#v", f.Args[0].(ast.ValueExpr).GetDatumString(), "MONTH")
+	}
 
 	expr = fields[1].Expr
 	f, ok = expr.(*ast.FuncCallExpr)
-	c.Assert(ok, IsTrue)
-	c.Assert(f.Args[0].(ast.ValueExpr).GetDatumString(), Equals, "MONTH")
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if f.Args[0].(ast.ValueExpr).GetDatumString() != "MONTH" {
+		t.Fatalf("got %#v, want %#v", f.Args[0].(ast.ValueExpr).GetDatumString(), "MONTH")
+	}
 
 	// Test Illegal TimeUnit for TimestampDiff
 	table := []testCase{
@@ -2723,10 +3040,10 @@ func (s *testParserSuite) TestTimestampDiffUnit(c *C) {
 		{"SELECT TIMESTAMPDIFF(DAY_HOUR,'2003-02-01','2003-05-01')", false, ""},
 		{"SELECT TIMESTAMPDIFF(YEAR_MONTH,'2003-02-01','2003-05-01')", false, ""},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestSessionManage(c *C) {
+func TestSessionManage(t *testing.T) {
 	table := []testCase{
 		// Kill statement.
 		// See https://dev.mysql.com/doc/refman/5.7/en/kill.html
@@ -2736,19 +3053,19 @@ func (s *testParserSuite) TestSessionManage(c *C) {
 		{"show processlist", true, "SHOW PROCESSLIST"},
 		{"show full processlist", true, "SHOW FULL PROCESSLIST"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestParseShowOpenTables(c *C) {
+func TestParseShowOpenTables(t *testing.T) {
 	table := []testCase{
 		{"SHOW OPEN TABLES", true, "SHOW OPEN TABLES"},
 		{"SHOW OPEN TABLES IN test", true, "SHOW OPEN TABLES IN `test`"},
 		{"SHOW OPEN TABLES FROM test", true, "SHOW OPEN TABLES IN `test`"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestSQLModeANSIQuotes(c *C) {
+func TestSQLModeANSIQuotes(t *testing.T) {
 	parser := New()
 	parser.SetSQLMode(mysql.ModeANSIQuotes)
 	tests := []string{
@@ -2757,11 +3074,13 @@ func (s *testParserSuite) TestSQLModeANSIQuotes(c *C) {
 	}
 	for _, test := range tests {
 		_, _, err := parser.Parse(test, "", "")
-		c.Assert(err, IsNil)
+		if err != nil {
+			t.Fatalf("expected nil, got %#v", err)
+		}
 	}
 }
 
-func (s *testParserSuite) TestDDLStatements(c *C) {
+func TestDDLStatements(t *testing.T) {
 	parser := New()
 	// Tests that whatever the charset it is define, we always assign utf8 charset and utf8_bin collate.
 	createTableStr := `CREATE TABLE t (
@@ -2769,18 +3088,28 @@ func (s *testParserSuite) TestDDLStatements(c *C) {
 		b char(10) charset utf8 collate utf8_general_ci,
 		c text charset latin1) ENGINE=innoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin`
 	stmts, _, err := parser.Parse(createTableStr, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	stmt := stmts[0].(*ast.CreateTableStmt)
-	c.Assert(mysql.HasBinaryFlag(stmt.Cols[0].Tp.Flag), IsTrue)
+	if !mysql.HasBinaryFlag(stmt.Cols[0].Tp.Flag) {
+		t.Fatalf("expected true")
+	}
 	for _, colDef := range stmt.Cols[1:] {
-		c.Assert(mysql.HasBinaryFlag(colDef.Tp.Flag), IsFalse)
+		if mysql.HasBinaryFlag(colDef.Tp.Flag) {
+			t.Fatalf("expected false")
+		}
 	}
 	for _, tblOpt := range stmt.Options {
 		switch tblOpt.Tp {
 		case ast.TableOptionCharset:
-			c.Assert(tblOpt.StrValue, Equals, "utf8")
+			if tblOpt.StrValue != "utf8" {
+				t.Fatalf("got %#v, want %#v", tblOpt.StrValue, "utf8")
+			}
 		case ast.TableOptionCollate:
-			c.Assert(tblOpt.StrValue, Equals, "utf8_bin")
+			if tblOpt.StrValue != "utf8_bin" {
+				t.Fatalf("got %#v, want %#v", tblOpt.StrValue, "utf8_bin")
+			}
 		}
 	}
 	createTableStr = `CREATE TABLE t (
@@ -2788,12 +3117,20 @@ func (s *testParserSuite) TestDDLStatements(c *C) {
 		b binary(10),
 		c blob)`
 	stmts, _, err = parser.Parse(createTableStr, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	stmt = stmts[0].(*ast.CreateTableStmt)
 	for _, colDef := range stmt.Cols {
-		c.Assert(colDef.Tp.Charset, Equals, charset.CharsetBin)
-		c.Assert(colDef.Tp.Collate, Equals, charset.CollationBin)
-		c.Assert(mysql.HasBinaryFlag(colDef.Tp.Flag), IsTrue)
+		if colDef.Tp.Charset != charset.CharsetBin {
+			t.Fatalf("got %#v, want %#v", colDef.Tp.Charset, charset.CharsetBin)
+		}
+		if colDef.Tp.Collate != charset.CollationBin {
+			t.Fatalf("got %#v, want %#v", colDef.Tp.Collate, charset.CollationBin)
+		}
+		if !mysql.HasBinaryFlag(colDef.Tp.Flag) {
+			t.Fatalf("expected true")
+		}
 	}
 	// Test set collate for all column types
 	createTableStr = `CREATE TABLE t (
@@ -2825,10 +3162,12 @@ func (s *testParserSuite) TestDDLStatements(c *C) {
 		c_set set('1') collate utf8_bin,
 		c_json json collate utf8_bin)`
 	stmts, _, err = parser.Parse(createTableStr, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 }
 
-func (s *testParserSuite) TestAnalyze(c *C) {
+func TestAnalyze(t *testing.T) {
 	table := []testCase{
 		{"analyze table t1", true, "ANALYZE TABLE `t1`"},
 		{"analyze table t,t1", true, "ANALYZE TABLE `t`,`t1`"},
@@ -2838,10 +3177,10 @@ func (s *testParserSuite) TestAnalyze(c *C) {
 		{"analyze table t partition a", true, "ANALYZE TABLE `t` PARTITION `a`"},
 		{"analyze table t partition a index b", true, "ANALYZE TABLE `t` PARTITION `a` INDEX `b`"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestGeneratedColumn(c *C) {
+func TestGeneratedColumn(t *testing.T) {
 	tests := []struct {
 		input string
 		ok    bool
@@ -2855,23 +3194,29 @@ func (s *testParserSuite) TestGeneratedColumn(c *C) {
 	for _, tt := range tests {
 		stmtNodes, _, err := parser.Parse(tt.input, "", "")
 		if tt.ok {
-			c.Assert(err, IsNil)
+			if err != nil {
+				t.Fatalf("expected nil, got %#v", err)
+			}
 			stmtNode := stmtNodes[0]
 			for _, col := range stmtNode.(*ast.CreateTableStmt).Cols {
 				for _, opt := range col.Options {
 					if opt.Tp == ast.ColumnOptionGenerated {
-						c.Assert(opt.Expr.Text(), Equals, tt.expr)
+						if opt.Expr.Text() != tt.expr {
+							t.Fatalf("got %#v, want %#v", opt.Expr.Text(), tt.expr)
+						}
 					}
 				}
 			}
 		} else {
-			c.Assert(err, NotNil)
+			if err == nil {
+				t.Fatalf("expected non-nil")
+			}
 		}
 	}
 
 }
 
-func (s *testParserSuite) TestSetTransaction(c *C) {
+func TestSetTransaction(t *testing.T) {
 	// Set transaction is equivalent to setting the global or session value of tx_isolation.
 	// For example:
 	// SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED
@@ -2891,30 +3236,44 @@ func (s *testParserSuite) TestSetTransaction(c *C) {
 		},
 	}
 	parser := New()
-	for _, t := range tests {
-		stmt1, err := parser.ParseOneStmt(t.input, "", "")
-		c.Assert(err, IsNil)
+	for _, tt := range tests {
+		stmt1, err := parser.ParseOneStmt(tt.input, "", "")
+		if err != nil {
+			t.Fatalf("expected nil, got %#v", err)
+		}
 		setStmt := stmt1.(*ast.SetStmt)
 		vars := setStmt.Variables[0]
-		c.Assert(vars.Name, Equals, "tx_isolation")
-		c.Assert(vars.IsGlobal, Equals, t.isGlobal)
-		c.Assert(vars.IsSystem, Equals, true)
-		c.Assert(vars.Value.(ast.ValueExpr).GetValue(), Equals, t.value)
+		if vars.Name != "tx_isolation" {
+			t.Fatalf("got %#v, want %#v", vars.Name, "tx_isolation")
+		}
+		if vars.IsGlobal != tt.isGlobal {
+			t.Fatalf("got %#v, want %#v", vars.IsGlobal, tt.isGlobal)
+		}
+		if vars.IsSystem != true {
+			t.Fatalf("got %#v, want %#v", vars.IsSystem, true)
+		}
+		if vars.Value.(ast.ValueExpr).GetValue() != tt.value {
+			t.Fatalf("got %#v, want %#v", vars.Value.(ast.ValueExpr).GetValue(), tt.value)
+		}
 	}
 }
 
-func (s *testParserSuite) TestSideEffect(c *C) {
+func TestSideEffect(t *testing.T) {
 	// This test cover a bug that parse an error SQL doesn't leave the parser in a
 	// clean state, cause the following SQL parse fail.
 	parser := New()
 	_, err := parser.ParseOneStmt("create table t /*!50100 'abc', 'abc' */;", "", "")
-	c.Assert(err, NotNil)
+	if err == nil {
+		t.Fatalf("expected non-nil")
+	}
 
 	_, err = parser.ParseOneStmt("show tables;", "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 }
 
-func (s *testParserSuite) TestTablePartition(c *C) {
+func TestTablePartition(t *testing.T) {
 	table := []testCase{
 		{"ALTER TABLE t1 TRUNCATE PARTITION p0", true, "ALTER TABLE `t1` TRUNCATE PARTITION `p0`"},
 		{"ALTER TABLE t1 ADD PARTITION (PARTITION `p5` VALUES LESS THAN (2010) COMMENT 'APSTART \\' APEND')", true, "ALTER TABLE `t1` ADD PARTITION (PARTITION `p5` VALUES LESS THAN (2010) COMMENT = 'APSTART '' APEND')"},
@@ -2953,17 +3312,21 @@ func (s *testParserSuite) TestTablePartition(c *C) {
 		{`CREATE TABLE t1 (a INT, b TIMESTAMP DEFAULT '0000-00-00 00:00:00')
 ENGINE=INNODB PARTITION BY LINEAR HASH (a) PARTITIONS 1;`, true, "CREATE TABLE `t1` (`a` INT,`b` TIMESTAMP DEFAULT '0000-00-00 00:00:00') ENGINE = INNODB"},
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 
 	// Check comment content.
 	parser := New()
 	stmt, err := parser.ParseOneStmt("create table t (id int) partition by range (id) (partition p0 values less than (10) comment 'check')", "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	createTable := stmt.(*ast.CreateTableStmt)
-	c.Assert(createTable.Partition.Definitions[0].Comment, Equals, "check")
+	if createTable.Partition.Definitions[0].Comment != "check" {
+		t.Fatalf("got %#v, want %#v", createTable.Partition.Definitions[0].Comment, "check")
+	}
 }
 
-func (s *testParserSuite) TestTablePartitionNameList(c *C) {
+func TestTablePartitionNameList(t *testing.T) {
 	table := []testCase{
 		{`select * from t partition (p0,p1)`, true, ""},
 	}
@@ -2971,20 +3334,32 @@ func (s *testParserSuite) TestTablePartitionNameList(c *C) {
 	parser := New()
 	for _, tt := range table {
 		stmt, _, err := parser.Parse(tt.src, "", "")
-		c.Assert(err, IsNil)
+		if err != nil {
+			t.Fatalf("expected nil, got %#v", err)
+		}
 
 		sel := stmt[0].(*ast.SelectStmt)
 		source, ok := sel.From.TableRefs.Left.(*ast.TableSource)
-		c.Assert(ok, IsTrue)
+		if !ok {
+			t.Fatalf("expected true")
+		}
 		tableName, ok := source.Source.(*ast.TableName)
-		c.Assert(ok, IsTrue)
-		c.Assert(len(tableName.PartitionNames), Equals, 2)
-		c.Assert(tableName.PartitionNames[0], Equals, model.CIStr{O: "p0", L: "p0"})
-		c.Assert(tableName.PartitionNames[1], Equals, model.CIStr{O: "p1", L: "p1"})
+		if !ok {
+			t.Fatalf("expected true")
+		}
+		if len(tableName.PartitionNames) != 2 {
+			t.Fatalf("got %#v, want %#v", len(tableName.PartitionNames), 2)
+		}
+		if tableName.PartitionNames[0] != (model.CIStr{O: "p0", L: "p0"}) {
+			t.Fatalf("got %#v, want %#v", tableName.PartitionNames[0], model.CIStr{O: "p0", L: "p0"})
+		}
+		if tableName.PartitionNames[1] != (model.CIStr{O: "p1", L: "p1"}) {
+			t.Fatalf("got %#v, want %#v", tableName.PartitionNames[1], model.CIStr{O: "p1", L: "p1"})
+		}
 	}
 }
 
-func (s *testParserSuite) TestNotExistsSubquery(c *C) {
+func TestNotExistsSubquery(t *testing.T) {
 	table := []testCase{
 		{`select * from t1 where not exists (select * from t2 where t1.a = t2.a)`, true, ""},
 	}
@@ -2992,31 +3367,35 @@ func (s *testParserSuite) TestNotExistsSubquery(c *C) {
 	parser := New()
 	for _, tt := range table {
 		stmt, _, err := parser.Parse(tt.src, "", "")
-		c.Assert(err, IsNil)
+		if err != nil {
+			t.Fatalf("expected nil, got %#v", err)
+		}
 
 		sel := stmt[0].(*ast.SelectStmt)
 		exists, ok := sel.Where.(*ast.ExistsSubqueryExpr)
-		c.Assert(ok, IsTrue)
-		c.Assert(exists.Not, Equals, tt.ok)
+		if !ok {
+			t.Fatalf("expected true")
+		}
+		if exists.Not != tt.ok {
+			t.Fatalf("got %#v, want %#v", exists.Not, tt.ok)
+		}
 	}
 }
 
-func (s *testParserSuite) TestWindowFunctionIdentifier(c *C) {
+func TestWindowFunctionIdentifier(t *testing.T) {
 	var table []testCase
-	s.enableWindowFunc = true
 	for key := range windowFuncTokenMap {
 		table = append(table, testCase{fmt.Sprintf("select 1 %s", key), false, fmt.Sprintf("SELECT 1 AS `%s`", key)})
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, true)
 
-	s.enableWindowFunc = false
 	for i := range table {
 		table[i].ok = true
 	}
-	s.RunTest(c, table)
+	RunTest(t, table, false)
 }
 
-func (s *testParserSuite) TestWindowFunctions(c *C) {
+func TestWindowFunctions(t *testing.T) {
 	table := []testCase{
 		// For window function descriptions.
 		// See https://dev.mysql.com/doc/refman/8.0/en/window-function-descriptions.html
@@ -3081,15 +3460,14 @@ func (s *testParserSuite) TestWindowFunctions(c *C) {
 		{`select from_unixtime(404411537129996288)`, true, "SELECT FROM_UNIXTIME(404411537129996288)"},
 		{`select from_unixtime(404411537129996288.22)`, true, "SELECT FROM_UNIXTIME(404411537129996288.22)"},
 	}
-	s.enableWindowFunc = true
-	s.RunTest(c, table)
+	RunTest(t, table, true)
 }
 
 type windowFrameBoundChecker struct {
 	fb         *ast.FrameBound
 	exprRc     int
 	timeUnitRc int
-	c          *C
+	t          *testing.T
 }
 
 // Enter implements ast.Visitor interface.
@@ -3098,7 +3476,9 @@ func (wfc *windowFrameBoundChecker) Enter(inNode ast.Node) (outNode ast.Node, sk
 		wfc.fb = inNode.(*ast.FrameBound)
 		if wfc.fb.Unit != nil {
 			_, ok := wfc.fb.Expr.(ast.ValueExpr)
-			wfc.c.Assert(ok, IsFalse)
+			if ok {
+				wfc.t.Fatalf("expected false")
+			}
 		}
 	}
 
@@ -3122,7 +3502,7 @@ func (wfc *windowFrameBoundChecker) Leave(inNode ast.Node) (node ast.Node, ok bo
 
 // For issue #51
 // See https://github.com/mia0x75/parser/pull/51 for details
-func (s *testParserSuite) TestVisitFrameBound(c *C) {
+func TestVisitFrameBound(t *testing.T) {
 	parser := New()
 	parser.EnableWindowFunc(true)
 	table := []struct {
@@ -3134,19 +3514,25 @@ func (s *testParserSuite) TestVisitFrameBound(c *C) {
 		{`SELECT AVG(val) OVER (RANGE 5 PRECEDING) FROM t;`, 1, 0},
 		{`SELECT AVG(val) OVER () FROM t;`, 0, 0},
 	}
-	for _, t := range table {
-		stmt, err := parser.ParseOneStmt(t.s, "", "")
-		c.Assert(err, IsNil)
-		checker := windowFrameBoundChecker{c: c}
+	for _, tt := range table {
+		stmt, err := parser.ParseOneStmt(tt.s, "", "")
+		if err != nil {
+			t.Fatalf("expected nil, got %#v", err)
+		}
+		checker := windowFrameBoundChecker{t: t}
 		stmt.Accept(&checker)
-		c.Assert(checker.exprRc, Equals, t.exprRc)
-		c.Assert(checker.timeUnitRc, Equals, t.timeUnitRc)
+		if checker.exprRc != tt.exprRc {
+			t.Fatalf("got %#v, want %#v", checker.exprRc, tt.exprRc)
+		}
+		if checker.timeUnitRc != tt.timeUnitRc {
+			t.Fatalf("got %#v, want %#v", checker.timeUnitRc, tt.timeUnitRc)
+		}
 	}
 
 }
 
 // See https://github.com/mia0x75/parser/issue/94
-func (s *testParserSuite) TestQuotedSystemVariables(c *C) {
+func TestQuotedSystemVariables(t *testing.T) {
 	parser := New()
 
 	st, err := parser.ParseOneStmt(
@@ -3154,7 +3540,9 @@ func (s *testParserSuite) TestQuotedSystemVariables(c *C) {
 		"",
 		"",
 	)
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	ss := st.(*ast.SelectStmt)
 	expected := []*ast.VariableExpr{
 		{
@@ -3195,19 +3583,29 @@ func (s *testParserSuite) TestQuotedSystemVariables(c *C) {
 		},
 	}
 
-	c.Assert(len(ss.Fields.Fields), Equals, len(expected))
+	if len(ss.Fields.Fields) != len(expected) {
+		t.Fatalf("got %#v, want %#v", len(ss.Fields.Fields), len(expected))
+	}
 	for i, field := range ss.Fields.Fields {
 		ve := field.Expr.(*ast.VariableExpr)
-		cmt := Commentf("field %d, ve = %v", i, ve)
-		c.Assert(ve.Name, Equals, expected[i].Name, cmt)
-		c.Assert(ve.IsGlobal, Equals, expected[i].IsGlobal, cmt)
-		c.Assert(ve.IsSystem, Equals, expected[i].IsSystem, cmt)
-		c.Assert(ve.ExplicitScope, Equals, expected[i].ExplicitScope, cmt)
+		cmt := fmt.Sprintf("field %d, ve = %v", i, ve)
+		if ve.Name != expected[i].Name {
+			t.Fatalf("%s: got %#v, want %#v", cmt, ve.Name, expected[i].Name)
+		}
+		if ve.IsGlobal != expected[i].IsGlobal {
+			t.Fatalf("%s: got %#v, want %#v", cmt, ve.IsGlobal, expected[i].IsGlobal)
+		}
+		if ve.IsSystem != expected[i].IsSystem {
+			t.Fatalf("%s: got %#v, want %#v", cmt, ve.IsSystem, expected[i].IsSystem)
+		}
+		if ve.ExplicitScope != expected[i].ExplicitScope {
+			t.Fatalf("%s: got %#v, want %#v", cmt, ve.ExplicitScope, expected[i].ExplicitScope)
+		}
 	}
 }
 
 // See https://github.com/mia0x75/parser/issue/95
-func (s *testParserSuite) TestQuotedVariableColumnName(c *C) {
+func TestQuotedVariableColumnName(t *testing.T) {
 	parser := New()
 
 	st, err := parser.ParseOneStmt(
@@ -3215,7 +3613,9 @@ func (s *testParserSuite) TestQuotedVariableColumnName(c *C) {
 		"",
 		"",
 	)
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
 	ss := st.(*ast.SelectStmt)
 	expected := []string{
 		"@abc",
@@ -3231,9 +3631,13 @@ func (s *testParserSuite) TestQuotedVariableColumnName(c *C) {
 		"@",
 	}
 
-	c.Assert(len(ss.Fields.Fields), Equals, len(expected))
+	if len(ss.Fields.Fields) != len(expected) {
+		t.Fatalf("got %#v, want %#v", len(ss.Fields.Fields), len(expected))
+	}
 	for i, field := range ss.Fields.Fields {
-		c.Assert(field.Text(), Equals, expected[i])
+		if field.Text() != expected[i] {
+			t.Fatalf("got %#v, want %#v", field.Text(), expected[i])
+		}
 	}
 }
 

@@ -14,24 +14,27 @@
 package mysql
 
 import (
-	. "github.com/pingcap/check"
+	"testing"
 )
 
-var _ = Suite(&testSQLErrorSuite{})
-
-type testSQLErrorSuite struct {
-}
-
-func (s *testSQLErrorSuite) TestSQLError(c *C) {
+func TestSQLError(t *testing.T) {
 	e := NewErrf(ErrNoDB, "no db error")
-	c.Assert(len(e.Error()), Greater, 0)
+	if !(len(e.Error()) > 0) {
+		t.Fatalf("got %d, want > 0", len(e.Error()))
+	}
 
 	e = NewErrf(0, "customized error")
-	c.Assert(len(e.Error()), Greater, 0)
+	if !(len(e.Error()) > 0) {
+		t.Fatalf("got %d, want > 0", len(e.Error()))
+	}
 
 	e = NewErr(ErrNoDB)
-	c.Assert(len(e.Error()), Greater, 0)
+	if !(len(e.Error()) > 0) {
+		t.Fatalf("got %d, want > 0", len(e.Error()))
+	}
 
 	e = NewErr(0, "customized error")
-	c.Assert(len(e.Error()), Greater, 0)
+	if !(len(e.Error()) > 0) {
+		t.Fatalf("got %d, want > 0", len(e.Error()))
+	}
 }

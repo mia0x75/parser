@@ -14,8 +14,8 @@
 package types
 
 import (
+	"github.com/mia0x75/parser/internal/errors"
 	"github.com/mia0x75/parser/opcode"
-	"github.com/pingcap/errors"
 	"modernc.org/mathutil"
 )
 

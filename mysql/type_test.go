@@ -14,24 +14,44 @@
 package mysql
 
 import (
-	. "github.com/pingcap/check"
+	"testing"
 )
 
-var _ = Suite(&testTypeSuite{})
-
-type testTypeSuite struct{}
-
-func (s *testTypeSuite) TestFlags(c *C) {
-	c.Assert(HasNotNullFlag(NotNullFlag), IsTrue)
-	c.Assert(HasUniKeyFlag(UniqueKeyFlag), IsTrue)
-	c.Assert(HasNotNullFlag(NotNullFlag), IsTrue)
-	c.Assert(HasNoDefaultValueFlag(NoDefaultValueFlag), IsTrue)
-	c.Assert(HasAutoIncrementFlag(AutoIncrementFlag), IsTrue)
-	c.Assert(HasUnsignedFlag(UnsignedFlag), IsTrue)
-	c.Assert(HasZerofillFlag(ZerofillFlag), IsTrue)
-	c.Assert(HasBinaryFlag(BinaryFlag), IsTrue)
-	c.Assert(HasPriKeyFlag(PriKeyFlag), IsTrue)
-	c.Assert(HasMultipleKeyFlag(MultipleKeyFlag), IsTrue)
-	c.Assert(HasTimestampFlag(TimestampFlag), IsTrue)
-	c.Assert(HasOnUpdateNowFlag(OnUpdateNowFlag), IsTrue)
+func TestFlags(t *testing.T) {
+	if !HasNotNullFlag(NotNullFlag) {
+		t.Fatal("HasNotNullFlag(NotNullFlag) is false")
+	}
+	if !HasUniKeyFlag(UniqueKeyFlag) {
+		t.Fatal("HasUniKeyFlag(UniqueKeyFlag) is false")
+	}
+	if !HasNotNullFlag(NotNullFlag) {
+		t.Fatal("HasNotNullFlag(NotNullFlag) is false")
+	}
+	if !HasNoDefaultValueFlag(NoDefaultValueFlag) {
+		t.Fatal("HasNoDefaultValueFlag(NoDefaultValueFlag) is false")
+	}
+	if !HasAutoIncrementFlag(AutoIncrementFlag) {
+		t.Fatal("HasAutoIncrementFlag(AutoIncrementFlag) is false")
+	}
+	if !HasUnsignedFlag(UnsignedFlag) {
+		t.Fatal("HasUnsignedFlag(UnsignedFlag) is false")
+	}
+	if !HasZerofillFlag(ZerofillFlag) {
+		t.Fatal("HasZerofillFlag(ZerofillFlag) is false")
+	}
+	if !HasBinaryFlag(BinaryFlag) {
+		t.Fatal("HasBinaryFlag(BinaryFlag) is false")
+	}
+	if !HasPriKeyFlag(PriKeyFlag) {
+		t.Fatal("HasPriKeyFlag(PriKeyFlag) is false")
+	}
+	if !HasMultipleKeyFlag(MultipleKeyFlag) {
+		t.Fatal("HasMultipleKeyFlag(MultipleKeyFlag) is false")
+	}
+	if !HasTimestampFlag(TimestampFlag) {
+		t.Fatal("HasTimestampFlag(TimestampFlag) is false")
+	}
+	if !HasOnUpdateNowFlag(OnUpdateNowFlag) {
+		t.Fatal("HasOnUpdateNowFlag(OnUpdateNowFlag) is false")
+	}
 }

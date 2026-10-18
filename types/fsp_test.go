@@ -8,116 +8,196 @@
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
 package types
 
 import (
+	"regexp"
 	"strconv"
 	"testing"
-
-	. "github.com/pingcap/check"
 )
 
-func Test(t *testing.T) {
-	TestingT(t)
-}
-
-var _ = Suite(&FspTest{})
-
-type FspTest struct{}
-
-func (s *FspTest) TestCheckFsp(c *C) {
-	c.Parallel()
+func TestCheckFsp(t *testing.T) {
+	t.Parallel()
 	obtained, err := CheckFsp(UnspecifiedFsp)
-	c.Assert(obtained, Equals, DefaultFsp)
-	c.Assert(err, IsNil)
+	if obtained != DefaultFsp {
+		t.Fatalf("got %#v, want %#v", obtained, DefaultFsp)
+	}
+	if err != nil {
+		t.Fatalf("got %#v, want nil", err)
+	}
 
 	obtained, err = CheckFsp(-2019)
-	c.Assert(obtained, Equals, DefaultFsp)
-	c.Assert(err, ErrorMatches, "Invalid fsp -2019")
+	if obtained != DefaultFsp {
+		t.Fatalf("got %#v, want %#v", obtained, DefaultFsp)
+	}
+	if err == nil || !regexp.MustCompile("Invalid fsp -2019").MatchString(err.Error()) {
+		t.Fatalf("got %#v, want match %#v", err, "Invalid fsp -2019")
+	}
 
 	obtained, err = CheckFsp(MinFsp - 4294967296)
-	c.Assert(obtained, Equals, DefaultFsp)
-	c.Assert(err, ErrorMatches, "Invalid fsp "+strconv.Itoa(MinFsp-4294967296))
+	if obtained != DefaultFsp {
+		t.Fatalf("got %#v, want %#v", obtained, DefaultFsp)
+	}
+	if err == nil || !regexp.MustCompile("Invalid fsp "+strconv.Itoa(MinFsp-4294967296)).MatchString(err.Error()) {
+		t.Fatalf("got %#v, want match %#v", err, "Invalid fsp "+strconv.Itoa(MinFsp-4294967296))
+	}
 
 	// UnspecifiedFsp
 	obtained, err = CheckFsp(-1)
-	c.Assert(obtained, Equals, DefaultFsp)
-	c.Assert(err, IsNil)
+	if obtained != DefaultFsp {
+		t.Fatalf("got %#v, want %#v", obtained, DefaultFsp)
+	}
+	if err != nil {
+		t.Fatalf("got %#v, want nil", err)
+	}
 
 	obtained, err = CheckFsp(MaxFsp + 1)
-	c.Assert(obtained, Equals, DefaultFsp)
-	c.Assert(err, ErrorMatches, "Invalid fsp "+strconv.Itoa(MaxFsp+1))
+	if obtained != DefaultFsp {
+		t.Fatalf("got %#v, want %#v", obtained, DefaultFsp)
+	}
+	if err == nil || !regexp.MustCompile("Invalid fsp "+strconv.Itoa(MaxFsp+1)).MatchString(err.Error()) {
+		t.Fatalf("got %#v, want match %#v", err, "Invalid fsp "+strconv.Itoa(MaxFsp+1))
+	}
 
 	obtained, err = CheckFsp(MaxFsp + 2019)
-	c.Assert(obtained, Equals, DefaultFsp)
-	c.Assert(err, ErrorMatches, "Invalid fsp "+strconv.Itoa(MaxFsp+2019))
+	if obtained != DefaultFsp {
+		t.Fatalf("got %#v, want %#v", obtained, DefaultFsp)
+	}
+	if err == nil || !regexp.MustCompile("Invalid fsp "+strconv.Itoa(MaxFsp+2019)).MatchString(err.Error()) {
+		t.Fatalf("got %#v, want match %#v", err, "Invalid fsp "+strconv.Itoa(MaxFsp+2019))
+	}
 
 	obtained, err = CheckFsp(MaxFsp + 4294967296)
-	c.Assert(obtained, Equals, DefaultFsp)
-	c.Assert(err, ErrorMatches, "Invalid fsp "+strconv.Itoa(MaxFsp+4294967296))
+	if obtained != DefaultFsp {
+		t.Fatalf("got %#v, want %#v", obtained, DefaultFsp)
+	}
+	if err == nil || !regexp.MustCompile("Invalid fsp "+strconv.Itoa(MaxFsp+4294967296)).MatchString(err.Error()) {
+		t.Fatalf("got %#v, want match %#v", err, "Invalid fsp "+strconv.Itoa(MaxFsp+4294967296))
+	}
 
 	obtained, err = CheckFsp((MaxFsp + MinFsp) / 2)
-	c.Assert(obtained, Equals, (MaxFsp+MinFsp)/2)
-	c.Assert(err, IsNil)
+	if obtained != (MaxFsp+MinFsp)/2 {
+		t.Fatalf("got %#v, want %#v", obtained, (MaxFsp+MinFsp)/2)
+	}
+	if err != nil {
+		t.Fatalf("got %#v, want nil", err)
+	}
 
 	obtained, err = CheckFsp(5)
-	c.Assert(obtained, Equals, 5)
-	c.Assert(err, IsNil)
+	if obtained != 5 {
+		t.Fatalf("got %#v, want %#v", obtained, 5)
+	}
+	if err != nil {
+		t.Fatalf("got %#v, want nil", err)
+	}
 }
 
-func (s *FspTest) TestParseFrac(c *C) {
-	c.Parallel()
+func TestFsp_ParseFrac(t *testing.T) {
+	t.Parallel()
 	obtained, overflow, err := ParseFrac("", 5)
-	c.Assert(obtained, Equals, 0)
-	c.Assert(overflow, Equals, false)
-	c.Assert(err, IsNil)
+	if obtained != 0 {
+		t.Fatalf("got %#v, want %#v", obtained, 0)
+	}
+	if overflow != false {
+		t.Fatalf("got %#v, want %#v", overflow, false)
+	}
+	if err != nil {
+		t.Fatalf("got %#v, want nil", err)
+	}
 
 	obtained, overflow, err = ParseFrac("999", 200)
-	c.Assert(obtained, Equals, 0)
-	c.Assert(overflow, Equals, false)
-	c.Assert(err, ErrorMatches, "Invalid fsp .*")
+	if obtained != 0 {
+		t.Fatalf("got %#v, want %#v", obtained, 0)
+	}
+	if overflow != false {
+		t.Fatalf("got %#v, want %#v", overflow, false)
+	}
+	if err == nil || !regexp.MustCompile("Invalid fsp .*").MatchString(err.Error()) {
+		t.Fatalf("got %#v, want match %#v", err, "Invalid fsp .*")
+	}
 
 	obtained, overflow, err = ParseFrac("NotNum", MaxFsp)
-	c.Assert(obtained, Equals, 0)
-	c.Assert(overflow, Equals, false)
-	c.Assert(err, ErrorMatches, "strconv.ParseInt:.*")
+	if obtained != 0 {
+		t.Fatalf("got %#v, want %#v", obtained, 0)
+	}
+	if overflow != false {
+		t.Fatalf("got %#v, want %#v", overflow, false)
+	}
+	if err == nil || !regexp.MustCompile("strconv.ParseInt:.*").MatchString(err.Error()) {
+		t.Fatalf("got %#v, want match %#v", err, "strconv.ParseInt:.*")
+	}
 
 	obtained, overflow, err = ParseFrac("1235", 6)
-	c.Assert(obtained, Equals, 123500)
-	c.Assert(overflow, Equals, false)
-	c.Assert(err, IsNil)
+	if obtained != 123500 {
+		t.Fatalf("got %#v, want %#v", obtained, 123500)
+	}
+	if overflow != false {
+		t.Fatalf("got %#v, want %#v", overflow, false)
+	}
+	if err != nil {
+		t.Fatalf("got %#v, want nil", err)
+	}
 
 	obtained, overflow, err = ParseFrac("123456", 4)
-	c.Assert(obtained, Equals, 123500)
-	c.Assert(overflow, Equals, false)
-	c.Assert(err, IsNil)
+	if obtained != 123500 {
+		t.Fatalf("got %#v, want %#v", obtained, 123500)
+	}
+	if overflow != false {
+		t.Fatalf("got %#v, want %#v", overflow, false)
+	}
+	if err != nil {
+		t.Fatalf("got %#v, want nil", err)
+	}
 
 	// 1236 round 3 -> 124 -> 124000
 	obtained, overflow, err = ParseFrac("1236", 3)
-	c.Assert(obtained, Equals, 124000)
-	c.Assert(overflow, Equals, false)
-	c.Assert(err, IsNil)
+	if obtained != 124000 {
+		t.Fatalf("got %#v, want %#v", obtained, 124000)
+	}
+	if overflow != false {
+		t.Fatalf("got %#v, want %#v", overflow, false)
+	}
+	if err != nil {
+		t.Fatalf("got %#v, want nil", err)
+	}
 
 	// 03123 round 2 -> 3 -> 30000
 	obtained, overflow, err = ParseFrac("0312", 2)
-	c.Assert(obtained, Equals, 30000)
-	c.Assert(overflow, Equals, false)
-	c.Assert(err, IsNil)
+	if obtained != 30000 {
+		t.Fatalf("got %#v, want %#v", obtained, 30000)
+	}
+	if overflow != false {
+		t.Fatalf("got %#v, want %#v", overflow, false)
+	}
+	if err != nil {
+		t.Fatalf("got %#v, want nil", err)
+	}
 
 	// 999 round 2 -> 100 -> overflow
 	obtained, overflow, err = ParseFrac("999", 2)
-	c.Assert(obtained, Equals, 0)
-	c.Assert(overflow, Equals, true)
-	c.Assert(err, IsNil)
+	if obtained != 0 {
+		t.Fatalf("got %#v, want %#v", obtained, 0)
+	}
+	if overflow != true {
+		t.Fatalf("got %#v, want %#v", overflow, true)
+	}
+	if err != nil {
+		t.Fatalf("got %#v, want nil", err)
+	}
 }
 
-func (s *FspTest) TestAlignFrac(c *C) {
-	c.Parallel()
+func TestAlignFrac(t *testing.T) {
+	t.Parallel()
 	obtained := alignFrac("100", 6)
-	c.Assert(obtained, Equals, "100000")
+	if obtained != "100000" {
+		t.Fatalf("got %#v, want %#v", obtained, "100000")
+	}
 	obtained = alignFrac("10000000000", 6)
-	c.Assert(obtained, Equals, "10000000000")
+	if obtained != "10000000000" {
+		t.Fatalf("got %#v, want %#v", obtained, "10000000000")
+	}
 }

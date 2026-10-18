@@ -14,15 +14,10 @@
 package types
 
 import (
-	. "github.com/pingcap/check"
+	"testing"
 )
 
-var _ = Suite(&testEnumSuite{})
-
-type testEnumSuite struct {
-}
-
-func (s *testEnumSuite) TestEnum(c *C) {
+func TestEnum(t *testing.T) {
 	tbl := []struct {
 		Elems    []string
 		Name     string
@@ -33,18 +28,30 @@ func (s *testEnumSuite) TestEnum(c *C) {
 		{[]string{"a"}, "1", 1},
 	}
 
-	for _, t := range tbl {
-		e, err := ParseEnumName(t.Elems, t.Name)
-		if t.Expected == 0 {
-			c.Assert(err, NotNil)
-			c.Assert(e.ToNumber(), Equals, float64(0))
-			c.Assert(e.String(), Equals, "")
+	for _, tt := range tbl {
+		e, err := ParseEnumName(tt.Elems, tt.Name)
+		if tt.Expected == 0 {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
+			if e.ToNumber() != float64(0) {
+				t.Fatalf("got %#v, want %#v", e.ToNumber(), float64(0))
+			}
+			if e.String() != "" {
+				t.Fatalf("got %#v, want %#v", e.String(), "")
+			}
 			continue
 		}
 
-		c.Assert(err, IsNil)
-		c.Assert(e.String(), Equals, t.Elems[t.Expected-1])
-		c.Assert(e.ToNumber(), Equals, float64(t.Expected))
+		if err != nil {
+			t.Fatalf("unexpected error %v: %#v", err, tt)
+		}
+		if e.String() != tt.Elems[tt.Expected-1] {
+			t.Fatalf("got %#v, want %#v", e.String(), tt.Elems[tt.Expected-1])
+		}
+		if e.ToNumber() != float64(tt.Expected) {
+			t.Fatalf("got %#v, want %#v", e.ToNumber(), float64(tt.Expected))
+		}
 	}
 
 	tblNumber := []struct {
@@ -56,14 +63,20 @@ func (s *testEnumSuite) TestEnum(c *C) {
 		{[]string{"a"}, 0, 0},
 	}
 
-	for _, t := range tblNumber {
-		e, err := ParseEnumValue(t.Elems, t.Number)
-		if t.Expected == 0 {
-			c.Assert(err, NotNil)
+	for _, tt := range tblNumber {
+		e, err := ParseEnumValue(tt.Elems, tt.Number)
+		if tt.Expected == 0 {
+			if err == nil {
+				t.Fatalf("expected error: %#v", tt)
+			}
 			continue
 		}
 
-		c.Assert(err, IsNil)
-		c.Assert(e.ToNumber(), Equals, float64(t.Expected))
+		if err != nil {
+			t.Fatalf("unexpected error %v: %#v", err, tt)
+		}
+		if e.ToNumber() != float64(tt.Expected) {
+			t.Fatalf("got %#v, want %#v", e.ToNumber(), float64(tt.Expected))
+		}
 	}
 }

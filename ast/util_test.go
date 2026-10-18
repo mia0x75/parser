@@ -15,40 +15,48 @@ package ast_test
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
+	"testing"
 
 	"github.com/mia0x75/parser/driver"
-	. "github.com/pingcap/check"
 
 	"github.com/mia0x75/parser"
 	. "github.com/mia0x75/parser/ast"
 	. "github.com/mia0x75/parser/format"
 )
 
-var _ = Suite(&testCacheableSuite{})
-
-type testCacheableSuite struct {
-}
-
-func (s *testCacheableSuite) TestCacheable(c *C) {
+func TestCacheable(t *testing.T) {
 	// test non-SelectStmt
 	var stmt Node = &DeleteStmt{}
-	c.Assert(IsReadOnly(stmt), IsFalse)
+	if IsReadOnly(stmt) {
+		t.Fatal("DeleteStmt is expected to be not read only")
+	}
 
 	stmt = &InsertStmt{}
-	c.Assert(IsReadOnly(stmt), IsFalse)
+	if IsReadOnly(stmt) {
+		t.Fatal("InsertStmt is expected to be not read only")
+	}
 
 	stmt = &UpdateStmt{}
-	c.Assert(IsReadOnly(stmt), IsFalse)
+	if IsReadOnly(stmt) {
+		t.Fatal("UpdateStmt is expected to be not read only")
+	}
 
 	stmt = &ExplainStmt{}
-	c.Assert(IsReadOnly(stmt), IsTrue)
+	if !IsReadOnly(stmt) {
+		t.Fatal("ExplainStmt is expected to be read only")
+	}
 
 	stmt = &ExplainStmt{}
-	c.Assert(IsReadOnly(stmt), IsTrue)
+	if !IsReadOnly(stmt) {
+		t.Fatal("ExplainStmt is expected to be read only")
+	}
 
 	stmt = &DoStmt{}
-	c.Assert(IsReadOnly(stmt), IsTrue)
+	if !IsReadOnly(stmt) {
+		t.Fatal("DoStmt is expected to be read only")
+	}
 }
 
 // CleanNodeText set the text of node and all child node empty.
@@ -103,29 +111,39 @@ type NodeRestoreTestCase struct {
 	expectSQL string
 }
 
-func RunNodeRestoreTest(c *C, nodeTestCases []NodeRestoreTestCase, template string, extractNodeFunc func(node Node) Node) {
-	RunNodeRestoreTestWithFlags(c, nodeTestCases, template, extractNodeFunc, DefaultRestoreFlags)
+func RunNodeRestoreTest(t *testing.T, nodeTestCases []NodeRestoreTestCase, template string, extractNodeFunc func(node Node) Node) {
+	RunNodeRestoreTestWithFlags(t, nodeTestCases, template, extractNodeFunc, DefaultRestoreFlags)
 }
 
-func RunNodeRestoreTestWithFlags(c *C, nodeTestCases []NodeRestoreTestCase, template string, extractNodeFunc func(node Node) Node, flags RestoreFlags) {
-	parser := parser.New()
-	parser.EnableWindowFunc(true)
+func RunNodeRestoreTestWithFlags(t *testing.T, nodeTestCases []NodeRestoreTestCase, template string, extractNodeFunc func(node Node) Node, flags RestoreFlags) {
+	p := parser.New()
+	p.EnableWindowFunc(true)
 	for _, testCase := range nodeTestCases {
 		sourceSQL := fmt.Sprintf(template, testCase.sourceSQL)
 		expectSQL := fmt.Sprintf(template, testCase.expectSQL)
-		stmt, err := parser.ParseOneStmt(sourceSQL, "", "")
-		comment := Commentf("source %#v", testCase)
-		c.Assert(err, IsNil, comment)
+		stmt, err := p.ParseOneStmt(sourceSQL, "", "")
+		comment := fmt.Sprintf("source %#v", testCase)
+		if err != nil {
+			t.Fatalf("%s: %v", comment, err)
+		}
 		var sb strings.Builder
 		err = extractNodeFunc(stmt).Restore(NewRestoreCtx(flags, &sb))
-		c.Assert(err, IsNil, comment)
+		if err != nil {
+			t.Fatalf("%s: %v", comment, err)
+		}
 		restoreSql := fmt.Sprintf(template, sb.String())
-		comment = Commentf("source %#v; restore %v", testCase, restoreSql)
-		c.Assert(restoreSql, Equals, expectSQL, comment)
-		stmt2, err := parser.ParseOneStmt(restoreSql, "", "")
-		c.Assert(err, IsNil, comment)
+		comment = fmt.Sprintf("source %#v; restore %v", testCase, restoreSql)
+		if restoreSql != expectSQL {
+			t.Fatalf("%s: got %#v, want %#v", comment, restoreSql, expectSQL)
+		}
+		stmt2, err := p.ParseOneStmt(restoreSql, "", "")
+		if err != nil {
+			t.Fatalf("%s: %v", comment, err)
+		}
 		CleanNodeText(stmt)
 		CleanNodeText(stmt2)
-		c.Assert(stmt2, DeepEquals, stmt, comment)
+		if !reflect.DeepEqual(stmt2, stmt) {
+			t.Fatalf("%s: got %#v, want %#v", comment, stmt2, stmt)
+		}
 	}
 }

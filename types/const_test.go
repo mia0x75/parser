@@ -8,6 +8,7 @@
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
@@ -16,23 +17,10 @@ package types_test
 import (
 	"testing"
 
-	"github.com/mia0x75/parser"
 	"github.com/mia0x75/parser/mysql"
-	. "github.com/pingcap/check"
 )
 
-func TestT(t *testing.T) {
-	CustomVerboseFlag = true
-	TestingT(t)
-}
-
-var _ = Suite(&testMySQLConstSuite{})
-
-type testMySQLConstSuite struct {
-	*parser.Parser
-}
-
-func (s *testMySQLConstSuite) TestGetSQLMode(c *C) {
+func TestGetSQLMode(t *testing.T) {
 	positiveCases := []struct {
 		arg string
 	}{
@@ -44,9 +32,11 @@ func (s *testMySQLConstSuite) TestGetSQLMode(c *C) {
 		{","},
 	}
 
-	for _, t := range positiveCases {
-		_, err := mysql.GetSQLMode(mysql.FormatSQLModeStr(t.arg))
-		c.Assert(err, IsNil)
+	for _, tt := range positiveCases {
+		_, err := mysql.GetSQLMode(mysql.FormatSQLModeStr(tt.arg))
+		if err != nil {
+			t.Fatalf("unexpected error %v", err)
+		}
 	}
 
 	negativeCases := []struct {
@@ -58,13 +48,15 @@ func (s *testMySQLConstSuite) TestGetSQLMode(c *C) {
 		{" ,"},
 	}
 
-	for _, t := range negativeCases {
-		_, err := mysql.GetSQLMode(mysql.FormatSQLModeStr(t.arg))
-		c.Assert(err, NotNil)
+	for _, tt := range negativeCases {
+		_, err := mysql.GetSQLMode(mysql.FormatSQLModeStr(tt.arg))
+		if err == nil {
+			t.Fatalf("expected error for %q", tt.arg)
+		}
 	}
 }
 
-func (s *testMySQLConstSuite) TestSQLMode(c *C) {
+func TestSQLMode(t *testing.T) {
 	tests := []struct {
 		arg                           string
 		hasNoZeroDateMode             bool
@@ -82,15 +74,21 @@ func (s *testMySQLConstSuite) TestSQLMode(c *C) {
 		{"", false, false, false},
 	}
 
-	for _, t := range tests {
-		sqlMode, _ := mysql.GetSQLMode(t.arg)
-		c.Assert(sqlMode.HasNoZeroDateMode(), Equals, t.hasNoZeroDateMode)
-		c.Assert(sqlMode.HasNoZeroInDateMode(), Equals, t.hasNoZeroInDateMode)
-		c.Assert(sqlMode.HasErrorForDivisionByZeroMode(), Equals, t.hasErrorForDivisionByZeroMode)
+	for _, tt := range tests {
+		sqlMode, _ := mysql.GetSQLMode(tt.arg)
+		if sqlMode.HasNoZeroDateMode() != tt.hasNoZeroDateMode {
+			t.Fatalf("got %#v, want %#v", sqlMode.HasNoZeroDateMode(), tt.hasNoZeroDateMode)
+		}
+		if sqlMode.HasNoZeroInDateMode() != tt.hasNoZeroInDateMode {
+			t.Fatalf("got %#v, want %#v", sqlMode.HasNoZeroInDateMode(), tt.hasNoZeroInDateMode)
+		}
+		if sqlMode.HasErrorForDivisionByZeroMode() != tt.hasErrorForDivisionByZeroMode {
+			t.Fatalf("got %#v, want %#v", sqlMode.HasErrorForDivisionByZeroMode(), tt.hasErrorForDivisionByZeroMode)
+		}
 	}
 }
 
-func (s *testMySQLConstSuite) TestServerStatus(c *C) {
+func TestServerStatus(t *testing.T) {
 	tests := []struct {
 		arg            uint16
 		IsCursorExists bool
@@ -101,8 +99,10 @@ func (s *testMySQLConstSuite) TestServerStatus(c *C) {
 		{mysql.ServerStatusCursorExists | mysql.ServerStatusLastRowSend, true},
 	}
 
-	for _, t := range tests {
-		ret := mysql.HasCursorExistsFlag(t.arg)
-		c.Assert(ret, Equals, t.IsCursorExists)
+	for _, tt := range tests {
+		ret := mysql.HasCursorExistsFlag(tt.arg)
+		if ret != tt.IsCursorExists {
+			t.Fatalf("got %#v, want %#v", ret, tt.IsCursorExists)
+		}
 	}
 }

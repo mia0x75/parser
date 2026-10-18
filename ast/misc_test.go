@@ -14,17 +14,12 @@
 package ast_test
 
 import (
-	. "github.com/pingcap/check"
+	"testing"
 
 	"github.com/mia0x75/parser"
 	. "github.com/mia0x75/parser/ast"
 	"github.com/mia0x75/parser/auth"
 )
-
-var _ = Suite(&testMiscSuite{})
-
-type testMiscSuite struct {
-}
 
 type visitor struct{}
 
@@ -44,7 +39,7 @@ func (visitor1) Enter(in Node) (Node, bool) {
 	return in, true
 }
 
-func (ts *testMiscSuite) TestMiscVisitorCover(c *C) {
+func TestMiscVisitorCover(t *testing.T) {
 	valueExpr := NewValueExpr(42)
 	stmts := []Node{
 		&AlterUserStmt{},
@@ -84,7 +79,7 @@ func (ts *testMiscSuite) TestMiscVisitorCover(c *C) {
 	}
 }
 
-func (ts *testMiscSuite) TestDDLVisitorCover(c *C) {
+func TestMiscSuite_TestDDLVisitorCover(t *testing.T) {
 	sql := `
 create table t (c1 smallint unsigned, c2 int unsigned);
 alter table t add column a smallint unsigned after b;
@@ -101,14 +96,16 @@ constraint foreign key (jobabbr) references ffxi_jobtype (jobabbr) on delete cas
 `
 	parse := parser.New()
 	stmts, _, err := parse.Parse(sql, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("got error %v, want nil", err)
+	}
 	for _, stmt := range stmts {
 		stmt.Accept(visitor{})
 		stmt.Accept(visitor1{})
 	}
 }
 
-func (ts *testMiscSuite) TestDMLVistorCover(c *C) {
+func TestDMLVistorCover(t *testing.T) {
 	sql := `delete from somelog where user = 'jcole' order by timestamp_column limit 1;
 delete t1, t2 from t1 inner join t2 inner join t3 where t1.id=t2.id and t2.id=t3.id;
 select * from t where exists(select * from t k where t.c = k.c having sum(c) = 1);
@@ -120,14 +117,16 @@ load data infile '/tmp/t.csv' into table t fields terminated by 'ab' enclosed by
 
 	p := parser.New()
 	stmts, _, err := p.Parse(sql, "", "")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("got error %v, want nil", err)
+	}
 	for _, stmt := range stmts {
 		stmt.Accept(visitor{})
 		stmt.Accept(visitor1{})
 	}
 }
 
-func (ts *testMiscSuite) TestSensitiveStatement(c *C) {
+func TestSensitiveStatement(t *testing.T) {
 	positive := []StmtNode{
 		&SetPwdStmt{},
 		&CreateUserStmt{},
@@ -136,7 +135,9 @@ func (ts *testMiscSuite) TestSensitiveStatement(c *C) {
 	}
 	for i, stmt := range positive {
 		_, ok := stmt.(SensitiveStmtNode)
-		c.Assert(ok, IsTrue, Commentf("%d, %#v fail", i, stmt))
+		if !ok {
+			t.Fatalf("%d, %#v fail", i, stmt)
+		}
 	}
 
 	negative := []StmtNode{
@@ -154,11 +155,13 @@ func (ts *testMiscSuite) TestSensitiveStatement(c *C) {
 	}
 	for _, stmt := range negative {
 		_, ok := stmt.(SensitiveStmtNode)
-		c.Assert(ok, IsFalse)
+		if ok {
+			t.Fatalf("%#v is not expected to be a sensitive statement", stmt)
+		}
 	}
 }
 
-func (ts *testMiscSuite) TestUserSpec(c *C) {
+func TestUserSpec(t *testing.T) {
 	hashString := "*3D56A309CD04FA2EEF181462E59011F075C89548"
 	u := UserSpec{
 		User: &auth.UserIdentity{
@@ -171,20 +174,34 @@ func (ts *testMiscSuite) TestUserSpec(c *C) {
 		},
 	}
 	pwd, ok := u.EncodedPassword()
-	c.Assert(ok, IsTrue)
-	c.Assert(pwd, Equals, u.AuthOpt.HashString)
+	if !ok {
+		t.Fatalf("got ok %v, want true", ok)
+	}
+	if pwd != u.AuthOpt.HashString {
+		t.Fatalf("got %#v, want %#v", pwd, u.AuthOpt.HashString)
+	}
 
 	u.AuthOpt.HashString = "not-good-password-format"
 	pwd, ok = u.EncodedPassword()
-	c.Assert(ok, IsFalse)
+	if ok {
+		t.Fatalf("got ok %v, want false", ok)
+	}
 
 	u.AuthOpt.ByAuthString = true
 	pwd, ok = u.EncodedPassword()
-	c.Assert(ok, IsTrue)
-	c.Assert(pwd, Equals, hashString)
+	if !ok {
+		t.Fatalf("got ok %v, want true", ok)
+	}
+	if pwd != hashString {
+		t.Fatalf("got %#v, want %#v", pwd, hashString)
+	}
 
 	u.AuthOpt.AuthString = ""
 	pwd, ok = u.EncodedPassword()
-	c.Assert(ok, IsTrue)
-	c.Assert(pwd, Equals, "")
+	if !ok {
+		t.Fatalf("got ok %v, want true", ok)
+	}
+	if pwd != "" {
+		t.Fatalf("got %#v, want %#v", pwd, "")
+	}
 }

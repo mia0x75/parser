@@ -8,6 +8,7 @@
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
@@ -19,15 +20,9 @@ import (
 	"time"
 
 	"github.com/mia0x75/parser/mysql"
-	. "github.com/pingcap/check"
 )
 
-var _ = Suite(&testDatumSuite{})
-
-type testDatumSuite struct {
-}
-
-func (ts *testDatumSuite) TestDatum(c *C) {
+func TestDatum(t *testing.T) {
 	values := []interface{}{
 		int64(1),
 		uint64(1),
@@ -40,11 +35,13 @@ func (ts *testDatumSuite) TestDatum(c *C) {
 		var d Datum
 		d.SetValue(val)
 		x := d.GetValue()
-		c.Assert(x, DeepEquals, val)
+		if !reflect.DeepEqual(x, val) {
+			t.Fatalf("got %#v, want %#v", x, val)
+		}
 	}
 }
 
-func (ts *testDatumSuite) TestIsNull(c *C) {
+func TestIsNull(t *testing.T) {
 	tests := []struct {
 		data   interface{}
 		isnull bool
@@ -57,13 +54,15 @@ func (ts *testDatumSuite) TestIsNull(c *C) {
 		{"", false},
 	}
 	for _, tt := range tests {
-		testIsNull(c, tt.data, tt.isnull)
+		testIsNull(t, tt.data, tt.isnull)
 	}
 }
 
-func testIsNull(c *C, data interface{}, isnull bool) {
+func testIsNull(t *testing.T, data interface{}, isnull bool) {
 	d := NewDatum(data)
-	c.Assert(d.IsNull(), Equals, isnull, Commentf("data: %v, isnull: %v", data, isnull))
+	if d.IsNull() != isnull {
+		t.Fatalf("data: %v, isnull: %v", data, isnull)
+	}
 }
 
 func prepareCompareDatums() ([]Datum, []Datum) {

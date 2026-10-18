@@ -18,30 +18,23 @@ import (
 	"io/ioutil"
 	"strings"
 	"testing"
-
-	. "github.com/pingcap/check"
 )
 
-func TestT(t *testing.T) {
-	CustomVerboseFlag = true
-	TestingT(t)
-}
-
-var _ = Suite(&testFormatSuite{})
-var _ = Suite(&testRestoreCtxSuite{})
-
-type testFormatSuite struct {
-}
-
-func checkFormat(c *C, f Formatter, buf *bytes.Buffer, str, expect string) {
+func checkFormat(t *testing.T, f Formatter, buf *bytes.Buffer, str, expect string) {
 	_, err := f.Format(str, 3)
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	b, err := ioutil.ReadAll(buf)
-	c.Assert(err, IsNil)
-	c.Assert(string(b), Equals, expect)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != expect {
+		t.Fatalf("got %#v, want %#v", string(b), expect)
+	}
 }
 
-func (s *testFormatSuite) TestFormat(c *C) {
+func TestFormat(t *testing.T) {
 	str := "abc%d%%e%i\nx\ny\n%uz\n"
 	buf := &bytes.Buffer{}
 	f := IndentFormatter(buf, "\t")
@@ -50,19 +43,16 @@ func (s *testFormatSuite) TestFormat(c *C) {
 	y
 z
 `
-	checkFormat(c, f, buf, str, expect)
+	checkFormat(t, f, buf, str, expect)
 
 	str = "abc%d%%e%i\nx\ny\n%uz\n%i\n"
 	buf = &bytes.Buffer{}
 	f = FlatFormatter(buf)
 	expect = "abc3%e x y z\n "
-	checkFormat(c, f, buf, str, expect)
+	checkFormat(t, f, buf, str, expect)
 }
 
-type testRestoreCtxSuite struct {
-}
-
-func (s *testRestoreCtxSuite) TestRestoreCtx(c *C) {
+func TestRestoreCtx(t *testing.T) {
 	testCases := []struct {
 		flag   RestoreFlags
 		expect string
@@ -92,6 +82,8 @@ func (s *testRestoreCtxSuite) TestRestoreCtx(c *C) {
 		ctx.WriteString("str`.'\"ing\\")
 		ctx.WritePlain(" ")
 		ctx.WriteName("na`.'\"Me\\")
-		c.Assert(sb.String(), Equals, testCase.expect, Commentf("case: %#v", testCase))
+		if sb.String() != testCase.expect {
+			t.Fatalf("got %#v, want %#v (case: %#v)", sb.String(), testCase.expect, testCase)
+		}
 	}
 }

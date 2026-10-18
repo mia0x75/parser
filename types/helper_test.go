@@ -14,18 +14,14 @@
 package types
 
 import (
+	"reflect"
 	"strconv"
+	"testing"
 
-	. "github.com/pingcap/check"
-	"github.com/pingcap/errors"
+	"github.com/mia0x75/parser/internal/errors"
 )
 
-var _ = Suite(&testTypeHelperSuite{})
-
-type testTypeHelperSuite struct {
-}
-
-func (s *testTypeHelperSuite) TestStrToInt(c *C) {
+func TestStrToInt(t *testing.T) {
 	tests := []struct {
 		input  string
 		output string
@@ -40,7 +36,11 @@ func (s *testTypeHelperSuite) TestStrToInt(c *C) {
 	}
 	for _, tt := range tests {
 		output, err := strToInt(tt.input)
-		c.Assert(errors.Cause(err), Equals, tt.err)
-		c.Check(strconv.FormatInt(output, 10), Equals, tt.output)
+		if !reflect.DeepEqual(errors.Cause(err), tt.err) {
+			t.Fatalf("got %#v, want %#v", errors.Cause(err), tt.err)
+		}
+		if strconv.FormatInt(output, 10) != tt.output {
+			t.Errorf("got %#v, want %#v", strconv.FormatInt(output, 10), tt.output)
+		}
 	}
 }

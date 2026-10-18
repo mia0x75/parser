@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pingcap/errors"
+	"github.com/mia0x75/parser/internal/errors"
 )
 
 var zeroSet = Set{Name: "", Value: 0}

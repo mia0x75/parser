@@ -21,8 +21,8 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/mia0x75/parser/internal/errors"
 	"github.com/mia0x75/parser/mysql"
-	"github.com/pingcap/errors"
 )
 
 func truncateStr(str string, flen int) string {
