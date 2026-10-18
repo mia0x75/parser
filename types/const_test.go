@@ -32,11 +32,6 @@ type testMySQLConstSuite struct {
 	*parser.Parser
 }
 
-func (s *testMySQLConstSuite) TearDownSuite(c *C) {
-	s.dom.Close()
-	s.store.Close()
-}
-
 func (s *testMySQLConstSuite) TestGetSQLMode(c *C) {
 	positiveCases := []struct {
 		arg string

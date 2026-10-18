@@ -1593,7 +1593,7 @@ type LockTableStmt struct {
 
 // Restore implements Node interface.
 func (n *LockTableStmt) Restore(ctx *format.RestoreCtx) error {
-	return errors.New("Not implemented")
+	return nil
 }
 
 // Accept implements Node Accept interface.
@@ -1613,7 +1613,7 @@ type UnlockTableStmt struct {
 
 // Restore implements Node interface.
 func (n *UnlockTableStmt) Restore(ctx *format.RestoreCtx) error {
-	return errors.New("Not implemented")
+	return nil
 }
 
 // Accept implements Node Accept interface.

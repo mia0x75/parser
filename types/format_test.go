@@ -12,7 +12,3 @@
 // limitations under the License.
 
 package types_test
-
-import (
-	. "github.com/pingcap/check"
-)

@@ -243,7 +243,8 @@ func (ft *FieldType) Restore(ctx *format.RestoreCtx) error {
 
 	if IsTypeChar(ft.Tp) || IsTypeBlob(ft.Tp) {
 		if ft.Charset != "" && ft.Charset != charset.CharsetBin {
-			ctx.WriteKeyWord(" CHARACTER SET " + ft.Charset)
+			ctx.WriteKeyWord(" CHARACTER SET ")
+			ctx.WritePlain(ft.Charset)
 		}
 		if ft.Collate != "" && ft.Collate != charset.CharsetBin {
 			ctx.WriteKeyWord(" COLLATE ")
@@ -270,8 +271,8 @@ func (ft *FieldType) RestoreAsCastType(ctx *format.RestoreCtx) {
 			ctx.WriteKeyWord(" BINARY")
 		}
 		if ft.Charset != charset.CharsetBin && ft.Charset != mysql.DefaultCharset {
-			ctx.WriteKeyWord(" CHARSET ")
-			ctx.WriteKeyWord(ft.Charset)
+			ctx.WriteKeyWord(" CHARACTER SET ")
+			ctx.WritePlain(ft.Charset)
 		}
 	case mysql.TypeDate:
 		ctx.WriteKeyWord("DATE")

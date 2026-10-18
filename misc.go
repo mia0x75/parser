@@ -155,6 +155,7 @@ var tokenMap = map[string]int{
 	"BETWEEN":                  between,
 	"BIGINT":                   bigIntType,
 	"BINARY":                   binaryType,
+	"BUCKETS":                  buckets,
 	"BINLOG":                   binlog,
 	"BIT":                      bitType,
 	"BIT_AND":                  bitAnd,

@@ -463,6 +463,7 @@ import (
 	purge                 "PURGE"
 	logs                  "LOGS"
 	before                "BEFORE"
+	buckets               "BUCKETS"
 
 	/* The following tokens belong to NotKeywordToken. */
 	addDate            "ADDDATE"
@@ -653,6 +654,7 @@ import (
 	AnyOrAll                        /* Any or All for subquery */
 	Assignment                      /* assignment */
 	AssignmentList                  /* assignment list */
+	BucketsOpt                      /* analyze partitions with buckets option */
 	AssignmentListOpt               /* assignment list opt */
 	AuthOption                      /* User auth option */
 	AuthString                      /* Password string value */
@@ -1061,19 +1063,25 @@ AlterTableStmt:
 			Specs: $5.([]*ast.AlterTableSpec),
 		}
 	}
-|	"ALTER" IgnoreOptional "TABLE" TableName "ANALYZE" "PARTITION" PartitionNameList
+|	"ALTER" IgnoreOptional "TABLE" TableName "ANALYZE" "PARTITION" PartitionNameList BucketsOpt
 	{
-		$$ = &ast.AnalyzeTableStmt{TableNames: []*ast.TableName{$4.(*ast.TableName)}, PartitionNames: $7.([]model.CIStr) }
+		$$ = &ast.AnalyzeTableStmt{TableNames: []*ast.TableName{$4.(*ast.TableName)}, PartitionNames: $7.([]model.CIStr), MaxNumBuckets: $8.(uint64) }
 	}
-|	"ALTER" IgnoreOptional "TABLE" TableName "ANALYZE" "PARTITION" PartitionNameList "INDEX" IndexNameList
+|	"ALTER" IgnoreOptional "TABLE" TableName "ANALYZE" "PARTITION" PartitionNameList "INDEX" IndexNameList BucketsOpt
 	{
 		$$ = &ast.AnalyzeTableStmt{
 			TableNames: []*ast.TableName{$4.(*ast.TableName)},
 			PartitionNames: $7.([]model.CIStr),
 			IndexNames: $9.([]model.CIStr),
 			IndexFlag: true,
+			MaxNumBuckets: $10.(uint64),
 		}
 	}
+
+
+BucketsOpt:
+	/* empty */   { $$ = uint64(0) }
+|	"WITH" NUM "BUCKETS"    { $$ = getUint64FromNUM($2) }
 
 
 AlterTableSpec:
@@ -1412,17 +1420,18 @@ AnalyzeTableStmt:
 	{
 		$$ = &ast.AnalyzeTableStmt{ TableNames: []*ast.TableName{$3.(*ast.TableName)}, IndexNames: $5.([]model.CIStr), IndexFlag: true }
 	}
-|	"ANALYZE" "TABLE" TableName "PARTITION" PartitionNameList
+|	"ANALYZE" "TABLE" TableName "PARTITION" PartitionNameList BucketsOpt
 	{
-		$$ = &ast.AnalyzeTableStmt{ TableNames: []*ast.TableName{$3.(*ast.TableName)}, PartitionNames: $5.([]model.CIStr) }
+		$$ = &ast.AnalyzeTableStmt{ TableNames: []*ast.TableName{$3.(*ast.TableName)}, PartitionNames: $5.([]model.CIStr), MaxNumBuckets: $6.(uint64) }
 	}
-|	"ANALYZE" "TABLE" TableName "PARTITION" PartitionNameList "INDEX" IndexNameList
+|	"ANALYZE" "TABLE" TableName "PARTITION" PartitionNameList "INDEX" IndexNameList BucketsOpt
 	{
 		$$ = &ast.AnalyzeTableStmt{
 			TableNames: []*ast.TableName{$3.(*ast.TableName)},
 			PartitionNames: $5.([]model.CIStr),
 			IndexNames: $7.([]model.CIStr),
 			IndexFlag: true,
+			MaxNumBuckets: $8.(uint64),
 		}
 	}
 
@@ -1479,12 +1488,6 @@ ColumnDef:
 		if !colDef.Validate() {
 			yylex.AppendError(yylex.Errorf("Invalid column definition"))
 			return 1
-		}
-		for _, opt := range colDef.Options {
-			if opt.Tp != ast.ColumnOptionCollate {
-				continue
-			}
-			colDef.Tp.Collate = opt.StrValue
 		}
 		$$ = colDef
 	}
@@ -2870,7 +2873,7 @@ UnReservedKeyword:
 | "MICROSECOND" | "MINUTE" | "PLUGINS" | "PRECEDING" | "QUERY" | "QUERIES" | "SECOND" | "SEPARATOR" | "SHARE" | "SHARED" | "SLOW" | "MAX_CONNECTIONS_PER_HOUR" | "MAX_QUERIES_PER_HOUR" | "MAX_UPDATES_PER_HOUR"
 | "MAX_USER_CONNECTIONS" | "REPLICATION" | "CLIENT" | "SLAVE" | "RELOAD" | "TEMPORARY" | "ROUTINE" | "EVENT" | "ALGORITHM" | "DEFINER" | "INVOKER" | "MERGE" | "TEMPTABLE" | "UNDEFINED" | "SECURITY" | "CASCADED"
 | "RECOVER" | "CIPHER" | "SUBJECT" | "ISSUER" | "X509" | "NEVER" | "EXPIRE" | "ACCOUNT" | "CPU" | "MEMORY" | "BLOCK" | "IO" | "CONTEXT" | "SWITCHES" | "PAGE" | "FAULTS" | "IPC" | "SWAPS" | "SOURCE"
-| "SQL_BUFFER_RESULT"
+| "SQL_BUFFER_RESULT" | "BEFORE" | "LOGS" | "PURGE" | "BUCKETS"
 
 
 NotKeywordToken:
@@ -7320,4 +7323,4 @@ TableLockList:
 KillStmt:
 	"KILL" NUM              { $$ = &ast.KillStmt{ConnectionID: getUint64FromNUM($2)} }
 |	"KILL" "CONNECTION" NUM { $$ = &ast.KillStmt{ConnectionID: getUint64FromNUM($3)} }
-|	"KILL" "QUERY" NUM      { $$ = &ast.KillStmt{ConnectionID: getUint64FromNUM($3)} }
+|	"KILL" "QUERY" NUM      { $$ = &ast.KillStmt{ConnectionID: getUint64FromNUM($3), Query: true} }

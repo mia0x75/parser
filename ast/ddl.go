@@ -14,6 +14,8 @@
 package ast
 
 import (
+	"strconv"
+
 	"github.com/pingcap/errors"
 
 	"github.com/mia0x75/parser/auth"
@@ -132,7 +134,7 @@ type AlterDatabaseStmt struct {
 
 // Restore implements Node interface.
 func (n *AlterDatabaseStmt) Restore(ctx *format.RestoreCtx) error {
-	ctx.WriteKeyWord("ALTER DATABASE ")
+	ctx.WriteKeyWord("ALTER DATABASE")
 	if !n.AlterDefaultDatabase {
 		ctx.WritePlain(" ")
 		ctx.WriteName(n.Name)
@@ -775,10 +777,10 @@ func (n *CreateTableStmt) Restore(ctx *format.RestoreCtx) error {
 	lenCols := len(n.Cols)
 	lenConstraints := len(n.Constraints)
 	if lenCols+lenConstraints > 0 {
-		ctx.WritePlain("\n(\n")
+		ctx.WritePlain("(")
 		for i, col := range n.Cols {
 			if i > 0 {
-				ctx.WritePlain(",\n")
+				ctx.WritePlain(",")
 			}
 			if err := col.Restore(ctx); err != nil {
 				return errors.Annotatef(err, "An error occurred while splicing CreateTableStmt ColumnDef: [%v]", i)
@@ -786,20 +788,20 @@ func (n *CreateTableStmt) Restore(ctx *format.RestoreCtx) error {
 		}
 		for i, constraint := range n.Constraints {
 			if i > 0 || lenCols >= 1 {
-				ctx.WritePlain(",\n")
+				ctx.WritePlain(",")
 			}
 			if err := constraint.Restore(ctx); err != nil {
 				return errors.Annotatef(err, "An error occurred while splicing CreateTableStmt Constraints: [%v]", i)
 			}
 		}
-		ctx.WritePlain("\n)\n")
+		ctx.WritePlain(")")
 	}
 
 	for i, option := range n.Options {
+		ctx.WritePlain(" ")
 		if err := option.Restore(ctx); err != nil {
 			return errors.Annotatef(err, "An error occurred while splicing CreateTableStmt TableOption: [%v]", i)
 		}
-		ctx.WritePlain("\n")
 	}
 
 	if n.Partition != nil {
@@ -897,7 +899,7 @@ func (n *DropTableStmt) Restore(ctx *format.RestoreCtx) error {
 			ctx.WritePlain(", ")
 		}
 		if err := table.Restore(ctx); err != nil {
-			return errors.Annotate(err, "An error occurred while restore DropTableStmt.Tables "+string(index))
+			return errors.Annotate(err, "An error occurred while restore DropTableStmt.Tables "+strconv.Itoa(index))
 		}
 	}
 
@@ -1389,7 +1391,7 @@ func (n *TableOption) Restore(ctx *format.RestoreCtx) error {
 		ctx.WriteKeyWord("STATS_PERSISTENT ")
 		ctx.WritePlain("= ")
 		ctx.WriteKeyWord("DEFAULT")
-		ctx.WritePlain("/* TableOptionStatsPersistent is not supported */")
+		ctx.WritePlain(" /* TableOptionStatsPersistent is not supported */ ")
 	case TableOptionShardRowID:
 		ctx.WriteKeyWord("SHARD_ROW_ID_BITS ")
 		ctx.WritePlain("= ")
@@ -1399,7 +1401,7 @@ func (n *TableOption) Restore(ctx *format.RestoreCtx) error {
 		ctx.WriteKeyWord("PACK_KEYS ")
 		ctx.WritePlain("= ")
 		ctx.WriteKeyWord("DEFAULT")
-		ctx.WritePlain("/* TableOptionPackKeys is not supported */")
+		ctx.WritePlain(" /* TableOptionPackKeys is not supported */ ")
 	default:
 		return errors.Errorf("invalid TableOption: %d", n.Tp)
 	}
@@ -1573,9 +1575,9 @@ func (n *AlterTableSpec) Restore(ctx *format.RestoreCtx) error {
 			n.Options[0].Tp == TableOptionCharset &&
 			n.Options[1].Tp == TableOptionCollate:
 			ctx.WriteKeyWord("CONVERT TO CHARACTER SET ")
-			ctx.WriteKeyWord(n.Options[0].StrValue)
+			ctx.WritePlain(n.Options[0].StrValue)
 			ctx.WriteKeyWord(" COLLATE ")
-			ctx.WriteKeyWord(n.Options[1].StrValue)
+			ctx.WritePlain(n.Options[1].StrValue)
 		default:
 			for i, opt := range n.Options {
 				if i != 0 {
@@ -1689,7 +1691,7 @@ func (n *AlterTableSpec) Restore(ctx *format.RestoreCtx) error {
 	case AlterTableForce:
 		// TODO: not support
 		ctx.WriteKeyWord("FORCE")
-		ctx.WritePlain("/* AlterTableForce is not supported */")
+		ctx.WritePlain(" /* AlterTableForce is not supported */ ")
 	case AlterTableAddPartitions:
 		ctx.WriteKeyWord("ADD PARTITION")
 		if n.PartDefinitions != nil {
@@ -1718,7 +1720,7 @@ func (n *AlterTableSpec) Restore(ctx *format.RestoreCtx) error {
 		ctx.WriteName(n.Name)
 	default:
 		// TODO: not support
-		ctx.WritePlainf("/* AlterTableType(%d) is not supported */", n.Tp)
+		ctx.WritePlainf(" /* AlterTableType(%d) is not supported */ ", n.Tp)
 	}
 	return nil
 }
@@ -1787,7 +1789,7 @@ func (n *AlterTableStmt) Restore(ctx *format.RestoreCtx) error {
 		if i == 0 {
 			ctx.WritePlain(" ")
 		} else {
-			ctx.WritePlain(",\n")
+			ctx.WritePlain(", ")
 		}
 		if err := spec.Restore(ctx); err != nil {
 			return errors.Annotatef(err, "An error occurred while restore AlterTableStmt.Specs[%d]", i)

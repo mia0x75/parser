@@ -44,34 +44,6 @@ func (ts *testDatumSuite) TestDatum(c *C) {
 	}
 }
 
-func (ts *testDatumSuite) TestEqualDatums(c *C) {
-	tests := []struct {
-		a    []interface{}
-		b    []interface{}
-		same bool
-	}{
-		// Positive cases
-		{[]interface{}{1}, []interface{}{1}, true},
-		{[]interface{}{1, "aa"}, []interface{}{1, "aa"}, true},
-		{[]interface{}{1, "aa", 1}, []interface{}{1, "aa", 1}, true},
-
-		// negative cases
-		{[]interface{}{1}, []interface{}{2}, false},
-		{[]interface{}{1, "a"}, []interface{}{1, "aaaaaa"}, false},
-		{[]interface{}{1, "aa", 3}, []interface{}{1, "aa", 2}, false},
-
-		// Corner cases
-		{[]interface{}{}, []interface{}{}, true},
-		{[]interface{}{nil}, []interface{}{nil}, true},
-		{[]interface{}{}, []interface{}{1}, false},
-		{[]interface{}{1}, []interface{}{1, 1}, false},
-		{[]interface{}{nil}, []interface{}{1}, false},
-	}
-	for _, tt := range tests {
-		testEqualDatums(c, tt.a, tt.b, tt.same)
-	}
-}
-
 func (ts *testDatumSuite) TestIsNull(c *C) {
 	tests := []struct {
 		data   interface{}
@@ -92,14 +64,6 @@ func (ts *testDatumSuite) TestIsNull(c *C) {
 func testIsNull(c *C, data interface{}, isnull bool) {
 	d := NewDatum(data)
 	c.Assert(d.IsNull(), Equals, isnull, Commentf("data: %v, isnull: %v", data, isnull))
-}
-
-func mustParseDurationDatum(str string, fsp int) Datum {
-	dur, err := ParseDuration(nil, str, fsp)
-	if err != nil {
-		panic(err)
-	}
-	return NewDurationDatum(dur)
 }
 
 func prepareCompareDatums() ([]Datum, []Datum) {

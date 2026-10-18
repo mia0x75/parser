@@ -30,25 +30,6 @@ var _ = Suite(&testCharsetSuite{})
 type testCharsetSuite struct {
 }
 
-// leakCheck 在测试结束后检查是否有 goroutine 残留。
-// 等价于 testleak.AfterTest(t)() 的简化版。
-func leakCheck(t *testing.T) {
-	t.Helper()
-	t.Cleanup(func() {
-		t.Helper()
-		// 给 goroutine 一点时间退出
-		time.Sleep(100 * time.Millisecond)
-
-		after := runtime.NumGoroutine()
-		if after > 0 {
-			// 打印堆栈方便定位泄漏源
-			buf := make([]byte, 1<<16)
-			n := runtime.Stack(buf, true)
-			t.Logf("potential goroutine leak: %d goroutines still running\n%s", after, string(buf[:n]))
-		}
-	})
-}
-
 func testValidCharset(c *C, charset string, collation string, expect bool) {
 	b := ValidCharsetAndCollation(charset, collation)
 	c.Assert(b, Equals, expect)
@@ -116,7 +97,6 @@ func (s *testCharsetSuite) TestGetDefaultCollation(c *C) {
 }
 
 func (s *testCharsetSuite) TestGetCharsetDesc(c *C) {
-	leakCheck(t)
 	tests := []struct {
 		cs     string
 		result string
@@ -142,8 +122,6 @@ func (s *testCharsetSuite) TestGetCharsetDesc(c *C) {
 }
 
 func (s *testCharsetSuite) TestGetCollationByName(c *C) {
-	leakCheck(t)
-
 	for _, collation := range collations {
 		coll, err := GetCollationByName(collation.Name)
 		c.Assert(err, IsNil)

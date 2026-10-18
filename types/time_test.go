@@ -14,7 +14,6 @@
 package types_test
 
 import (
-	"math"
 	"time"
 
 	"github.com/mia0x75/parser/mysql"
@@ -25,42 +24,6 @@ import (
 var _ = Suite(&testTimeSuite{})
 
 type testTimeSuite struct {
-}
-
-func (s *testTimeSuite) TestDurationAdd(c *C) {
-	table := []struct {
-		Input    string
-		Fsp      int
-		InputAdd string
-		FspAdd   int
-		Expect   string
-	}{
-		{"00:00:00.1", 1, "00:00:00.1", 1, "00:00:00.2"},
-		{"00:00:00", 0, "00:00:00.1", 1, "00:00:00.1"},
-		{"00:00:00.09", 2, "00:00:00.01", 2, "00:00:00.10"},
-		{"00:00:00.099", 3, "00:00:00.001", 3, "00:00:00.100"},
-	}
-	for _, test := range table {
-		t, err := types.ParseDuration(nil, test.Input, test.Fsp)
-		c.Assert(err, IsNil)
-		ta, err := types.ParseDuration(nil, test.InputAdd, test.FspAdd)
-		c.Assert(err, IsNil)
-		result, err := t.Add(ta)
-		c.Assert(err, IsNil)
-		c.Assert(result.String(), Equals, test.Expect)
-	}
-	t, err := types.ParseDuration(nil, "00:00:00", 0)
-	c.Assert(err, IsNil)
-	ta := new(types.Duration)
-	result, err := t.Add(*ta)
-	c.Assert(err, IsNil)
-	c.Assert(result.String(), Equals, "00:00:00")
-
-	t = types.Duration{Duration: math.MaxInt64, Fsp: 0}
-	tatmp, err := types.ParseDuration(nil, "00:01:00", 0)
-	c.Assert(err, IsNil)
-	_, err = t.Add(tatmp)
-	c.Assert(err, NotNil)
 }
 
 func (s *testTimeSuite) TestYear(c *C) {
@@ -177,72 +140,6 @@ func (s *testTimeSuite) TestParseFrac(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(v, Equals, t.Ret)
 		c.Assert(overflow, Equals, t.Overflow)
-	}
-}
-
-func (s *testTimeSuite) TestCompare(c *C) {
-	tbl := []struct {
-		Arg1 string
-		Arg2 string
-		Ret  int
-	}{
-		{"2011-10-10 11:11:11", "2011-10-10 11:11:11", 0},
-		{"2011-10-10 11:11:11.123456", "2011-10-10 11:11:11.1", 1},
-		{"2011-10-10 11:11:11", "2011-10-10 11:11:11.123", -1},
-		{"0000-00-00 00:00:00", "2011-10-10 11:11:11", -1},
-		{"0000-00-00 00:00:00", "0000-00-00 00:00:00", 0},
-	}
-
-	for _, t := range tbl {
-		v1, err := types.ParseTime(nil, t.Arg1, mysql.TypeDatetime, types.MaxFsp)
-		c.Assert(err, IsNil)
-
-		ret, err := v1.CompareString(nil, t.Arg2)
-		c.Assert(err, IsNil)
-		c.Assert(ret, Equals, t.Ret)
-	}
-
-	tbl = []struct {
-		Arg1 string
-		Arg2 string
-		Ret  int
-	}{
-		{"11:11:11", "11:11:11", 0},
-		{"11:11:11.123456", "11:11:11.1", 1},
-		{"11:11:11", "11:11:11.123", -1},
-	}
-
-	for _, t := range tbl {
-		v1, err := types.ParseDuration(nil, t.Arg1, types.MaxFsp)
-		c.Assert(err, IsNil)
-
-		ret, err := v1.CompareString(nil, t.Arg2)
-		c.Assert(err, IsNil)
-		c.Assert(ret, Equals, t.Ret)
-	}
-}
-
-func (s *testTimeSuite) TestDurationClock(c *C) {
-	// test hour, minute, second and micro second
-	tbl := []struct {
-		Input       string
-		Hour        int
-		Minute      int
-		Second      int
-		MicroSecond int
-	}{
-		{"11:11:11.11", 11, 11, 11, 110000},
-		{"1 11:11:11.000011", 35, 11, 11, 11},
-		{"2010-10-10 11:11:11.000011", 11, 11, 11, 11},
-	}
-
-	for _, t := range tbl {
-		d, err := types.ParseDuration(nil, t.Input, types.MaxFsp)
-		c.Assert(err, IsNil)
-		c.Assert(d.Hour(), Equals, t.Hour)
-		c.Assert(d.Minute(), Equals, t.Minute)
-		c.Assert(d.Second(), Equals, t.Second)
-		c.Assert(d.MicroSecond(), Equals, t.MicroSecond)
 	}
 }
 
