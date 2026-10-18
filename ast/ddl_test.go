@@ -48,6 +48,11 @@ func (ts *testDDLSuite) TestDDLVisitorCover(c *C) {
 		{&CreateIndexStmt{Table: &TableName{}}, 0, 0},
 		{&CreateTableStmt{Table: &TableName{}, ReferTable: &TableName{}}, 0, 0},
 		{&CreateViewStmt{ViewName: &TableName{}, Select: &SelectStmt{}}, 0, 0},
+		{&AlterViewStmt{ViewName: &TableName{}, Select: &SelectStmt{}}, 0, 0},
+		{&DropFunctionStmt{Name: &TableName{}}, 0, 0},
+		{&DropProcedureStmt{Name: &TableName{}}, 0, 0},
+		{&DropTriggerStmt{Name: &TableName{}}, 0, 0},
+		{&DropEventStmt{Name: &TableName{}}, 0, 0},
 		{&AlterTableSpec{}, 0, 0},
 		{&ColumnDef{Name: &ColumnName{}, Options: []*ColumnOption{{Expr: ce}}}, 1, 1},
 		{&ColumnOption{Expr: ce}, 1, 1},
@@ -408,4 +413,32 @@ func (ts *testDDLSuite) TestAlterTableSpecRestore(c *C) {
 		return node.(*AlterTableStmt).Specs[0]
 	}
 	RunNodeRestoreTest(c, testCases, "ALTER TABLE t %s", extractNodeFunc)
+}
+
+func (ts *testDDLSuite) TestAlterViewRestore(c *C) {
+	testCases := []NodeRestoreTestCase{
+		{"ALTER VIEW v AS SELECT 1", "ALTER ALGORITHM = UNDEFINED DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT 1"},
+		{"ALTER ALGORITHM = MERGE DEFiner = root@localhost SQL SECURITY INVOKER VIEW db.v(a,b) AS SELECT 1,2 WITH LOCAL CHECK OPTION", "ALTER ALGORITHM = MERGE DEFINER = `root`@`localhost` SQL SECURITY INVOKER VIEW `db`.`v` (`a`,`b`) AS SELECT 1,2 WITH LOCAL CHECK OPTION"},
+	}
+	extractNodeFunc := func(node Node) Node {
+		return node
+	}
+	RunNodeRestoreTest(c, testCases, "%s", extractNodeFunc)
+}
+
+func (ts *testDDLSuite) TestDropRoutineRestore(c *C) {
+	testCases := []NodeRestoreTestCase{
+		{"DROP FUNCTION f", "DROP FUNCTION `f`"},
+		{"DROP FUNCTION IF EXISTS db.f", "DROP FUNCTION IF EXISTS `db`.`f`"},
+		{"DROP PROCEDURE p", "DROP PROCEDURE `p`"},
+		{"DROP PROCEDURE IF EXISTS db.p", "DROP PROCEDURE IF EXISTS `db`.`p`"},
+		{"DROP TRIGGER trg", "DROP TRIGGER `trg`"},
+		{"DROP TRIGGER IF EXISTS db.trg", "DROP TRIGGER IF EXISTS `db`.`trg`"},
+		{"DROP EVENT ev", "DROP EVENT `ev`"},
+		{"DROP EVENT IF EXISTS db.ev", "DROP EVENT IF EXISTS `db`.`ev`"},
+	}
+	extractNodeFunc := func(node Node) Node {
+		return node
+	}
+	RunNodeRestoreTest(c, testCases, "%s", extractNodeFunc)
 }

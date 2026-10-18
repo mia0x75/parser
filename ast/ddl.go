@@ -31,9 +31,14 @@ var (
 	_ DDLNode = &CreateIndexStmt{}
 	_ DDLNode = &CreateTableStmt{}
 	_ DDLNode = &CreateViewStmt{}
+	_ DDLNode = &AlterViewStmt{}
 	_ DDLNode = &DropDatabaseStmt{}
 	_ DDLNode = &DropIndexStmt{}
 	_ DDLNode = &DropTableStmt{}
+	_ DDLNode = &DropFunctionStmt{}
+	_ DDLNode = &DropProcedureStmt{}
+	_ DDLNode = &DropTriggerStmt{}
+	_ DDLNode = &DropEventStmt{}
 	_ DDLNode = &RenameTableStmt{}
 	_ DDLNode = &TruncateTableStmt{}
 
@@ -923,6 +928,150 @@ func (n *DropTableStmt) Accept(v Visitor) (Node, bool) {
 	return v.Leave(n)
 }
 
+// DropFunctionStmt is a statement to drop a stored function.
+// See https://dev.mysql.com/doc/refman/8.0/en/drop-function.html
+type DropFunctionStmt struct {
+	ddlNode
+
+	IfExists bool
+	Name     *TableName
+}
+
+// Restore implements Node interface.
+func (n *DropFunctionStmt) Restore(ctx *format.RestoreCtx) error {
+	ctx.WriteKeyWord("DROP FUNCTION ")
+	if n.IfExists {
+		ctx.WriteKeyWord("IF EXISTS ")
+	}
+	if err := n.Name.Restore(ctx); err != nil {
+		return errors.Annotate(err, "An error occurred while restore DropFunctionStmt.Name")
+	}
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *DropFunctionStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*DropFunctionStmt)
+	node, ok := n.Name.Accept(v)
+	if !ok {
+		return n, false
+	}
+	n.Name = node.(*TableName)
+	return v.Leave(n)
+}
+
+// DropProcedureStmt is a statement to drop a stored procedure.
+// See https://dev.mysql.com/doc/refman/8.0/en/drop-procedure.html
+type DropProcedureStmt struct {
+	ddlNode
+
+	IfExists bool
+	Name     *TableName
+}
+
+// Restore implements Node interface.
+func (n *DropProcedureStmt) Restore(ctx *format.RestoreCtx) error {
+	ctx.WriteKeyWord("DROP PROCEDURE ")
+	if n.IfExists {
+		ctx.WriteKeyWord("IF EXISTS ")
+	}
+	if err := n.Name.Restore(ctx); err != nil {
+		return errors.Annotate(err, "An error occurred while restore DropProcedureStmt.Name")
+	}
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *DropProcedureStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*DropProcedureStmt)
+	node, ok := n.Name.Accept(v)
+	if !ok {
+		return n, false
+	}
+	n.Name = node.(*TableName)
+	return v.Leave(n)
+}
+
+// DropTriggerStmt is a statement to drop a trigger.
+// See https://dev.mysql.com/doc/refman/8.0/en/drop-trigger.html
+type DropTriggerStmt struct {
+	ddlNode
+
+	IfExists bool
+	Name     *TableName
+}
+
+// Restore implements Node interface.
+func (n *DropTriggerStmt) Restore(ctx *format.RestoreCtx) error {
+	ctx.WriteKeyWord("DROP TRIGGER ")
+	if n.IfExists {
+		ctx.WriteKeyWord("IF EXISTS ")
+	}
+	if err := n.Name.Restore(ctx); err != nil {
+		return errors.Annotate(err, "An error occurred while restore DropTriggerStmt.Name")
+	}
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *DropTriggerStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*DropTriggerStmt)
+	node, ok := n.Name.Accept(v)
+	if !ok {
+		return n, false
+	}
+	n.Name = node.(*TableName)
+	return v.Leave(n)
+}
+
+// DropEventStmt is a statement to drop an event.
+// See https://dev.mysql.com/doc/refman/8.0/en/drop-event.html
+type DropEventStmt struct {
+	ddlNode
+
+	IfExists bool
+	Name     *TableName
+}
+
+// Restore implements Node interface.
+func (n *DropEventStmt) Restore(ctx *format.RestoreCtx) error {
+	ctx.WriteKeyWord("DROP EVENT ")
+	if n.IfExists {
+		ctx.WriteKeyWord("IF EXISTS ")
+	}
+	if err := n.Name.Restore(ctx); err != nil {
+		return errors.Annotate(err, "An error occurred while restore DropEventStmt.Name")
+	}
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *DropEventStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*DropEventStmt)
+	node, ok := n.Name.Accept(v)
+	if !ok {
+		return n, false
+	}
+	n.Name = node.(*TableName)
+	return v.Leave(n)
+}
+
 // RenameTableStmt is a statement to rename a table.
 // See http://dev.mysql.com/doc/refman/5.7/en/rename-table.html
 type RenameTableStmt struct {
@@ -1097,6 +1246,93 @@ func (n *CreateViewStmt) Accept(v Visitor) (Node, bool) {
 		return v.Leave(newNode)
 	}
 	n = newNode.(*CreateViewStmt)
+	node, ok := n.ViewName.Accept(v)
+	if !ok {
+		return n, false
+	}
+	n.ViewName = node.(*TableName)
+	selnode, ok := n.Select.Accept(v)
+	if !ok {
+		return n, false
+	}
+	n.Select = selnode.(*SelectStmt)
+	return v.Leave(n)
+}
+
+// AlterViewStmt is a statement to alter an existing view.
+// See https://dev.mysql.com/doc/refman/8.0/en/alter-view.html
+type AlterViewStmt struct {
+	ddlNode
+
+	ViewName    *TableName
+	Cols        []model.CIStr
+	Select      StmtNode
+	Algorithm   model.ViewAlgorithm
+	Definer     *auth.UserIdentity
+	Security    model.ViewSecurity
+	CheckOption model.ViewCheckOption
+}
+
+// Restore implements Node interface.
+func (n *AlterViewStmt) Restore(ctx *format.RestoreCtx) error {
+	ctx.WriteKeyWord("ALTER ALGORITHM")
+	ctx.WritePlain(" = ")
+	ctx.WriteKeyWord(n.Algorithm.String())
+	ctx.WriteKeyWord(" DEFINER")
+	ctx.WritePlain(" = ")
+
+	// todo Use n.Definer.Restore(ctx) to replace this part
+	if n.Definer.CurrentUser {
+		ctx.WriteKeyWord("current_user")
+	} else {
+		ctx.WriteName(n.Definer.Username)
+		if n.Definer.Hostname != "" {
+			ctx.WritePlain("@")
+			ctx.WriteName(n.Definer.Hostname)
+		}
+	}
+
+	ctx.WriteKeyWord(" SQL SECURITY ")
+	ctx.WriteKeyWord(n.Security.String())
+	ctx.WriteKeyWord(" VIEW ")
+
+	if err := n.ViewName.Restore(ctx); err != nil {
+		return errors.Annotate(err, "An error occurred while alter AlterViewStmt.ViewName")
+	}
+
+	for i, col := range n.Cols {
+		if i == 0 {
+			ctx.WritePlain(" (")
+		} else {
+			ctx.WritePlain(",")
+		}
+		ctx.WriteName(col.O)
+		if i == len(n.Cols)-1 {
+			ctx.WritePlain(")")
+		}
+	}
+
+	ctx.WriteKeyWord(" AS ")
+
+	if err := n.Select.Restore(ctx); err != nil {
+		return errors.Annotate(err, "An error occurred while alter AlterViewStmt.Select")
+	}
+
+	if n.CheckOption != model.CheckOptionCascaded {
+		ctx.WriteKeyWord(" WITH ")
+		ctx.WriteKeyWord(n.CheckOption.String())
+		ctx.WriteKeyWord(" CHECK OPTION")
+	}
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *AlterViewStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*AlterViewStmt)
 	node, ok := n.ViewName.Accept(v)
 	if !ok {
 		return n, false

@@ -596,6 +596,7 @@ import (
 	AlterTableStmt                  /* Alter table statement */
 	AlterDatabaseStmt               /* Alter database statement */
 	AlterUserStmt                   /* Alter user statement */
+	AlterViewStmt                   /* Alter view statement */
 	AnalyzeTableStmt                /* Analyze table statement */
 	BeginTransactionStmt            /* BEGIN TRANSACTION statement */
 	BinlogStmt                      /* Binlog base64 statement */
@@ -610,6 +611,10 @@ import (
 	DropDatabaseStmt                /* DROP DATABASE statement */
 	DropIndexStmt                   /* DROP INDEX statement */
 	DropTableStmt                   /* DROP TABLE statement */
+	DropFunctionStmt                /* DROP FUNCTION statement */
+	DropProcedureStmt               /* DROP PROCEDURE statement */
+	DropTriggerStmt                 /* DROP TRIGGER statement */
+	DropEventStmt                   /* DROP EVENT statement */
 	DropUserStmt                    /* DROP USER */
 	DropRoleStmt                    /* DROP ROLE */
 	DropViewStmt                    /* DROP VIEW statement */
@@ -2192,6 +2197,32 @@ CreateViewStmt:
 		$$ = x
 	}
 
+AlterViewStmt:
+	"ALTER" ViewAlgorithm ViewDefiner ViewSQLSecurity "VIEW" ViewName ViewFieldList "AS" SelectStmt ViewCheckOption
+	{
+		startOffset := parser.startOffset(&yyS[yypt-1])
+		selStmt := $9.(*ast.SelectStmt)
+		selStmt.SetText(strings.TrimSpace(parser.src[startOffset:]))
+		x := &ast.AlterViewStmt{
+			ViewName:  $6.(*ast.TableName),
+			Select:    selStmt,
+			Algorithm: $2.(model.ViewAlgorithm),
+			Definer:   $3.(*auth.UserIdentity),
+			Security:  $4.(model.ViewSecurity),
+		}
+		if $7 != nil {
+			x.Cols = $7.([]model.CIStr)
+		}
+		if $10 != nil {
+			x.CheckOption = $10.(model.ViewCheckOption)
+			endOffset := parser.startOffset(&yyS[yypt])
+			selStmt.SetText(strings.TrimSpace(parser.src[startOffset:endOffset]))
+		} else {
+			x.CheckOption = model.CheckOptionCascaded
+		}
+		$$ = x
+	}
+
 
 OrReplace:
 	/* EMPTY */    { $$ = false }
@@ -2359,6 +2390,34 @@ DropViewStmt:
 	"DROP" "VIEW" "IF" "EXISTS" TableNameList RestrictOrCascadeOpt
 	{
 		$$ = &ast.DropTableStmt{IfExists: true, Tables: $5.([]*ast.TableName), IsView: true}
+	}
+
+
+DropFunctionStmt:
+	"DROP" "FUNCTION" IfExists TableName
+	{
+		$$ = &ast.DropFunctionStmt{IfExists: $3.(bool), Name: $4.(*ast.TableName)}
+	}
+
+
+DropProcedureStmt:
+	"DROP" "PROCEDURE" IfExists TableName
+	{
+		$$ = &ast.DropProcedureStmt{IfExists: $3.(bool), Name: $4.(*ast.TableName)}
+	}
+
+
+DropTriggerStmt:
+	"DROP" "TRIGGER" IfExists TableName
+	{
+		$$ = &ast.DropTriggerStmt{IfExists: $3.(bool), Name: $4.(*ast.TableName)}
+	}
+
+
+DropEventStmt:
+	"DROP" "EVENT" IfExists TableName
+	{
+		$$ = &ast.DropEventStmt{IfExists: $3.(bool), Name: $4.(*ast.TableName)}
 	}
 
 
@@ -5751,6 +5810,7 @@ Statement:
 |	AlterTableStmt
 |	AlterDatabaseStmt
 |	AlterUserStmt
+|	AlterViewStmt
 |	AnalyzeTableStmt
 |	BeginTransactionStmt
 |	BinlogStmt
@@ -5770,6 +5830,10 @@ Statement:
 |	DropIndexStmt
 |	DropTableStmt
 |	DropViewStmt
+|	DropFunctionStmt
+|	DropProcedureStmt
+|	DropTriggerStmt
+|	DropEventStmt
 |	DropUserStmt
 |	DropRoleStmt
 |	FlushStmt

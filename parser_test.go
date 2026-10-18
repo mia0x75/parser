@@ -2573,6 +2573,123 @@ func (s *testParserSuite) TestView(c *C) {
 	c.Assert(v.CheckOption, Equals, model.CheckOptionCascaded)
 }
 
+func (s *testParserSuite) TestAlterView(c *C) {
+	table := []testCase{
+		{"alter view v as select * from t", true, "ALTER ALGORITHM = UNDEFINED DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"},
+		{"alter algorithm = undefined view v as select * from t", true, "ALTER ALGORITHM = UNDEFINED DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"},
+		{"alter algorithm = merge view v as select * from t", true, "ALTER ALGORITHM = MERGE DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"},
+		{"alter algorithm = temptable view v as select * from t", true, "ALTER ALGORITHM = TEMPTABLE DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"},
+		{"alter algorithm = merge definer = 'root' view v as select * from t", true, "ALTER ALGORITHM = MERGE DEFINER = `root`@`%` SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"},
+		{"alter algorithm = merge definer = 'root' sql security definer view v as select * from t", true, "ALTER ALGORITHM = MERGE DEFINER = `root`@`%` SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"},
+		{"alter algorithm = merge definer = 'root' sql security invoker view v as select * from t", true, "ALTER ALGORITHM = MERGE DEFINER = `root`@`%` SQL SECURITY INVOKER VIEW `v` AS SELECT * FROM `t`"},
+		{"alter algorithm = merge definer = 'root' sql security invoker view v(a,b) as select * from t", true, "ALTER ALGORITHM = MERGE DEFINER = `root`@`%` SQL SECURITY INVOKER VIEW `v` (`a`,`b`) AS SELECT * FROM `t`"},
+		{"alter algorithm = merge definer = 'root' sql security invoker view v(a,b) as select * from t with local check option", true, "ALTER ALGORITHM = MERGE DEFINER = `root`@`%` SQL SECURITY INVOKER VIEW `v` (`a`,`b`) AS SELECT * FROM `t` WITH LOCAL CHECK OPTION"},
+		{"alter algorithm = merge definer = 'root' sql security invoker view v(a,b) as select * from t with cascaded check option", true, "ALTER ALGORITHM = MERGE DEFINER = `root`@`%` SQL SECURITY INVOKER VIEW `v` (`a`,`b`) AS SELECT * FROM `t`"},
+		{"alter algorithm = merge definer = current_user view v as select * from t", true, "ALTER ALGORITHM = MERGE DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `v` AS SELECT * FROM `t`"},
+		{"alter view db.v as select * from db.t", true, "ALTER ALGORITHM = UNDEFINED DEFINER = CURRENT_USER SQL SECURITY DEFINER VIEW `db`.`v` AS SELECT * FROM `db`.`t`"},
+	}
+	s.RunTest(c, table)
+
+	// Verify the AST fields and that the select text is preserved.
+	p := New()
+	sms, _, err := p.Parse("alter view v as select * from t", "", "")
+	c.Assert(err, IsNil)
+	c.Assert(sms, HasLen, 1)
+	v, ok := sms[0].(*ast.AlterViewStmt)
+	c.Assert(ok, IsTrue)
+	c.Assert(v.Algorithm, Equals, model.AlgorithmUndefined)
+	c.Assert(v.Security, Equals, model.SecurityDefiner)
+	c.Assert(v.CheckOption, Equals, model.CheckOptionCascaded)
+	c.Assert(v.Select.Text(), Equals, "select * from t")
+
+	src := `ALTER ALGORITHM = MERGE DEFINER = root@localhost
+                  SQL SECURITY INVOKER
+			      VIEW V(a,b,c) AS select c,d,e from t
+                  WITH LOCAL CHECK OPTION;`
+	var st ast.StmtNode
+	st, err = p.ParseOneStmt(src, "", "")
+	c.Assert(err, IsNil)
+	v, ok = st.(*ast.AlterViewStmt)
+	c.Assert(ok, IsTrue)
+	c.Assert(v.Algorithm, Equals, model.AlgorithmMerge)
+	c.Assert(v.Definer.Username, Equals, "root")
+	c.Assert(v.Definer.Hostname, Equals, "localhost")
+	c.Assert(v.Cols, DeepEquals, []model.CIStr{model.NewCIStr("a"), model.NewCIStr("b"), model.NewCIStr("c")})
+	c.Assert(v.Select.Text(), Equals, "select c,d,e from t")
+	c.Assert(v.Security, Equals, model.SecurityInvoker)
+	c.Assert(v.CheckOption, Equals, model.CheckOptionLocal)
+
+	// ALTER VIEW must not accept CREATE's OR REPLACE clause.
+	_, err = p.ParseOneStmt("alter or replace view v as select * from t", "", "")
+	c.Assert(err, NotNil)
+}
+
+func (s *testParserSuite) TestDropRoutineObjects(c *C) {
+	table := []testCase{
+		{"drop function f", true, "DROP FUNCTION `f`"},
+		{"drop function if exists f", true, "DROP FUNCTION IF EXISTS `f`"},
+		{"drop function db.f", true, "DROP FUNCTION `db`.`f`"},
+		{"drop function if exists db.f", true, "DROP FUNCTION IF EXISTS `db`.`f`"},
+		{"drop procedure p", true, "DROP PROCEDURE `p`"},
+		{"drop procedure if exists p", true, "DROP PROCEDURE IF EXISTS `p`"},
+		{"drop procedure db.p", true, "DROP PROCEDURE `db`.`p`"},
+		{"drop procedure if exists db.p", true, "DROP PROCEDURE IF EXISTS `db`.`p`"},
+		{"drop trigger trg", true, "DROP TRIGGER `trg`"},
+		{"drop trigger if exists trg", true, "DROP TRIGGER IF EXISTS `trg`"},
+		{"drop trigger db.trg", true, "DROP TRIGGER `db`.`trg`"},
+		{"drop trigger if exists db.trg", true, "DROP TRIGGER IF EXISTS `db`.`trg`"},
+		{"drop event ev", true, "DROP EVENT `ev`"},
+		{"drop event if exists ev", true, "DROP EVENT IF EXISTS `ev`"},
+		{"drop event db.ev", true, "DROP EVENT `db`.`ev`"},
+		{"drop event if exists db.ev", true, "DROP EVENT IF EXISTS `db`.`ev`"},
+		{"drop function", false, ""},
+		{"drop procedure", false, ""},
+		{"drop trigger", false, ""},
+		{"drop event", false, ""},
+		{"drop function f, g", false, ""},
+	}
+	s.RunTest(c, table)
+
+	// Verify node types and fields.
+	p := New()
+	cases := []struct {
+		src      string
+		ifExists bool
+		typ      string
+		name     string
+	}{
+		{"drop function f", false, "DROP FUNCTION", "f"},
+		{"drop function if exists db.f", true, "DROP FUNCTION", "f"},
+		{"drop procedure p", false, "DROP PROCEDURE", "p"},
+		{"drop trigger if exists trg", true, "DROP TRIGGER", "trg"},
+		{"drop event ev", false, "DROP EVENT", "ev"},
+	}
+	for _, tc := range cases {
+		st, err := p.ParseOneStmt(tc.src, "", "")
+		c.Assert(err, IsNil, Commentf("source %v", tc.src))
+		var gotIfExists bool
+		var gotName string
+		switch x := st.(type) {
+		case *ast.DropFunctionStmt:
+			c.Assert(tc.typ, Equals, "DROP FUNCTION")
+			gotIfExists, gotName = x.IfExists, x.Name.Name.O
+		case *ast.DropProcedureStmt:
+			c.Assert(tc.typ, Equals, "DROP PROCEDURE")
+			gotIfExists, gotName = x.IfExists, x.Name.Name.O
+		case *ast.DropTriggerStmt:
+			c.Assert(tc.typ, Equals, "DROP TRIGGER")
+			gotIfExists, gotName = x.IfExists, x.Name.Name.O
+		case *ast.DropEventStmt:
+			c.Assert(tc.typ, Equals, "DROP EVENT")
+			gotIfExists, gotName = x.IfExists, x.Name.Name.O
+		default:
+			c.Fatalf("unexpected stmt type %T for %v", st, tc.src)
+		}
+		c.Assert(gotIfExists, Equals, tc.ifExists, Commentf("source %v", tc.src))
+		c.Assert(gotName, Equals, tc.name, Commentf("source %v", tc.src))
+	}
+}
+
 func (s *testParserSuite) TestTimestampDiffUnit(c *C) {
 	// Test case for timestampdiff unit.
 	// TimeUnit should be unified to upper case.
