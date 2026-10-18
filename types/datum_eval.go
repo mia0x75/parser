@@ -14,9 +14,9 @@
 package types
 
 import (
-	"github.com/cznic/mathutil"
 	"github.com/mia0x75/parser/opcode"
 	"github.com/pingcap/errors"
+	"modernc.org/mathutil"
 )
 
 // ComputePlus computes the result of a+b.

@@ -16,10 +16,11 @@ package terror
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"os"
 	"strconv"
 
 	"github.com/pingcap/errors"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/mia0x75/parser/mysql"
 )
@@ -273,12 +274,12 @@ var defaultMySQLErrorCode uint16
 func (e *Error) getMySQLErrorCode() uint16 {
 	codeMap, ok := ErrClassToMySQLCodes[e.class]
 	if !ok {
-		log.Warnf("Unknown error class: %v", e.class)
+		slog.Warn(fmt.Sprintf("Unknown error class: %v", e.class))
 		return defaultMySQLErrorCode
 	}
 	code, ok := codeMap[e.code]
 	if !ok {
-		log.Debugf("Unknown error class: %v code: %v", e.class, e.code)
+		slog.Debug(fmt.Sprintf("Unknown error class: %v code: %v", e.class, e.code))
 		return defaultMySQLErrorCode
 	}
 	return code
@@ -327,7 +328,8 @@ func MustNil(err error, closeFuns ...func()) {
 		for _, f := range closeFuns {
 			f()
 		}
-		log.Fatalf("%s", errors.ErrorStack(err))
+		slog.Error(errors.ErrorStack(err))
+		os.Exit(1)
 	}
 }
 
@@ -335,13 +337,13 @@ func MustNil(err error, closeFuns ...func()) {
 func Call(fn func() error) {
 	err := fn()
 	if err != nil {
-		log.Error(errors.ErrorStack(err))
+		slog.Error(errors.ErrorStack(err))
 	}
 }
 
 // Log logs the error if it is not nil.
 func Log(err error) {
 	if err != nil {
-		log.Error(errors.ErrorStack(err))
+		slog.Error(errors.ErrorStack(err))
 	}
 }

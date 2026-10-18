@@ -16,6 +16,7 @@ package types
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"math"
 	"regexp"
 	"strconv"
@@ -26,7 +27,6 @@ import (
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/terror"
 	"github.com/pingcap/errors"
-	log "github.com/sirupsen/logrus"
 )
 
 // Portable analogs of some common call errors.
@@ -261,7 +261,7 @@ func (t Time) ToNumber() *MyDecimal {
 
 	s, err := t.DateFormat(tfStr)
 	if err != nil {
-		log.Error("Fatal: never happen because we've control the format!")
+		slog.Error("Fatal: never happen because we've control the format!")
 	}
 
 	if t.Fsp > 0 {
