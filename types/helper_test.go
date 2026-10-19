@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/mia0x75/parser/internal/errors"
+	"github.com/mia0x75/parser/errors"
 )
 
 func TestStrToInt(t *testing.T) {

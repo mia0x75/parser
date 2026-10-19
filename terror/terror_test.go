@@ -19,7 +19,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mia0x75/parser/internal/errors"
+	"github.com/mia0x75/parser/errors"
 )
 
 func TestErrCode(t *testing.T) {

@@ -18,7 +18,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/mia0x75/parser/internal/errors"
+	"github.com/mia0x75/parser/errors"
 )
 
 // RoundFloat rounds float val to the nearest integer value with float64 format, like MySQL Round function.

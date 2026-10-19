@@ -16,7 +16,7 @@ package ast
 import (
 	"strconv"
 
-	"github.com/mia0x75/parser/internal/errors"
+	"github.com/mia0x75/parser/errors"
 
 	"github.com/mia0x75/parser/auth"
 	"github.com/mia0x75/parser/format"
@@ -32,6 +32,13 @@ var (
 	_ DDLNode = &CreateTableStmt{}
 	_ DDLNode = &CreateViewStmt{}
 	_ DDLNode = &AlterViewStmt{}
+	_ DDLNode = &CreateFunctionStmt{}
+	_ DDLNode = &CreateProcedureStmt{}
+	_ DDLNode = &CreateTriggerStmt{}
+	_ DDLNode = &CreateEventStmt{}
+	_ DDLNode = &AlterFunctionStmt{}
+	_ DDLNode = &AlterProcedureStmt{}
+	_ DDLNode = &AlterEventStmt{}
 	_ DDLNode = &DropDatabaseStmt{}
 	_ DDLNode = &DropIndexStmt{}
 	_ DDLNode = &DropTableStmt{}

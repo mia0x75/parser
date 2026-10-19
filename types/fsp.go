@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mia0x75/parser/internal/errors"
+	"github.com/mia0x75/parser/errors"
 )
 
 const (

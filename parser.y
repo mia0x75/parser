@@ -199,6 +199,8 @@ import (
 	or                "OR"
 	order             "ORDER"
 	outer             "OUTER"
+	inout             "INOUT"
+	out               "OUT"
 	over              "OVER"
 	packKeys          "PACK_KEYS"
 	partition         "PARTITION"
@@ -464,6 +466,24 @@ import (
 	logs                  "LOGS"
 	before                "BEFORE"
 	buckets               "BUCKETS"
+	at                    "AT"
+	completion            "COMPLETION"
+	contains              "CONTAINS"
+	deterministic         "DETERMINISTIC"
+	each                  "EACH"
+	ends                  "ENDS"
+	every                 "EVERY"
+	follows               "FOLLOWS"
+	language              "LANGUAGE"
+	modifies              "MODIFIES"
+	of                    "OF"
+	precedes              "PRECEDES"
+	preserve              "PRESERVE"
+	reads                 "READS"
+	returns               "RETURNS"
+	returnKwd             "RETURN"
+	schedule              "SCHEDULE"
+	starts                "STARTS"
 
 	/* The following tokens belong to NotKeywordToken. */
 	addDate            "ADDDATE"
@@ -596,12 +616,19 @@ import (
 	AlterTableStmt                  /* Alter table statement */
 	AlterDatabaseStmt               /* Alter database statement */
 	AlterUserStmt                   /* Alter user statement */
+	AlterFunctionStmt               /* ALTER FUNCTION statement */
+	AlterProcedureStmt              /* ALTER PROCEDURE statement */
+	AlterEventStmt                  /* ALTER EVENT statement */
 	AlterViewStmt                   /* Alter view statement */
 	AnalyzeTableStmt                /* Analyze table statement */
 	BeginTransactionStmt            /* BEGIN TRANSACTION statement */
 	BinlogStmt                      /* Binlog base64 statement */
 	CommitStmt                      /* COMMIT statement */
 	CreateTableStmt                 /* CREATE TABLE statement */
+	CreateFunctionStmt              /* CREATE FUNCTION statement */
+	CreateProcedureStmt             /* CREATE PROCEDURE statement */
+	CreateTriggerStmt               /* CREATE TRIGGER statement */
+	CreateEventStmt                 /* CREATE EVENT statement */
 	CreateViewStmt                  /* CREATE VIEW stetement */
 	CreateUserStmt                  /* CREATE User statement */
 	CreateRoleStmt                  /* CREATE Role statement */
@@ -649,6 +676,7 @@ import (
 	UnionStmt                       /* Union select state ment */
 	UseStmt                         /* USE statement */
 	PurgeStmt                       /* PURGE statement */
+	ReturnStmt                      /* RETURN statement */
 
 
 %type	<item>
@@ -946,6 +974,24 @@ import (
 	TableOptimizerHintOpt           /* Table level optimizer hint */
 	TableOptimizerHints             /* Table level optimizer hints */
 	TableOptimizerHintList          /* Table level optimizer hint list */
+	FuncParams                      /* routine parameter list with parentheses */
+	FuncParamList                   /* routine parameter list */
+	FuncParam                       /* single routine parameter */
+	RoutineCharacteristicList       /* stored routine characteristic list */
+	RoutineCharacteristic           /* stored routine characteristic */
+	TriggerTime                     /* trigger action time */
+	TriggerEvent                    /* trigger event */
+	TriggerUpdateColumnsOpt         /* optional trigger UPDATE OF columns */
+	TriggerOrderOpt                 /* optional trigger FOLLOWS/PRECEDES */
+	EventSchedule                   /* event ON SCHEDULE clause */
+	EventStartsOpt                  /* optional event STARTS clause */
+	EventEndsOpt                    /* optional event ENDS clause */
+	EventStatusOpt                  /* optional event status clause */
+	EventOnCompletionOpt            /* optional event ON COMPLETION clause */
+	EventCommentOpt                 /* optional event COMMENT clause */
+	AlterEventClause                /* single ALTER EVENT clause */
+	AlterEventClauses               /* ALTER EVENT clause list */
+	EventDoOpt                      /* optional ALTER EVENT DO body */
 
 %type	<ident>
 	AsOpt                           /* AS or EmptyString */
@@ -2180,9 +2226,13 @@ CreateViewStmt:
  			OrReplace:     $2.(bool),
 			ViewName:      $7.(*ast.TableName),
 			Select:        selStmt,
-			Algorithm:     $3.(model.ViewAlgorithm),
 			Definer:       $4.(*auth.UserIdentity),
-			Security:      $5.(model.ViewSecurity),
+		}
+		if alg := $3.(*model.ViewAlgorithm); alg != nil {
+			x.Algorithm = *alg
+		}
+		if sec := $5.(*model.ViewSecurity); sec != nil {
+			x.Security = *sec
 		}
 		if $8 != nil{
 			x.Cols = $8.([]model.CIStr)
@@ -2206,9 +2256,13 @@ AlterViewStmt:
 		x := &ast.AlterViewStmt{
 			ViewName:  $6.(*ast.TableName),
 			Select:    selStmt,
-			Algorithm: $2.(model.ViewAlgorithm),
 			Definer:   $3.(*auth.UserIdentity),
-			Security:  $4.(model.ViewSecurity),
+		}
+		if alg := $2.(*model.ViewAlgorithm); alg != nil {
+			x.Algorithm = *alg
+		}
+		if sec := $4.(*model.ViewSecurity); sec != nil {
+			x.Security = *sec
 		}
 		if $7 != nil {
 			x.Cols = $7.([]model.CIStr)
@@ -2224,16 +2278,523 @@ AlterViewStmt:
 	}
 
 
+/******************************************************************
+ * Stored programs: CREATE/ALTER FUNCTION|PROCEDURE|TRIGGER|EVENT
+ ******************************************************************/
+
+CreateFunctionStmt:
+	"CREATE" OrReplace ViewAlgorithm ViewDefiner ViewSQLSecurity "FUNCTION" IfNotExists TableName FuncParams "RETURNS" Type RoutineCharacteristicList Statement
+	{
+		if $3.(*model.ViewAlgorithm) != nil || $5.(*model.ViewSecurity) != nil {
+			yylex.AppendError(yylex.Errorf("ALGORITHM and SQL SECURITY are not valid for a function"))
+			return 1
+		}
+		body, _ := $13.(ast.StmtNode)
+		if body == nil {
+			yylex.AppendError(yylex.Errorf("a function body is required"))
+			return 1
+		}
+		$$ = &ast.CreateFunctionStmt{
+			OrReplace:       $2.(bool),
+			Definer:         $4.(*auth.UserIdentity),
+			IfNotExists:     $7.(bool),
+			Name:            $8.(*ast.TableName),
+			Params:          $9.([]*ast.FuncParam),
+			Returns:         $11.(*types.FieldType),
+			Characteristics: $12.(*ast.RoutineCharacteristics),
+			Body:            body,
+		}
+	}
+
+
+CreateProcedureStmt:
+	"CREATE" OrReplace ViewAlgorithm ViewDefiner ViewSQLSecurity "PROCEDURE" IfNotExists TableName FuncParams RoutineCharacteristicList Statement
+	{
+		if $3.(*model.ViewAlgorithm) != nil || $5.(*model.ViewSecurity) != nil {
+			yylex.AppendError(yylex.Errorf("ALGORITHM and SQL SECURITY are not valid for a procedure"))
+			return 1
+		}
+		body, _ := $11.(ast.StmtNode)
+		if body == nil {
+			yylex.AppendError(yylex.Errorf("a procedure body is required"))
+			return 1
+		}
+		$$ = &ast.CreateProcedureStmt{
+			OrReplace:       $2.(bool),
+			Definer:         $4.(*auth.UserIdentity),
+			IfNotExists:     $7.(bool),
+			Name:            $8.(*ast.TableName),
+			Params:          $9.([]*ast.FuncParam),
+			Characteristics: $10.(*ast.RoutineCharacteristics),
+			Body:            body,
+		}
+	}
+
+
+AlterFunctionStmt:
+	"ALTER" "FUNCTION" TableName RoutineCharacteristicList
+	{
+		if !$4.(*ast.RoutineCharacteristics).HasAny() {
+			yylex.AppendError(yylex.Errorf("at least one routine characteristic is required"))
+			return 1
+		}
+		$$ = &ast.AlterFunctionStmt{
+			Name:            $3.(*ast.TableName),
+			Characteristics: $4.(*ast.RoutineCharacteristics),
+		}
+	}
+
+
+AlterProcedureStmt:
+	"ALTER" "PROCEDURE" TableName RoutineCharacteristicList
+	{
+		if !$4.(*ast.RoutineCharacteristics).HasAny() {
+			yylex.AppendError(yylex.Errorf("at least one routine characteristic is required"))
+			return 1
+		}
+		$$ = &ast.AlterProcedureStmt{
+			Name:            $3.(*ast.TableName),
+			Characteristics: $4.(*ast.RoutineCharacteristics),
+		}
+	}
+
+
+CreateTriggerStmt:
+	"CREATE" OrReplace ViewAlgorithm ViewDefiner ViewSQLSecurity "TRIGGER" IfNotExists TableName TriggerTime TriggerEvent TriggerUpdateColumnsOpt "ON" TableName "FOR" "EACH" "ROW" TriggerOrderOpt Statement
+	{
+		if $3.(*model.ViewAlgorithm) != nil || $5.(*model.ViewSecurity) != nil {
+			yylex.AppendError(yylex.Errorf("ALGORITHM and SQL SECURITY are not valid for a trigger"))
+			return 1
+		}
+		body, _ := $18.(ast.StmtNode)
+		if body == nil {
+			yylex.AppendError(yylex.Errorf("a trigger body is required"))
+			return 1
+		}
+		x := &ast.CreateTriggerStmt{
+			OrReplace:   $2.(bool),
+			Definer:     $4.(*auth.UserIdentity),
+			IfNotExists: $7.(bool),
+			Name:        $8.(*ast.TableName),
+			Time:        $9.(string),
+			Event:       $10.(string),
+			Table:       $13.(*ast.TableName),
+			Body:        body,
+		}
+		if cols := $11.([]*ast.ColumnName); cols != nil {
+			if x.Event != "UPDATE" {
+				yylex.AppendError(yylex.Errorf("UPDATE OF clause is only valid for UPDATE triggers"))
+				return 1
+			}
+			x.UpdateColumns = cols
+		}
+		if order := $17.([]string); order != nil {
+			x.Order = order[0]
+			x.OtherTriggerName = order[1]
+		}
+		$$ = x
+	}
+
+
+CreateEventStmt:
+	"CREATE" OrReplace ViewAlgorithm ViewDefiner ViewSQLSecurity "EVENT" IfNotExists TableName EventSchedule EventOnCompletionOpt EventStatusOpt EventCommentOpt "DO" Statement
+	{
+		if $3.(*model.ViewAlgorithm) != nil || $5.(*model.ViewSecurity) != nil {
+			yylex.AppendError(yylex.Errorf("ALGORITHM and SQL SECURITY are not valid for an event"))
+			return 1
+		}
+		body, _ := $14.(ast.StmtNode)
+		if body == nil {
+			yylex.AppendError(yylex.Errorf("an event body is required"))
+			return 1
+		}
+		x := &ast.CreateEventStmt{
+			Definer:     $4.(*auth.UserIdentity),
+			IfNotExists: $7.(bool),
+			Name:        $8.(*ast.TableName),
+			Schedule:    $9.(*ast.EventSchedule),
+			Status:      $11.(ast.EventStatus),
+			Body:        body,
+		}
+		if preserve := $10.(*bool); preserve != nil {
+			x.OnCompletion = true
+			x.Preserve = *preserve
+		}
+		if comment := $12.(*string); comment != nil {
+			x.Comment = *comment
+			x.CommentSpecified = true
+		}
+		$$ = x
+	}
+
+
+AlterEventStmt:
+	"ALTER" ViewAlgorithm ViewDefiner ViewSQLSecurity "EVENT" TableName AlterEventClauses EventDoOpt
+	{
+		if $2.(*model.ViewAlgorithm) != nil || $4.(*model.ViewSecurity) != nil {
+			yylex.AppendError(yylex.Errorf("ALGORITHM and SQL SECURITY are not valid for an event"))
+			return 1
+		}
+		x := $7.(*ast.AlterEventStmt)
+		x.Definer = $3.(*auth.UserIdentity)
+		x.Name = $6.(*ast.TableName)
+		if body, ok := $8.(ast.StmtNode); ok && body != nil {
+			x.Body = body
+		}
+		$$ = x
+	}
+
+
+AlterEventClause:
+	EventSchedule
+	{
+		$$ = &ast.AlterEventStmt{Schedule: $1.(*ast.EventSchedule)}
+	}
+|	"ON" "COMPLETION" "PRESERVE"
+	{
+		$$ = &ast.AlterEventStmt{OnCompletion: true, Preserve: true}
+	}
+|	"ON" "COMPLETION" "NOT" "PRESERVE"
+	{
+		$$ = &ast.AlterEventStmt{OnCompletion: true, Preserve: false}
+	}
+|	"ENABLE"
+	{
+		$$ = &ast.AlterEventStmt{Status: ast.EventStatusEnable}
+	}
+|	"DISABLE" %prec empty
+	{
+		$$ = &ast.AlterEventStmt{Status: ast.EventStatusDisable}
+	}
+|	"DISABLE" "ON" "SLAVE"
+	{
+		$$ = &ast.AlterEventStmt{Status: ast.EventStatusDisableOnSlave}
+	}
+|	"COMMENT" stringLit
+	{
+		$$ = &ast.AlterEventStmt{Comment: $2, CommentSpecified: true}
+	}
+|	"RENAME" "TO" TableName
+	{
+		$$ = &ast.AlterEventStmt{RenameName: $3.(*ast.TableName)}
+	}
+
+
+AlterEventClauses:
+	/* EMPTY */
+	{
+		$$ = &ast.AlterEventStmt{}
+	}
+|	AlterEventClauses AlterEventClause
+	{
+		acc := $1.(*ast.AlterEventStmt)
+		c := $2.(*ast.AlterEventStmt)
+		if c.Schedule != nil {
+			acc.Schedule = c.Schedule
+		}
+		if c.OnCompletion {
+			acc.OnCompletion = true
+			acc.Preserve = c.Preserve
+		}
+		if c.Status != ast.EventStatusDefault {
+			acc.Status = c.Status
+		}
+		if c.CommentSpecified {
+			acc.Comment = c.Comment
+			acc.CommentSpecified = true
+		}
+		if c.RenameName != nil {
+			acc.RenameName = c.RenameName
+		}
+		$$ = acc
+	}
+
+
+EventDoOpt:
+	/* EMPTY */
+	{
+		$$ = (ast.StmtNode)(nil)
+	}
+|	"DO" Statement
+	{
+		$$ = $2.(ast.StmtNode)
+	}
+
+
+FuncParams:
+	'(' ')'
+	{
+		$$ = []*ast.FuncParam{}
+	}
+|	'(' FuncParamList ')'
+	{
+		$$ = $2.([]*ast.FuncParam)
+	}
+
+
+FuncParamList:
+	FuncParam
+	{
+		$$ = []*ast.FuncParam{$1.(*ast.FuncParam)}
+	}
+|	FuncParamList ',' FuncParam
+	{
+		$$ = append($1.([]*ast.FuncParam), $3.(*ast.FuncParam))
+	}
+
+
+FuncParam:
+	Identifier Type
+	{
+		$$ = &ast.FuncParam{Name: $1, Type: $2.(*types.FieldType), Dir: ast.FuncParamDirIn}
+	}
+|	"IN" Identifier Type
+	{
+		$$ = &ast.FuncParam{Name: $2, Type: $3.(*types.FieldType), Dir: ast.FuncParamDirIn}
+	}
+|	"OUT" Identifier Type
+	{
+		$$ = &ast.FuncParam{Name: $2, Type: $3.(*types.FieldType), Dir: ast.FuncParamDirOut}
+	}
+|	"INOUT" Identifier Type
+	{
+		$$ = &ast.FuncParam{Name: $2, Type: $3.(*types.FieldType), Dir: ast.FuncParamDirInOut}
+	}
+
+
+RoutineCharacteristicList:
+	/* EMPTY */
+	{
+		$$ = &ast.RoutineCharacteristics{}
+	}
+|	RoutineCharacteristicList RoutineCharacteristic
+	{
+		acc := $1.(*ast.RoutineCharacteristics)
+		c := $2.(*ast.RoutineCharacteristics)
+		if c.LanguageSpecified {
+			acc.Language = c.Language
+			acc.LanguageSpecified = true
+		}
+		if c.DeterministicSpecified {
+			acc.Deterministic = c.Deterministic
+			acc.DeterministicSpecified = true
+		}
+		if c.DataAccessSpecified {
+			acc.DataAccess = c.DataAccess
+			acc.DataAccessSpecified = true
+		}
+		if c.SecuritySpecified {
+			acc.Security = c.Security
+			acc.SecuritySpecified = true
+		}
+		if c.CommentSpecified {
+			acc.Comment = c.Comment
+			acc.CommentSpecified = true
+		}
+		$$ = acc
+	}
+
+
+RoutineCharacteristic:
+	"LANGUAGE" "SQL"
+	{
+		$$ = &ast.RoutineCharacteristics{Language: "SQL", LanguageSpecified: true}
+	}
+|	"DETERMINISTIC"
+	{
+		$$ = &ast.RoutineCharacteristics{Deterministic: true, DeterministicSpecified: true}
+	}
+|	"NOT" "DETERMINISTIC"
+	{
+		$$ = &ast.RoutineCharacteristics{Deterministic: false, DeterministicSpecified: true}
+	}
+|	"CONTAINS" "SQL"
+	{
+		$$ = &ast.RoutineCharacteristics{DataAccess: ast.RoutineDataAccessContainsSQL, DataAccessSpecified: true}
+	}
+|	"NO" "SQL"
+	{
+		$$ = &ast.RoutineCharacteristics{DataAccess: ast.RoutineDataAccessNoSQL, DataAccessSpecified: true}
+	}
+|	"READS" "SQL" "DATA"
+	{
+		$$ = &ast.RoutineCharacteristics{DataAccess: ast.RoutineDataAccessReadsSQLData, DataAccessSpecified: true}
+	}
+|	"MODIFIES" "SQL" "DATA"
+	{
+		$$ = &ast.RoutineCharacteristics{DataAccess: ast.RoutineDataAccessModifiesSQLData, DataAccessSpecified: true}
+	}
+|	"SQL" "SECURITY" "DEFINER"
+	{
+		$$ = &ast.RoutineCharacteristics{Security: model.SecurityDefiner, SecuritySpecified: true}
+	}
+|	"SQL" "SECURITY" "INVOKER"
+	{
+		$$ = &ast.RoutineCharacteristics{Security: model.SecurityInvoker, SecuritySpecified: true}
+	}
+|	"COMMENT" stringLit
+	{
+		$$ = &ast.RoutineCharacteristics{Comment: $2, CommentSpecified: true}
+	}
+
+
+TriggerTime:
+	"BEFORE"
+	{
+		$$ = "BEFORE"
+	}
+|	"AFTER"
+	{
+		$$ = "AFTER"
+	}
+
+
+TriggerEvent:
+	"INSERT"
+	{
+		$$ = "INSERT"
+	}
+|	"UPDATE"
+	{
+		$$ = "UPDATE"
+	}
+|	"DELETE"
+	{
+		$$ = "DELETE"
+	}
+
+
+TriggerUpdateColumnsOpt:
+	/* EMPTY */
+	{
+		$$ = ([]*ast.ColumnName)(nil)
+	}
+|	"OF" ColumnNameList
+	{
+		$$ = $2.([]*ast.ColumnName)
+	}
+
+
+TriggerOrderOpt:
+	/* EMPTY */
+	{
+		$$ = ([]string)(nil)
+	}
+|	"FOLLOWS" Identifier
+	{
+		$$ = []string{"FOLLOWS", $2}
+	}
+|	"PRECEDES" Identifier
+	{
+		$$ = []string{"PRECEDES", $2}
+	}
+
+
+EventSchedule:
+	"ON" "SCHEDULE" "AT" Expression
+	{
+		$$ = &ast.EventSchedule{At: $4.(ast.ExprNode)}
+	}
+|	"ON" "SCHEDULE" "EVERY" Expression TimeUnit EventStartsOpt EventEndsOpt
+	{
+		starts, _ := $6.(ast.ExprNode)
+		ends, _ := $7.(ast.ExprNode)
+		$$ = &ast.EventSchedule{
+			Every:    $4.(ast.ExprNode),
+			Interval: $5,
+			Starts:   starts,
+			Ends:     ends,
+		}
+	}
+
+
+EventStartsOpt:
+	/* EMPTY */
+	{
+		$$ = (ast.ExprNode)(nil)
+	}
+|	"STARTS" Expression
+	{
+		$$ = $2.(ast.ExprNode)
+	}
+
+
+EventEndsOpt:
+	/* EMPTY */
+	{
+		$$ = (ast.ExprNode)(nil)
+	}
+|	"ENDS" Expression
+	{
+		$$ = $2.(ast.ExprNode)
+	}
+
+
+EventStatusOpt:
+	/* EMPTY */
+	{
+		$$ = ast.EventStatusDefault
+	}
+|	"ENABLE"
+	{
+		$$ = ast.EventStatusEnable
+	}
+|	"DISABLE"
+	{
+		$$ = ast.EventStatusDisable
+	}
+|	"DISABLE" "ON" "SLAVE"
+	{
+		$$ = ast.EventStatusDisableOnSlave
+	}
+
+
+EventOnCompletionOpt:
+	/* EMPTY */
+	{
+		$$ = (*bool)(nil)
+	}
+|	"ON" "COMPLETION" "PRESERVE"
+	{
+		b := true
+		$$ = &b
+	}
+|	"ON" "COMPLETION" "NOT" "PRESERVE"
+	{
+		b := false
+		$$ = &b
+	}
+
+
+EventCommentOpt:
+	/* EMPTY */
+	{
+		$$ = (*string)(nil)
+	}
+|	"COMMENT" stringLit
+	{
+		s := $2
+		$$ = &s
+	}
+
+
+ReturnStmt:
+	"RETURN" Expression
+	{
+		$$ = &ast.ReturnStmt{Expr: $2.(ast.ExprNode)}
+	}
+
+
 OrReplace:
 	/* EMPTY */    { $$ = false }
 |	"OR" "REPLACE" { $$ = true }
 
 
 ViewAlgorithm:
-	/* EMPTY */                 { $$ = model.AlgorithmUndefined }
-|	"ALGORITHM" "=" "UNDEFINED" { $$ = model.AlgorithmUndefined }
-|	"ALGORITHM" "=" "MERGE"     { $$ = model.AlgorithmMerge }
-|	"ALGORITHM" "=" "TEMPTABLE" { $$ = model.AlgorithmTemptable }
+	/* EMPTY */                 { $$ = (*model.ViewAlgorithm)(nil) }
+|	"ALGORITHM" "=" "UNDEFINED" { v := model.AlgorithmUndefined; $$ = &v }
+|	"ALGORITHM" "=" "MERGE"     { v := model.AlgorithmMerge; $$ = &v }
+|	"ALGORITHM" "=" "TEMPTABLE" { v := model.AlgorithmTemptable; $$ = &v }
 
 
 ViewDefiner:
@@ -2242,9 +2803,9 @@ ViewDefiner:
 
 
 ViewSQLSecurity:
-	/* EMPTY */                { $$ = model.SecurityDefiner }
-|	"SQL" "SECURITY" "DEFINER" { $$ = model.SecurityDefiner }
-|	"SQL" "SECURITY" "INVOKER" { $$ = model.SecurityInvoker }
+	/* EMPTY */                { $$ = (*model.ViewSecurity)(nil) }
+|	"SQL" "SECURITY" "DEFINER" { v := model.SecurityDefiner; $$ = &v }
+|	"SQL" "SECURITY" "INVOKER" { v := model.SecurityInvoker; $$ = &v }
 
 
 ViewName:
@@ -2933,6 +3494,7 @@ UnReservedKeyword:
 | "MAX_USER_CONNECTIONS" | "REPLICATION" | "CLIENT" | "SLAVE" | "RELOAD" | "TEMPORARY" | "ROUTINE" | "EVENT" | "ALGORITHM" | "DEFINER" | "INVOKER" | "MERGE" | "TEMPTABLE" | "UNDEFINED" | "SECURITY" | "CASCADED"
 | "RECOVER" | "CIPHER" | "SUBJECT" | "ISSUER" | "X509" | "NEVER" | "EXPIRE" | "ACCOUNT" | "CPU" | "MEMORY" | "BLOCK" | "IO" | "CONTEXT" | "SWITCHES" | "PAGE" | "FAULTS" | "IPC" | "SWAPS" | "SOURCE"
 | "SQL_BUFFER_RESULT" | "BEFORE" | "LOGS" | "PURGE" | "BUCKETS"
+| "AT" | "COMPLETION" | "CONTAINS" | "DETERMINISTIC" | "EACH" | "ENDS" | "EVERY" | "FOLLOWS" | "LANGUAGE" | "MODIFIES" | "OF" | "PRECEDES" | "PRESERVE" | "READS" | "RETURNS" | "RETURN" | "SCHEDULE" | "STARTS"
 
 
 NotKeywordToken:
@@ -5810,6 +6372,9 @@ Statement:
 |	AlterTableStmt
 |	AlterDatabaseStmt
 |	AlterUserStmt
+|	AlterFunctionStmt
+|	AlterProcedureStmt
+|	AlterEventStmt
 |	AlterViewStmt
 |	AnalyzeTableStmt
 |	BeginTransactionStmt
@@ -5822,6 +6387,10 @@ Statement:
 |	CreateDatabaseStmt
 |	CreateIndexStmt
 |	CreateTableStmt
+|	CreateFunctionStmt
+|	CreateProcedureStmt
+|	CreateTriggerStmt
+|	CreateEventStmt
 |	CreateViewStmt
 |	CreateUserStmt
 |	CreateRoleStmt
@@ -5865,6 +6434,7 @@ Statement:
 |	UseStmt
 |	UnlockTablesStmt
 |	LockTablesStmt
+|	ReturnStmt
 |	PurgeStmt
 
 
@@ -6531,7 +7101,7 @@ FieldLen:
 
 
 OptFieldLen:
-	/* EMPTY */ { $$ = types.UnspecifiedLength }
+	/* EMPTY */ %prec empty { $$ = types.UnspecifiedLength }
 |	FieldLen    { $$ = $1.(int) }
 
 
@@ -6547,7 +7117,7 @@ FieldOpts:
 
 
 FloatOpt:
-	/* EMPTY */ { $$ = &ast.FloatOpt{Flen: types.UnspecifiedLength, Decimal: types.UnspecifiedLength} }
+	/* EMPTY */ %prec empty { $$ = &ast.FloatOpt{Flen: types.UnspecifiedLength, Decimal: types.UnspecifiedLength} }
 |	FieldLen    { $$ = &ast.FloatOpt{Flen: $1.(int), Decimal: types.UnspecifiedLength} }
 |	Precision   { $$ = $1.(*ast.FloatOpt) }
 
@@ -6564,6 +7134,7 @@ OptBinMod:
 
 
 OptBinary:
+	/* EMPTY */ %prec empty
 	{
 		$$ = &ast.OptBinary{
 			IsBinary: false,

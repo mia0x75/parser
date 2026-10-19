@@ -48,6 +48,15 @@ func TestDDLVisitorCover(t *testing.T) {
 		{&DropProcedureStmt{Name: &TableName{}}, 0, 0},
 		{&DropTriggerStmt{Name: &TableName{}}, 0, 0},
 		{&DropEventStmt{Name: &TableName{}}, 0, 0},
+		{&CreateFunctionStmt{Name: &TableName{}, Body: &ReturnStmt{Expr: ce}}, 1, 1},
+		{&CreateProcedureStmt{Name: &TableName{}, Body: &ReturnStmt{Expr: ce}}, 1, 1},
+		{&CreateTriggerStmt{Name: &TableName{}, Table: &TableName{}, Body: &ReturnStmt{Expr: ce}}, 1, 1},
+		{&CreateEventStmt{Name: &TableName{}, Body: &ReturnStmt{Expr: ce}}, 1, 1},
+		{&AlterFunctionStmt{Name: &TableName{}}, 0, 0},
+		{&AlterProcedureStmt{Name: &TableName{}}, 0, 0},
+		{&AlterEventStmt{Name: &TableName{}, Body: &ReturnStmt{Expr: ce}}, 1, 1},
+		{&AlterEventStmt{Name: &TableName{}, RenameName: &TableName{}}, 0, 0},
+		{&ReturnStmt{Expr: ce}, 1, 1},
 		{&AlterTableSpec{}, 0, 0},
 		{&ColumnDef{Name: &ColumnName{}, Options: []*ColumnOption{{Expr: ce}}}, 1, 1},
 		{&ColumnOption{Expr: ce}, 1, 1},
@@ -435,6 +444,51 @@ func TestDropRoutineRestore(t *testing.T) {
 		{"DROP TRIGGER IF EXISTS db.trg", "DROP TRIGGER IF EXISTS `db`.`trg`"},
 		{"DROP EVENT ev", "DROP EVENT `ev`"},
 		{"DROP EVENT IF EXISTS db.ev", "DROP EVENT IF EXISTS `db`.`ev`"},
+	}
+	extractNodeFunc := func(node Node) Node {
+		return node
+	}
+	RunNodeRestoreTest(t, testCases, "%s", extractNodeFunc)
+}
+
+func TestCreateRoutineRestore(t *testing.T) {
+	testCases := []NodeRestoreTestCase{
+		{"CREATE FUNCTION f() RETURNS INT RETURN 1", "CREATE DEFINER = CURRENT_USER FUNCTION `f`() RETURNS INT RETURN 1"},
+		{"CREATE FUNCTION f(a INT, b VARCHAR(10)) RETURNS INT RETURN a", "CREATE DEFINER = CURRENT_USER FUNCTION `f`(`a` INT, `b` VARCHAR(10)) RETURNS INT RETURN `a`"},
+		{"CREATE OR REPLACE DEFINER = root@localhost FUNCTION db.f(a INT, OUT b INT) RETURNS INT LANGUAGE SQL NOT DETERMINISTIC CONTAINS SQL SQL SECURITY INVOKER COMMENT 'c' RETURN a", "CREATE OR REPLACE DEFINER = `root`@`localhost` FUNCTION `db`.`f`(`a` INT, OUT `b` INT) RETURNS INT LANGUAGE SQL NOT DETERMINISTIC CONTAINS SQL SQL SECURITY INVOKER COMMENT 'c' RETURN `a`"},
+		{"CREATE FUNCTION IF NOT EXISTS f() RETURNS INT NO SQL RETURN 1", "CREATE DEFINER = CURRENT_USER FUNCTION IF NOT EXISTS `f`() RETURNS INT NO SQL RETURN 1"},
+		{"CREATE PROCEDURE p() SELECT 1", "CREATE DEFINER = CURRENT_USER PROCEDURE `p`() SELECT 1"},
+		{"CREATE PROCEDURE p(IN a INT, OUT b INT, INOUT c INT) COMMENT 'c' READS SQL DATA SELECT a", "CREATE DEFINER = CURRENT_USER PROCEDURE `p`(`a` INT, OUT `b` INT, INOUT `c` INT) READS SQL DATA COMMENT 'c' SELECT `a`"},
+		{"ALTER FUNCTION f DETERMINISTIC COMMENT 'x'", "ALTER FUNCTION `f` DETERMINISTIC COMMENT 'x'"},
+		{"ALTER FUNCTION db.f NOT DETERMINISTIC SQL SECURITY INVOKER", "ALTER FUNCTION `db`.`f` NOT DETERMINISTIC SQL SECURITY INVOKER"},
+		{"ALTER PROCEDURE p MODIFIES SQL DATA", "ALTER PROCEDURE `p` MODIFIES SQL DATA"},
+	}
+	extractNodeFunc := func(node Node) Node {
+		return node
+	}
+	RunNodeRestoreTest(t, testCases, "%s", extractNodeFunc)
+}
+
+func TestCreateTriggerRestore(t *testing.T) {
+	testCases := []NodeRestoreTestCase{
+		{"CREATE TRIGGER trg BEFORE INSERT ON t FOR EACH ROW SET @a=1", "CREATE DEFINER = CURRENT_USER TRIGGER `trg` BEFORE INSERT ON `t` FOR EACH ROW SET @`a`=1"},
+		{"CREATE DEFINER = root@localhost TRIGGER db.trg AFTER UPDATE OF a, b ON db.t FOR EACH ROW FOLLOWS other SET @a=1", "CREATE DEFINER = `root`@`localhost` TRIGGER `db`.`trg` AFTER UPDATE OF `a`, `b` ON `db`.`t` FOR EACH ROW FOLLOWS `other` SET @`a`=1"},
+		{"CREATE OR REPLACE TRIGGER trg BEFORE DELETE ON t FOR EACH ROW PRECEDES other SET @a=1", "CREATE OR REPLACE DEFINER = CURRENT_USER TRIGGER `trg` BEFORE DELETE ON `t` FOR EACH ROW PRECEDES `other` SET @`a`=1"},
+	}
+	extractNodeFunc := func(node Node) Node {
+		return node
+	}
+	RunNodeRestoreTest(t, testCases, "%s", extractNodeFunc)
+}
+
+func TestCreateEventRestore(t *testing.T) {
+	testCases := []NodeRestoreTestCase{
+		{"CREATE EVENT ev ON SCHEDULE AT '2020-01-01 00:00:00' DO SELECT 1", "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE AT '2020-01-01 00:00:00' DO SELECT 1"},
+		{"CREATE EVENT db.ev ON SCHEDULE EVERY 1 DAY STARTS '2020-01-01' ENDS '2021-01-01' ON COMPLETION PRESERVE ENABLE COMMENT 'c' DO SELECT 1", "CREATE DEFINER = CURRENT_USER EVENT `db`.`ev` ON SCHEDULE EVERY 1 DAY STARTS '2020-01-01' ENDS '2021-01-01' ON COMPLETION PRESERVE ENABLE COMMENT 'c' DO SELECT 1"},
+		{"CREATE DEFINER = root@localhost EVENT IF NOT EXISTS ev ON SCHEDULE EVERY 2 HOUR ON COMPLETION NOT PRESERVE DISABLE ON SLAVE DO SELECT 1", "CREATE DEFINER = `root`@`localhost` EVENT IF NOT EXISTS `ev` ON SCHEDULE EVERY 2 HOUR ON COMPLETION NOT PRESERVE DISABLE ON SLAVE DO SELECT 1"},
+		{"ALTER EVENT ev ENABLE", "ALTER DEFINER = CURRENT_USER EVENT `ev` ENABLE"},
+		{"ALTER EVENT ev ON SCHEDULE EVERY 2 HOUR STARTS '2020-01-01' DISABLE COMMENT 'c' DO SELECT 1", "ALTER DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 2 HOUR STARTS '2020-01-01' DISABLE COMMENT 'c' DO SELECT 1"},
+		{"ALTER EVENT ev RENAME TO ev2", "ALTER DEFINER = CURRENT_USER EVENT `ev` RENAME TO `ev2`"},
 	}
 	extractNodeFunc := func(node Node) Node {
 		return node

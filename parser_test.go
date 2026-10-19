@@ -23,8 +23,8 @@ import (
 	"github.com/mia0x75/parser/ast"
 	"github.com/mia0x75/parser/charset"
 	driver "github.com/mia0x75/parser/driver"
+	"github.com/mia0x75/parser/errors"
 	. "github.com/mia0x75/parser/format"
-	"github.com/mia0x75/parser/internal/errors"
 	"github.com/mia0x75/parser/model"
 	"github.com/mia0x75/parser/mysql"
 	"github.com/mia0x75/parser/terror"
@@ -2991,6 +2991,349 @@ func TestDropRoutineObjects(t *testing.T) {
 		}
 		if gotName != tc.name {
 			t.Fatalf("%s: got %#v, want %#v", fmt.Sprintf("source %v", tc.src), gotName, tc.name)
+		}
+	}
+}
+
+func TestCreateFunction(t *testing.T) {
+	table := []testCase{
+		{"create function f() returns int return 1", true, "CREATE DEFINER = CURRENT_USER FUNCTION `f`() RETURNS INT RETURN 1"},
+		{"create function f(a int, b varchar(10)) returns int return a", true, "CREATE DEFINER = CURRENT_USER FUNCTION `f`(`a` INT, `b` VARCHAR(10)) RETURNS INT RETURN `a`"},
+		{"create function f(a int) returns int return a+1", true, "CREATE DEFINER = CURRENT_USER FUNCTION `f`(`a` INT) RETURNS INT RETURN `a`+1"},
+		{"create definer = current_user function f(a int) returns int no sql return 1", true, "CREATE DEFINER = CURRENT_USER FUNCTION `f`(`a` INT) RETURNS INT NO SQL RETURN 1"},
+		{"create definer = 'u'@'h' function f(a int) returns int deterministic return 1", true, "CREATE DEFINER = `u`@`h` FUNCTION `f`(`a` INT) RETURNS INT DETERMINISTIC RETURN 1"},
+		{"create definer = u@h function f() returns int return 1", true, "CREATE DEFINER = `u`@`h` FUNCTION `f`() RETURNS INT RETURN 1"},
+		{"create definer = u function f() returns int return 1", true, "CREATE DEFINER = `u`@`%` FUNCTION `f`() RETURNS INT RETURN 1"},
+		{"create or replace function db.f(a int, out b int, inout c int) returns int language sql not deterministic contains sql sql security invoker comment 'c' return a", true, "CREATE OR REPLACE DEFINER = CURRENT_USER FUNCTION `db`.`f`(`a` INT, OUT `b` INT, INOUT `c` INT) RETURNS INT LANGUAGE SQL NOT DETERMINISTIC CONTAINS SQL SQL SECURITY INVOKER COMMENT 'c' RETURN `a`"},
+		{"create function if not exists f() returns int modifies sql data sql security definer return 1", true, "CREATE DEFINER = CURRENT_USER FUNCTION IF NOT EXISTS `f`() RETURNS INT MODIFIES SQL DATA SQL SECURITY DEFINER RETURN 1"},
+		{"create function f() returns int reads sql data return 1", true, "CREATE DEFINER = CURRENT_USER FUNCTION `f`() RETURNS INT READS SQL DATA RETURN 1"},
+		// characteristics are order independent and restored canonically.
+		{"create function f() returns int comment 'c' sql security invoker reads sql data deterministic language sql return 1", true, "CREATE DEFINER = CURRENT_USER FUNCTION `f`() RETURNS INT LANGUAGE SQL DETERMINISTIC READS SQL DATA SQL SECURITY INVOKER COMMENT 'c' RETURN 1"},
+		// ALGORITHM and SQL SECURITY are view-only clauses, rejected for routines.
+		{"create algorithm = undefined function f() returns int return 1", false, ""},
+		{"create sql security definer function f() returns int return 1", false, ""},
+		// returned type variations.
+		{"create function f() returns varchar(10) charset utf8mb4 return 'x'", true, "CREATE DEFINER = CURRENT_USER FUNCTION `f`() RETURNS VARCHAR(10) CHARACTER SET utf8mb4 RETURN 'x'"},
+		{"create function f() returns decimal(10,2) unsigned return 1", true, "CREATE DEFINER = CURRENT_USER FUNCTION `f`() RETURNS DECIMAL(10,2) UNSIGNED RETURN 1"},
+		{"create function f() returns int unsigned zerofill return 1", true, "CREATE DEFINER = CURRENT_USER FUNCTION `f`() RETURNS INT UNSIGNED ZEROFILL RETURN 1"},
+		// negative cases.
+		{"create function f", false, ""},
+		{"create function f()", false, ""},
+		{"create function f() return 1", false, ""},
+		{"create function f() returns return 1", false, ""},
+		{"create function f() returns int", false, ""},
+		{"create algorithm = merge function f() returns int return 1", false, ""},
+		{"create algorithm = temptable function f() returns int return 1", false, ""},
+		{"create sql security invoker function f() returns int return 1", false, ""},
+	}
+	RunTest(t, table, false)
+
+	// Verify the AST fields.
+	p := New()
+	st, err := p.ParseOneStmt("create or replace definer = 'root'@'%' function db.f(a int, out b varchar(10)) returns int deterministic comment 'hi' return a", "", "")
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
+	fn, ok := st.(*ast.CreateFunctionStmt)
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if !fn.OrReplace {
+		t.Fatalf("got %#v, want %#v", fn.OrReplace, true)
+	}
+	if fn.IfNotExists {
+		t.Fatalf("got %#v, want %#v", fn.IfNotExists, false)
+	}
+	if fn.Definer.Username != "root" || fn.Definer.Hostname != "%" {
+		t.Fatalf("got %#v, want %#v", fn.Definer, "root@%")
+	}
+	if fn.Name.Schema.O != "db" || fn.Name.Name.O != "f" {
+		t.Fatalf("got %#v, want %#v", fn.Name, "db.f")
+	}
+	if len(fn.Params) != 2 {
+		t.Fatalf("got %#v, want %#v", len(fn.Params), 2)
+	}
+	if fn.Params[0].Name != "a" || fn.Params[0].Dir != ast.FuncParamDirIn {
+		t.Fatalf("got %#v, want %#v", fn.Params[0], "a IN")
+	}
+	if fn.Params[1].Name != "b" || fn.Params[1].Dir != ast.FuncParamDirOut {
+		t.Fatalf("got %#v, want %#v", fn.Params[1], "b OUT")
+	}
+	if !fn.Characteristics.DeterministicSpecified || !fn.Characteristics.Deterministic {
+		t.Fatalf("got %#v, want deterministic", fn.Characteristics)
+	}
+	if !fn.Characteristics.CommentSpecified || fn.Characteristics.Comment != "hi" {
+		t.Fatalf("got %#v, want comment hi", fn.Characteristics)
+	}
+	if _, ok := fn.Body.(*ast.ReturnStmt); !ok {
+		t.Fatalf("got %T, want *ast.ReturnStmt", fn.Body)
+	}
+}
+
+func TestCreateProcedure(t *testing.T) {
+	table := []testCase{
+		{"create procedure p() select 1", true, "CREATE DEFINER = CURRENT_USER PROCEDURE `p`() SELECT 1"},
+		{"create procedure p(in a int, out b varchar(10)) select a", true, "CREATE DEFINER = CURRENT_USER PROCEDURE `p`(`a` INT, OUT `b` VARCHAR(10)) SELECT `a`"},
+		{"create definer = 'u'@'h' procedure db.p(a int) deterministic select 1", true, "CREATE DEFINER = `u`@`h` PROCEDURE `db`.`p`(`a` INT) DETERMINISTIC SELECT 1"},
+		{"create definer=root@localhost procedure p() select 1", true, "CREATE DEFINER = `root`@`localhost` PROCEDURE `p`() SELECT 1"},
+		{"create or replace procedure p() comment 'c' reads sql data select 1", true, "CREATE OR REPLACE DEFINER = CURRENT_USER PROCEDURE `p`() READS SQL DATA COMMENT 'c' SELECT 1"},
+		{"create procedure if not exists p() insert into t values(1)", true, "CREATE DEFINER = CURRENT_USER PROCEDURE IF NOT EXISTS `p`() INSERT INTO `t` VALUES (1)"},
+		{"create procedure p() sql security invoker no sql select 1", true, "CREATE DEFINER = CURRENT_USER PROCEDURE `p`() NO SQL SQL SECURITY INVOKER SELECT 1"},
+		{"create algorithm = undefined procedure p() select 1", false, ""},
+		{"create sql security definer procedure p() select 1", false, ""},
+		{"create procedure p", false, ""},
+		{"create procedure p()", false, ""},
+		{"create algorithm = merge procedure p() select 1", false, ""},
+		{"create sql security invoker procedure p() select 1", false, ""},
+	}
+	RunTest(t, table, false)
+}
+
+func TestAlterRoutine(t *testing.T) {
+	table := []testCase{
+		{"alter function f deterministic", true, "ALTER FUNCTION `f` DETERMINISTIC"},
+		{"alter function db.f not deterministic comment 'x'", true, "ALTER FUNCTION `db`.`f` NOT DETERMINISTIC COMMENT 'x'"},
+		{"alter function f language sql reads sql data sql security invoker", true, "ALTER FUNCTION `f` LANGUAGE SQL READS SQL DATA SQL SECURITY INVOKER"},
+		{"alter function f comment 'c' contains sql language sql", true, "ALTER FUNCTION `f` LANGUAGE SQL CONTAINS SQL COMMENT 'c'"},
+		{"alter procedure p contains sql", true, "ALTER PROCEDURE `p` CONTAINS SQL"},
+		{"alter procedure p modifies sql data comment 'x'", true, "ALTER PROCEDURE `p` MODIFIES SQL DATA COMMENT 'x'"},
+		{"alter procedure db.p no sql sql security definer", true, "ALTER PROCEDURE `db`.`p` NO SQL SQL SECURITY DEFINER"},
+		{"alter function", false, ""},
+		{"alter procedure", false, ""},
+		{"alter function f", false, ""},
+		{"alter procedure p", false, ""},
+	}
+	RunTest(t, table, false)
+}
+
+func TestCreateTrigger(t *testing.T) {
+	table := []testCase{
+		{"create trigger trg before insert on t for each row set @a=1", true, "CREATE DEFINER = CURRENT_USER TRIGGER `trg` BEFORE INSERT ON `t` FOR EACH ROW SET @`a`=1"},
+		{"create trigger db.trg after update on db.t for each row set @a=1", true, "CREATE DEFINER = CURRENT_USER TRIGGER `db`.`trg` AFTER UPDATE ON `db`.`t` FOR EACH ROW SET @`a`=1"},
+		{"create trigger trg before update on t for each row set @a=1", true, "CREATE DEFINER = CURRENT_USER TRIGGER `trg` BEFORE UPDATE ON `t` FOR EACH ROW SET @`a`=1"},
+		{"create trigger trg after insert on t for each row set @a=1", true, "CREATE DEFINER = CURRENT_USER TRIGGER `trg` AFTER INSERT ON `t` FOR EACH ROW SET @`a`=1"},
+		{"create trigger trg before delete on t for each row set @a=1", true, "CREATE DEFINER = CURRENT_USER TRIGGER `trg` BEFORE DELETE ON `t` FOR EACH ROW SET @`a`=1"},
+		{"create trigger trg after delete on t for each row set @a=1", true, "CREATE DEFINER = CURRENT_USER TRIGGER `trg` AFTER DELETE ON `t` FOR EACH ROW SET @`a`=1"},
+		{"create trigger trg after update of a, b on t for each row set @a=1", true, "CREATE DEFINER = CURRENT_USER TRIGGER `trg` AFTER UPDATE OF `a`, `b` ON `t` FOR EACH ROW SET @`a`=1"},
+		{"create definer = 'u'@'h' trigger trg before delete on t for each row follows other set @a=1", true, "CREATE DEFINER = `u`@`h` TRIGGER `trg` BEFORE DELETE ON `t` FOR EACH ROW FOLLOWS `other` SET @`a`=1"},
+		{"create or replace trigger trg before insert on t for each row precedes other set @a=1", true, "CREATE OR REPLACE DEFINER = CURRENT_USER TRIGGER `trg` BEFORE INSERT ON `t` FOR EACH ROW PRECEDES `other` SET @`a`=1"},
+		{"create trigger if not exists trg before insert on t for each row set @a=1", true, "CREATE DEFINER = CURRENT_USER TRIGGER IF NOT EXISTS `trg` BEFORE INSERT ON `t` FOR EACH ROW SET @`a`=1"},
+		{"create algorithm = undefined trigger trg before insert on t for each row set @a=1", false, ""},
+		{"create trigger trg before insert on t set @a=1", false, ""},
+		{"create trigger trg before insert on t for each row", false, ""},
+		{"create trigger trg before insert of a on t for each row set @a=1", false, ""},
+		{"create algorithm = merge trigger trg before insert on t for each row set @a=1", false, ""},
+	}
+	RunTest(t, table, false)
+
+	// Verify the AST fields.
+	p := New()
+	st, err := p.ParseOneStmt("create trigger trg after update of a, b on db.t for each row follows other set @a=1", "", "")
+	if err != nil {
+		t.Fatalf("expected nil, want nil")
+	}
+	trg, ok := st.(*ast.CreateTriggerStmt)
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if trg.Time != "AFTER" || trg.Event != "UPDATE" {
+		t.Fatalf("got %#v, want %#v", trg.Time+" "+trg.Event, "AFTER UPDATE")
+	}
+	if len(trg.UpdateColumns) != 2 || trg.UpdateColumns[0].Name.O != "a" || trg.UpdateColumns[1].Name.O != "b" {
+		t.Fatalf("got %#v, want columns a, b", trg.UpdateColumns)
+	}
+	if trg.Order != "FOLLOWS" || trg.OtherTriggerName != "other" {
+		t.Fatalf("got %#v, want %#v", trg.Order+" "+trg.OtherTriggerName, "FOLLOWS other")
+	}
+}
+
+func TestCreateEvent(t *testing.T) {
+	table := []testCase{
+		{"create event ev on schedule at '2020-01-01 00:00:00' do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE AT '2020-01-01 00:00:00' DO SELECT 1"},
+		{"create event db.ev on schedule every 1 day do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `db`.`ev` ON SCHEDULE EVERY 1 DAY DO SELECT 1"},
+		{"create event ev on schedule at NOW() do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE AT NOW() DO SELECT 1"},
+		{"create event ev on schedule every 1 second do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 1 SECOND DO SELECT 1"},
+		{"create event ev on schedule every 1 minute do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 1 MINUTE DO SELECT 1"},
+		{"create event ev on schedule every 1 hour do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 1 HOUR DO SELECT 1"},
+		{"create event ev on schedule every 1 week do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 1 WEEK DO SELECT 1"},
+		{"create event ev on schedule every 1 month do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 1 MONTH DO SELECT 1"},
+		{"create event ev on schedule every 1 quarter do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 1 QUARTER DO SELECT 1"},
+		{"create event ev on schedule every 1 year do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 1 YEAR DO SELECT 1"},
+		{"create event ev on schedule every 2 hour starts '2020-01-01' ends '2021-01-01' do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 2 HOUR STARTS '2020-01-01' ENDS '2021-01-01' DO SELECT 1"},
+		{"create event ev on schedule every 1 day on completion preserve enable comment 'c' do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 1 DAY ON COMPLETION PRESERVE ENABLE COMMENT 'c' DO SELECT 1"},
+		{"create event ev on schedule every 1 day disable do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 1 DAY DISABLE DO SELECT 1"},
+		{"create definer = 'u'@'h' event if not exists ev on schedule every 1 day on completion not preserve disable do select 1", true, "CREATE DEFINER = `u`@`h` EVENT IF NOT EXISTS `ev` ON SCHEDULE EVERY 1 DAY ON COMPLETION NOT PRESERVE DISABLE DO SELECT 1"},
+		{"create event ev on schedule every 1 day disable on slave do select 1", true, "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 1 DAY DISABLE ON SLAVE DO SELECT 1"},
+		{"create algorithm = undefined event ev on schedule every 1 day do select 1", false, ""},
+		{"create event ev do select 1", false, ""},
+		{"create event ev on schedule every do select 1", false, ""},
+		{"create event ev on schedule every 1 day", false, ""},
+		{"create event ev comment 'c' on schedule every 1 day do select 1", false, ""},
+		{"create algorithm = merge event ev on schedule every 1 day do select 1", false, ""},
+	}
+	RunTest(t, table, false)
+
+	// Verify the AST fields.
+	p := New()
+	st, err := p.ParseOneStmt("create event ev on schedule every 1 day starts '2020-01-01' on completion preserve enable comment 'c' do insert into t values(1)", "", "")
+	if err != nil {
+		t.Fatalf("expected nil, got %#v", err)
+	}
+	ev, ok := st.(*ast.CreateEventStmt)
+	if !ok {
+		t.Fatalf("expected true")
+	}
+	if ev.Schedule == nil || ev.Schedule.Every == nil || ev.Schedule.Interval != "DAY" {
+		t.Fatalf("got %#v, want every 1 day", ev.Schedule)
+	}
+	if !ev.OnCompletion || !ev.Preserve {
+		t.Fatalf("got %#v, want on completion preserve", ev)
+	}
+	if ev.Status != ast.EventStatusEnable {
+		t.Fatalf("got %#v, want enable", ev.Status)
+	}
+	if !ev.CommentSpecified || ev.Comment != "c" {
+		t.Fatalf("got %#v, want comment c", ev)
+	}
+	if _, ok := ev.Body.(*ast.InsertStmt); !ok {
+		t.Fatalf("got %T, want *ast.InsertStmt", ev.Body)
+	}
+}
+
+func TestAlterEvent(t *testing.T) {
+	table := []testCase{
+		{"alter event ev enable", true, "ALTER DEFINER = CURRENT_USER EVENT `ev` ENABLE"},
+		{"alter event ev disable", true, "ALTER DEFINER = CURRENT_USER EVENT `ev` DISABLE"},
+		{"alter event ev disable on slave", true, "ALTER DEFINER = CURRENT_USER EVENT `ev` DISABLE ON SLAVE"},
+		{"alter event ev comment 'x'", true, "ALTER DEFINER = CURRENT_USER EVENT `ev` COMMENT 'x'"},
+		{"alter event ev on completion preserve", true, "ALTER DEFINER = CURRENT_USER EVENT `ev` ON COMPLETION PRESERVE"},
+		{"alter event ev on completion not preserve", true, "ALTER DEFINER = CURRENT_USER EVENT `ev` ON COMPLETION NOT PRESERVE"},
+		{"alter event ev on completion not preserve comment 'c'", true, "ALTER DEFINER = CURRENT_USER EVENT `ev` ON COMPLETION NOT PRESERVE COMMENT 'c'"},
+		{"alter event ev rename to ev2", true, "ALTER DEFINER = CURRENT_USER EVENT `ev` RENAME TO `ev2`"},
+		{"alter definer = 'u'@'h' event db.ev on schedule every 1 day rename to db.ev2 enable do select 1", true, "ALTER DEFINER = `u`@`h` EVENT `db`.`ev` ON SCHEDULE EVERY 1 DAY RENAME TO `db`.`ev2` ENABLE DO SELECT 1"},
+		{"alter event ev rename to", false, ""},
+		{"alter event ev on schedule every 2 hour starts '2020-01-01' enable comment 'c' do select 1", true, "ALTER DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 2 HOUR STARTS '2020-01-01' ENABLE COMMENT 'c' DO SELECT 1"},
+		{"alter event ev on schedule every 1 day starts NOW() ends NOW() enable comment 'c' do select 1", true, "ALTER DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE EVERY 1 DAY STARTS NOW() ENDS NOW() ENABLE COMMENT 'c' DO SELECT 1"},
+		{"alter definer = 'u'@'h' event db.ev on schedule at '2020-01-01 00:00:00' on completion preserve disable do select 1", true, "ALTER DEFINER = `u`@`h` EVENT `db`.`ev` ON SCHEDULE AT '2020-01-01 00:00:00' ON COMPLETION PRESERVE DISABLE DO SELECT 1"},
+		{"alter event", false, ""},
+	}
+	RunTest(t, table, false)
+}
+
+func TestReturnStmt(t *testing.T) {
+	table := []testCase{
+		{"return 1", true, "RETURN 1"},
+		{"return 1+2", true, "RETURN 1+2"},
+		{"return f(a)", true, "RETURN F(`a`)"},
+		{"return (select 1)", true, "RETURN (SELECT 1)"},
+		{"return @a", true, "RETURN @`a`"},
+		{"return", false, ""},
+	}
+	RunTest(t, table, false)
+}
+
+func TestRoutineErrorMessages(t *testing.T) {
+	cases := []struct {
+		src string
+		msg string
+	}{
+		{"create algorithm = merge function f() returns int return 1", "ALGORITHM and SQL SECURITY are not valid for a function"},
+		{"create algorithm = undefined function f() returns int return 1", "ALGORITHM and SQL SECURITY are not valid for a function"},
+		{"create sql security invoker function f() returns int return 1", "ALGORITHM and SQL SECURITY are not valid for a function"},
+		{"create sql security definer function f() returns int return 1", "ALGORITHM and SQL SECURITY are not valid for a function"},
+		{"create algorithm = merge procedure p() select 1", "ALGORITHM and SQL SECURITY are not valid for a procedure"},
+		{"create sql security invoker trigger trg before insert on t for each row set @a=1", "ALGORITHM and SQL SECURITY are not valid for a trigger"},
+		{"create algorithm = merge event ev on schedule every 1 day do select 1", "ALGORITHM and SQL SECURITY are not valid for an event"},
+		{"alter function f", "at least one routine characteristic is required"},
+		{"alter procedure db.p", "at least one routine characteristic is required"},
+		{"create function f() returns int", "a function body is required"},
+		{"create procedure p() deterministic", "a procedure body is required"},
+		{"create trigger trg before insert on t for each row follows other", "a trigger body is required"},
+		{"create event ev on schedule every 1 day do", "an event body is required"},
+		{"create trigger trg before insert of c1 on t for each row set @a=1", "UPDATE OF clause is only valid for UPDATE triggers"},
+	}
+	for _, c := range cases {
+		p := New()
+		_, _, err := p.Parse(c.src, "", "")
+		if err == nil {
+			t.Fatalf("%q: expected error, got nil", c.src)
+		}
+		if !strings.Contains(err.Error(), c.msg) {
+			t.Fatalf("%q: got error %v, want containing %q", c.src, err, c.msg)
+		}
+	}
+}
+
+func TestRoutineTextPreserved(t *testing.T) {
+	srcs := []string{
+		"create function f() returns int return 1",
+		"create procedure p(in a int) select a",
+		"create trigger trg before insert on t for each row set @a=1",
+		"create event ev on schedule every 1 day do select 1",
+	}
+	for _, src := range srcs {
+		p := New()
+		stmts, _, err := p.Parse(src, "", "")
+		if err != nil {
+			t.Fatalf("%q: %v", src, err)
+		}
+		if len(stmts) != 1 {
+			t.Fatalf("%q: got %d statements, want 1", src, len(stmts))
+		}
+		if got := stmts[0].Text(); got != src {
+			t.Fatalf("%q: Text() got %q, want %q", src, got, src)
+		}
+	}
+}
+
+func TestRoutineParseOneStmt(t *testing.T) {
+	cases := []struct {
+		src string
+		typ interface{}
+	}{
+		{"create function f() returns int return 1", &ast.CreateFunctionStmt{}},
+		{"create procedure p() select 1", &ast.CreateProcedureStmt{}},
+		{"create trigger trg before insert on t for each row set @a=1", &ast.CreateTriggerStmt{}},
+		{"create event ev on schedule every 1 day do select 1", &ast.CreateEventStmt{}},
+		{"alter function f deterministic", &ast.AlterFunctionStmt{}},
+		{"alter procedure p contains sql", &ast.AlterProcedureStmt{}},
+		{"alter event ev enable", &ast.AlterEventStmt{}},
+		{"return 1", &ast.ReturnStmt{}},
+	}
+	for _, c := range cases {
+		p := New()
+		st, err := p.ParseOneStmt(c.src, "", "")
+		if err != nil {
+			t.Fatalf("%q: %v", c.src, err)
+		}
+		if reflect.TypeOf(st) != reflect.TypeOf(c.typ) {
+			t.Fatalf("%q: got %T, want %T", c.src, st, c.typ)
+		}
+	}
+}
+
+func TestRoutineRestoreString(t *testing.T) {
+	// These inputs cannot go through RunRestoreTest because the function-name
+	// case is preserved on parse but normalized while restoring, so the AST
+	// reparse round-trip is not DeepEqual. Check the restored text directly.
+	cases := []struct {
+		src     string
+		restore string
+	}{
+		{"create event ev on schedule at current_timestamp + interval 1 hour do select 1", "CREATE DEFINER = CURRENT_USER EVENT `ev` ON SCHEDULE AT DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR) DO SELECT 1"},
+	}
+	for _, c := range cases {
+		p := New()
+		stmts, _, err := p.Parse(c.src, "", "")
+		if err != nil {
+			t.Fatalf("%q: %v", c.src, err)
+		}
+		var sb strings.Builder
+		if err := stmts[0].Restore(NewRestoreCtx(DefaultRestoreFlags, &sb)); err != nil {
+			t.Fatalf("%q: %v", c.src, err)
+		}
+		if got := sb.String(); got != c.restore {
+			t.Fatalf("%q: got %q, want %q", c.src, got, c.restore)
 		}
 	}
 }

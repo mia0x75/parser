@@ -25,8 +25,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/mia0x75/parser/errors"
 	"github.com/mia0x75/parser/hack"
-	"github.com/mia0x75/parser/internal/errors"
 	"github.com/mia0x75/parser/terror"
 )
 

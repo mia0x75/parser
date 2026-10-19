@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mia0x75/parser/internal/errors"
+	"github.com/mia0x75/parser/errors"
 )
 
 var zeroSet = Set{Name: "", Value: 0}

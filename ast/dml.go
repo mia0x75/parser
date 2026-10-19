@@ -16,7 +16,7 @@ package ast
 import (
 	"strings"
 
-	"github.com/mia0x75/parser/internal/errors"
+	"github.com/mia0x75/parser/errors"
 
 	"github.com/mia0x75/parser/auth"
 	"github.com/mia0x75/parser/format"
