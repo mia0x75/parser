@@ -178,26 +178,7 @@ options and a recommendation so it can be decided later.
 
 ---
 
-## 4. v0.1.0 新增语法与遗留缺口
-
-**状态**: 已实现（v0.1.0）；下列为仍需处理的问题
-
-v0.1.0 已实现（用例见 `compat_test.go`）：
-
-- SELECT 锁定子句：`FOR SHARE`、`FOR UPDATE OF t`、`NOWAIT`、`SKIP LOCKED`
-- `ALTER TABLE ... RENAME COLUMN a TO b`
-- `CREATE [OR REPLACE] TEMPORARY TABLE`
-- `GROUP BY ... WITH ROLLUP` / `WITH CUBE`
-- `SAVEPOINT` / `ROLLBACK TO [SAVEPOINT]` / `RELEASE SAVEPOINT`
-- 表级/列级 `CHECK` 约束保留进 AST（此前被丢弃）
-- 分区选择：`SELECT/INSERT/UPDATE/DELETE ... PARTITION (p0)`
-- `VALUES ROW(...), ...` 与 `TABLE t` 语句
-- `CREATE/DROP SEQUENCE`（MariaDB）
-- UDF：`CREATE [AGGREGATE] FUNCTION ... RETURNS type SONAME 'lib'`
-- `INSERT/UPDATE/DELETE ... RETURNING`
-- `XA START|BEGIN|END|PREPARE|COMMIT|ROLLBACK|RECOVER`
-- `SELECT ... INTO @user_var` / `FETCH ... INTO @user_var`
-- CTE：`WITH [RECURSIVE] name [(cols)] AS (subquery) SELECT ...`
+## 4. 遗留缺口
 
 ### 4.1 集合运算的运算符优先级
 
