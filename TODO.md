@@ -147,11 +147,6 @@ options and a recommendation so it can be decided later.
 - `CACHE INDEX`、`LOAD INDEX INTO CACHE`、`LOAD XML`
 - `RENAME USER`
 
-### 3.2 表空间 / 服务器对象
-
-- `CREATE/ALTER/DROP TABLESPACE`
-- `CREATE/ALTER/DROP SERVER`
-
 ### 3.3 持久化变量
 
 - `SET PERSIST` / `SET PERSIST_ONLY`（MySQL 8.0）
@@ -275,3 +270,14 @@ create view v as select a from t group by a with cascaded check option
   （`GROUPING(expr)` 函数、`CUBE(...)`、`ROLLUP(...)`、`WITH CUBE/ROLLUP`
   已支持）
 
+
+---
+
+## 5. v0.2.0 新增语法
+
+**状态**: 已实现（v0.2.0，分多次提交）；用例见 `compat_test.go`
+
+逐项完成原第 3 节中搁置的语法：
+
+- 3.2 表空间 / 服务器对象：`CREATE/ALTER/DROP [UNDO] TABLESPACE`、
+  `CREATE/ALTER/DROP SERVER`（`FOREIGN DATA WRAPPER ... OPTIONS(...)`）

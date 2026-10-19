@@ -628,6 +628,17 @@ var tokenMap = map[string]int{
 	"ONE":                      one,
 	"PHASE":                    phase,
 	"CUBE":                     cube,
+	"SERVER":                   server,
+	"DATAFILE":                 datafile,
+	"WRAPPER":                  wrapper,
+	"OPTIONS":                  options,
+	"FILE_BLOCK_SIZE":          fileBlockSize,
+	"EXTENT_SIZE":              extentSize,
+	"INITIAL_SIZE":             initialSize,
+	"AUTOEXTEND_SIZE":          autoextendSize,
+	"MAX_SIZE":                 maxSize,
+	"NODEGROUP":                nodegroup,
+	"WAIT":                     wait,
 }
 
 // See https://dev.mysql.com/doc/refman/5.7/en/function-resolution.html for details

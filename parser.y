@@ -534,6 +534,17 @@ import (
 	one                   "ONE"
 	phase                 "PHASE"
 	cube                  "CUBE"
+	server                "SERVER"
+	datafile              "DATAFILE"
+	wrapper               "WRAPPER"
+	options               "OPTIONS"
+	fileBlockSize         "FILE_BLOCK_SIZE"
+	extentSize            "EXTENT_SIZE"
+	initialSize           "INITIAL_SIZE"
+	autoextendSize        "AUTOEXTEND_SIZE"
+	maxSize               "MAX_SIZE"
+	nodegroup             "NODEGROUP"
+	wait                  "WAIT"
 
 	/* The following tokens belong to NotKeywordToken. */
 	addDate            "ADDDATE"
@@ -722,6 +733,12 @@ import (
 	ReleaseSavepointStmt            /* RELEASE SAVEPOINT statement */
 	CreateSequenceStmt              /* CREATE SEQUENCE statement */
 	DropSequenceStmt                /* DROP SEQUENCE statement */
+	CreateTablespaceStmt            /* CREATE TABLESPACE statement */
+	AlterTablespaceStmt             /* ALTER TABLESPACE statement */
+	DropTablespaceStmt              /* DROP TABLESPACE statement */
+	CreateServerStmt                /* CREATE SERVER statement */
+	AlterServerStmt                 /* ALTER SERVER statement */
+	DropServerStmt                  /* DROP SERVER statement */
 	XAStmt                          /* XA transaction statement */
 	SetStmt                         /* Set variable statement */
 	SetRoleStmt                     /* Set active role statement */
@@ -981,6 +998,12 @@ import (
 	ValuesRowList                   /* values table row constructor list */
 	SequenceOption                  /* sequence option */
 	SequenceOptionListOpt           /* sequence option list optional */
+	TablespaceOption                /* tablespace option */
+	TablespaceOptionList            /* tablespace option list */
+	UndoOpt                         /* optional UNDO keyword */
+	ServerOption                    /* foreign server option */
+	ServerOptionList                /* foreign server option list */
+	ServerOptionListOpt             /* optional foreign server option list */
 	UDFReturnType                   /* user defined function return type */
 	ReturningOpt                    /* optional RETURNING field list */
 	XAIdent                         /* XA transaction identifier */
@@ -1154,6 +1177,7 @@ import (
 	FunctionNameDatetimePrecision   /* Function with optional datetime precision, all of them are reserved keywords. */
 	FunctionNameDateArith           /* Date arith function call names (date_add or date_sub) */
 	FunctionNameDateArithMultiForms /* Date arith function call names (adddate or subdate) */
+	ServerOptionName                /* foreign server option name */
 
 
 %precedence empty
@@ -2192,6 +2216,182 @@ SequenceOption:
 	{
 		$$ = &ast.SequenceOption{Tp: ast.SequenceOptionNoCycle}
 	}
+
+
+UndoOpt:
+	/* EMPTY */ { $$ = false }
+|	"UNDO"      { $$ = true }
+
+
+CreateTablespaceStmt:
+	"CREATE" UndoOpt "TABLESPACE" Identifier TablespaceOptionList
+	{
+		$$ = &ast.CreateTablespaceStmt{
+			Undo:    $2.(bool),
+			Name:    $4,
+			Options: $5.([]*ast.TablespaceOption),
+		}
+	}
+
+
+AlterTablespaceStmt:
+	"ALTER" UndoOpt "TABLESPACE" Identifier TablespaceOptionList
+	{
+		$$ = &ast.AlterTablespaceStmt{
+			Undo:    $2.(bool),
+			Name:    $4,
+			Options: $5.([]*ast.TablespaceOption),
+		}
+	}
+|	"ALTER" UndoOpt "TABLESPACE" Identifier "RENAME" "TO" Identifier
+	{
+		$$ = &ast.AlterTablespaceStmt{
+			Undo:     $2.(bool),
+			Name:     $4,
+			RenameTo: $7,
+		}
+	}
+
+
+DropTablespaceStmt:
+	"DROP" UndoOpt "TABLESPACE" Identifier
+	{
+		$$ = &ast.DropTablespaceStmt{
+			Undo: $2.(bool),
+			Name: $4,
+		}
+	}
+|	"DROP" UndoOpt "TABLESPACE" Identifier TablespaceOption
+	{
+		$$ = &ast.DropTablespaceStmt{
+			Undo:   $2.(bool),
+			Name:   $4,
+			Option: $5.(*ast.TablespaceOption),
+		}
+	}
+
+
+TablespaceOptionList:
+	/* EMPTY */
+	{
+		$$ = []*ast.TablespaceOption{}
+	}
+|	TablespaceOptionList TablespaceOption
+	{
+		$$ = append($1.([]*ast.TablespaceOption), $2.(*ast.TablespaceOption))
+	}
+
+
+TablespaceOption:
+	"ADD" "DATAFILE" stringLit
+	{
+		$$ = &ast.TablespaceOption{Tp: ast.TablespaceOptionDataFile, Str: $3}
+	}
+|	"FILE_BLOCK_SIZE" EqOpt LengthNum
+	{
+		$$ = &ast.TablespaceOption{Tp: ast.TablespaceOptionFileBlockSize, Val: $3.(uint64)}
+	}
+|	"EXTENT_SIZE" EqOpt LengthNum
+	{
+		$$ = &ast.TablespaceOption{Tp: ast.TablespaceOptionExtentSize, Val: $3.(uint64)}
+	}
+|	"INITIAL_SIZE" EqOpt LengthNum
+	{
+		$$ = &ast.TablespaceOption{Tp: ast.TablespaceOptionInitialSize, Val: $3.(uint64)}
+	}
+|	"AUTOEXTEND_SIZE" EqOpt LengthNum
+	{
+		$$ = &ast.TablespaceOption{Tp: ast.TablespaceOptionAutoextendSize, Val: $3.(uint64)}
+	}
+|	"MAX_SIZE" EqOpt LengthNum
+	{
+		$$ = &ast.TablespaceOption{Tp: ast.TablespaceOptionMaxSize, Val: $3.(uint64)}
+	}
+|	"NODEGROUP" EqOpt LengthNum
+	{
+		$$ = &ast.TablespaceOption{Tp: ast.TablespaceOptionNodegroup, Val: $3.(uint64)}
+	}
+|	"WAIT"
+	{
+		$$ = &ast.TablespaceOption{Tp: ast.TablespaceOptionWait}
+	}
+|	"NO" "WAIT"
+	{
+		$$ = &ast.TablespaceOption{Tp: ast.TablespaceOptionNoWait}
+	}
+|	"COMMENT" EqOpt stringLit
+	{
+		$$ = &ast.TablespaceOption{Tp: ast.TablespaceOptionComment, Str: $3}
+	}
+|	"ENGINE" EqOpt Identifier
+	{
+		$$ = &ast.TablespaceOption{Tp: ast.TablespaceOptionEngine, Str: $3}
+	}
+
+
+CreateServerStmt:
+	"CREATE" "SERVER" Identifier "FOREIGN" "DATA" "WRAPPER" stringLit ServerOptionListOpt
+	{
+		$$ = &ast.CreateServerStmt{
+			Name:    $3,
+			Wrapper: $7,
+			Options: $8.([]*ast.ServerOption),
+		}
+	}
+
+
+AlterServerStmt:
+	"ALTER" "SERVER" Identifier ServerOptionListOpt
+	{
+		$$ = &ast.AlterServerStmt{
+			Name:    $3,
+			Options: $4.([]*ast.ServerOption),
+		}
+	}
+
+
+DropServerStmt:
+	"DROP" "SERVER" IfExists Identifier
+	{
+		$$ = &ast.DropServerStmt{
+			IfExists: $3.(bool),
+			Name:     $4,
+		}
+	}
+
+
+ServerOptionListOpt:
+	/* EMPTY */
+	{
+		$$ = []*ast.ServerOption{}
+	}
+|	"OPTIONS" '(' ServerOptionList ')'
+	{
+		$$ = $3.([]*ast.ServerOption)
+	}
+
+
+ServerOptionList:
+	ServerOption
+	{
+		$$ = []*ast.ServerOption{$1.(*ast.ServerOption)}
+	}
+|	ServerOptionList ',' ServerOption
+	{
+		$$ = append($1.([]*ast.ServerOption), $3.(*ast.ServerOption))
+	}
+
+
+ServerOption:
+	ServerOptionName stringLit
+	{
+		$$ = &ast.ServerOption{Name: $1, Value: $2}
+	}
+
+
+ServerOptionName:
+	Identifier   { $$ = $1 }
+|	"DATABASE"   { $$ = "DATABASE" }
 
 
 DBName:
@@ -3783,6 +3983,7 @@ UnReservedKeyword:
 | "ATOMIC" | "CLOSE" | "CONDITION" | "CONTINUE" | "CURSOR" | "DECLARE" | "ELSEIF" | "EXIT" | "FETCH" | "FOUND" | "HANDLER" | "ITERATE" | "LEAVE" | "LOOP"
 | "RESIGNAL" | "SIGNAL" | "SQLEXCEPTION" | "SQLSTATE" | "SQLWARNING" | "UNDO" | "UNTIL" | "WHILE"
 | "NOWAIT" | "SKIP" | "LOCKED" | "ROLLUP" | "WORK" | "RELEASE" | "SAVEPOINT" | "SEQUENCE" | "INCREMENT" | "MINVALUE" | "CACHE" | "CYCLE" | "NOMAXVALUE" | "NOMINVALUE" | "NOCYCLE" | "NOCACHE" | "AGGREGATE" | "SONAME" | "STRING" | "XA" | "RESUME" | "MIGRATE" | "SUSPEND" | "ONE" | "PHASE" | "CUBE"
+| "SERVER" | "DATAFILE" | "WRAPPER" | "OPTIONS" | "FILE_BLOCK_SIZE" | "EXTENT_SIZE" | "INITIAL_SIZE" | "AUTOEXTEND_SIZE" | "MAX_SIZE" | "NODEGROUP" | "WAIT"
 
 
 NotKeywordToken:
@@ -7518,6 +7719,12 @@ Statement:
 |	SetRoleStmt
 |	SetDefaultRoleStmt
 |	ShowStmt
+|	CreateTablespaceStmt
+|	AlterTablespaceStmt
+|	DropTablespaceStmt
+|	CreateServerStmt
+|	AlterServerStmt
+|	DropServerStmt
 |	SubSelect
 	{
 		// `(select 1)`; is a valid select statement

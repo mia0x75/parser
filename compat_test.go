@@ -108,6 +108,21 @@ func TestCompatRoundTrip(t *testing.T) {
 		"with cte as (select 1) select * from cte",
 		"with recursive cte (n) as (select 1 union all select n + 1 from cte where n < 5) select * from cte",
 		"with a as (select 1), b as (select 2) select * from a, b",
+
+		// Tablespaces.
+		"create tablespace ts add datafile 'ts.ibd' initial_size 1048576 engine innodb",
+		"create undo tablespace ts add datafile 'ts.ibd'",
+		"create tablespace ts add datafile 'ts.ibd' file_block_size 16384 extent_size 1048576 autoextend_size 4194304 max_size 268435456 nodegroup 0 wait comment 'hello'",
+		"alter tablespace ts add datafile 'ts2.ibd' no wait",
+		"alter tablespace ts rename to ts2",
+		"drop tablespace ts",
+		"drop undo tablespace ts engine innodb",
+
+		// Foreign servers.
+		"create server srv foreign data wrapper 'mysql' options(host 'h', database 'd', user 'u', password 'p', port '3306')",
+		"create server srv foreign data wrapper 'mysql'",
+		"alter server srv options(user 'u2')",
+		"drop server if exists srv",
 	}
 	for _, sql := range cases {
 		stmt, err := New().ParseOneStmt(sql, "", "")
@@ -210,5 +225,40 @@ func TestXAStmtAST(t *testing.T) {
 	stmt := mustParseOne(t, "xa commit 'x1' one phase").(*ast.XAStmt)
 	if stmt.Command != "COMMIT" || stmt.XID != "x1" || stmt.Extra != "ONE PHASE" {
 		t.Fatalf("unexpected XAStmt: %+v", stmt)
+	}
+}
+
+func TestTablespaceAST(t *testing.T) {
+	stmt := mustParseOne(t, "create undo tablespace ts add datafile 'ts.ibd' engine innodb").(*ast.CreateTablespaceStmt)
+	if !stmt.Undo || stmt.Name != "ts" || len(stmt.Options) != 2 {
+		t.Fatalf("unexpected CreateTablespaceStmt: %+v", stmt)
+	}
+	if stmt.Options[0].Tp != ast.TablespaceOptionDataFile || stmt.Options[0].Str != "ts.ibd" {
+		t.Fatalf("unexpected datafile option: %+v", stmt.Options[0])
+	}
+	if stmt.Options[1].Tp != ast.TablespaceOptionEngine || stmt.Options[1].Str != "innodb" {
+		t.Fatalf("unexpected engine option: %+v", stmt.Options[1])
+	}
+	alt := mustParseOne(t, "alter tablespace ts rename to ts2").(*ast.AlterTablespaceStmt)
+	if alt.Name != "ts" || alt.RenameTo != "ts2" {
+		t.Fatalf("unexpected AlterTablespaceStmt: %+v", alt)
+	}
+	drop := mustParseOne(t, "drop tablespace ts engine innodb").(*ast.DropTablespaceStmt)
+	if drop.Name != "ts" || drop.Option == nil || drop.Option.Str != "innodb" {
+		t.Fatalf("unexpected DropTablespaceStmt: %+v", drop)
+	}
+}
+
+func TestServerAST(t *testing.T) {
+	stmt := mustParseOne(t, "create server srv foreign data wrapper 'mysql' options(host 'h', user 'u')").(*ast.CreateServerStmt)
+	if stmt.Name != "srv" || stmt.Wrapper != "mysql" || len(stmt.Options) != 2 {
+		t.Fatalf("unexpected CreateServerStmt: %+v", stmt)
+	}
+	if stmt.Options[0].Name != "host" || stmt.Options[0].Value != "h" {
+		t.Fatalf("unexpected server option: %+v", stmt.Options[0])
+	}
+	drop := mustParseOne(t, "drop server if exists srv").(*ast.DropServerStmt)
+	if !drop.IfExists || drop.Name != "srv" {
+		t.Fatalf("unexpected DropServerStmt: %+v", drop)
 	}
 }
