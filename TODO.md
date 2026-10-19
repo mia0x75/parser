@@ -102,16 +102,12 @@ options and a recommendation so it can be decided later.
    （`make parser` 拒绝任何冲突）。折中方案是强制 `;`，代价是该偏差。
    **选项**: 将 `END` 设为保留字（破坏既有用例）或接受现状。
 
-2. **`SELECT ... INTO var_list` 支持 INTO 位于字段列表之后、FROM 之前**
-   （含无 FROM 的情形），也支持末尾形式 `SELECT a FROM t INTO x`。
-   见第 5 节。
+2. **不支持 `GET DIAGNOSTICS`**（及其 `CONDITION`/`STATEMENT` 形式）。
 
-3. **不支持 `GET DIAGNOSTICS`**（及其 `CONDITION`/`STATEMENT` 形式）。
-
-4. **`INTO`/`FETCH ... INTO` 的变量支持普通标识符与用户变量 `@x`**；
+3. **`INTO`/`FETCH ... INTO` 的变量支持普通标识符与用户变量 `@x`**；
    仍不支持系统变量 `@@xxx`。
 
-5. **`DELIMITER` 只在词法层处理**：识别为「行首 `DELIMITER` + 空白 + 新分隔符」，
+4. **`DELIMITER` 只在词法层处理**：识别为「行首 `DELIMITER` + 空白 + 新分隔符」，
    并把自定义分隔符统一翻译成 `;` token。因此 `DELIMITER` 不是 AST 语句，
    也要求分隔符与语句间有空白（如 `end $$` 而非依赖 `$$` 与 `end` 相邻的
    极端场景；后者已通过 `incIdentChars` 兼容常见写法）。
@@ -131,6 +127,7 @@ options and a recommendation so it can be decided later.
 **来源**: 兼容性盘点后按优先级排除
 **说明**: 以下语法当前 `parser.y` 无对应规则，解析会报语法错误。经确认，
 本阶段不实现，记录于此以免后续重复评估。如将来需要，请单独立项。
+本节编号连续；某一项实现完成后即从本节移除，其余条目顺次重新编号。
 
 ### 3.1 管理与复制（Administration / Replication）
 
@@ -145,37 +142,37 @@ options and a recommendation so it can be decided later.
 - `CACHE INDEX`、`LOAD INDEX INTO CACHE`、`LOAD XML`
 - `RENAME USER`
 
-### 3.3 持久化变量
+### 3.2 持久化变量
 
 - `SET PERSIST` / `SET PERSIST_ONLY`（MySQL 8.0）
 
-### 3.6 IMPORT / 插件 / 克隆
+### 3.3 IMPORT / 插件 / 克隆
 
 - `IMPORT TABLE ...`
 - `INSTALL PLUGIN` / `UNINSTALL PLUGIN`
 - `INSTALL COMPONENT` / `UNINSTALL COMPONENT`
 - `CLONE ...`
 
-### 3.8 LATERAL 与 JSON_TABLE
+### 3.4 LATERAL 与 JSON_TABLE
 
 - `LATERAL` 派生表（MySQL 8.0.14）
 - `JSON_TABLE(...)`（MySQL 8.0.4）
 
-### 3.12 GET DIAGNOSTICS
+### 3.5 GET DIAGNOSTICS
 
 - `GET [CURRENT|STACKED] DIAGNOSTICS ...`
 - 含 `CONDITION` / `STATEMENT` 形式
 
-### 3.13 全文检索
+### 3.6 全文检索
 
 - `MATCH (col, ...) AGAINST ('expr' [IN NATURAL LANGUAGE MODE | IN BOOLEAN MODE | WITH QUERY EXPANSION])`
 
-### 3.14 JSON 谓词
+### 3.7 JSON 谓词
 
 - `MEMBER OF`
 - `IS [NOT] JSON`（MySQL 8.0）
 
-### 3.15 SOUNDS LIKE
+### 3.8 SOUNDS LIKE
 
 - `expr SOUNDS LIKE expr`
 
@@ -205,7 +202,7 @@ v0.1.0 已实现（用例见 `compat_test.go`）：
 ### 4.1 已知回归：`GROUP BY` + `WITH CASCADED|LOCAL CHECK OPTION`
 
 引入 `GROUP BY ... WITH ROLLUP/CUBE` 后，`WITH` 被赋予了新的优先级
-（`%precedence with`，见 `parser.y`），导致视图定义中紧随 `GROUP BY` 的
+（`%precedence with`，`parser.y:1236`），导致视图定义中紧随 `GROUP BY` 的
 `WITH CASCADED CHECK OPTION` 无法解析：
 
 ```
@@ -213,13 +210,68 @@ create view v as select a from t group by a with cascaded check option
 -- error: line 1 column 57 near "cascaded check option"
 ```
 
-**影响面窄**：仅当 `CREATE/ALTER VIEW` 的查询同时含 `GROUP BY` 且直接跟
-`WITH CASCADED|LOCAL CHECK OPTION` 时触发。（无 `GROUP BY` 的
-`... WITH CASCADED CHECK OPTION` 仍可解析；注意纯 `WITH CHECK OPTION`
-本就不在语法内。）
+（已复核仍可复现；无 `GROUP BY` 的 `... WITH CASCADED CHECK OPTION`、
+以及 `group by a with rollup` 均正常。）
 
-**建议**：后续修复 `WITH` 的歧义（例如仅在 `GROUP BY` 的 FOLLOW 中允许
-`WITH ROLLUP/CUBE`，把 `CHECK OPTION` 提升到视图层处理），修复前先保留现状。
+**影响面窄**：仅当 `CREATE/ALTER VIEW` 的查询同时含 `GROUP BY` 且直接跟
+`WITH CASCADED|LOCAL CHECK OPTION` 时触发。
+
+**根因（LALR(1) 两 token 前瞻）**：解析完 `ByList` 后，状态里同时有
+`GroupByWithOpt: . "WITH" ROLLUP/CUBE`（shift）与 `GroupByWithOpt: . ε`
+（reduce），而 `WITH` 确实是 ε-reduce 的合法前瞻（`ViewCheckOption` 可以
+跟在 `SelectStmt` 后面）。LALR 只能看 1 个 token，无法区分
+`WITH ROLLUP` 与 `WITH CASCADED ...`；`%precedence with > empty` 强制
+shift，于是 `cascaded` 无处可去。
+
+**不可行的思路**（先排除，避免重复试错）：
+
+- 反转 precedence（让 ε 赢）：会直接破坏 `group by a with rollup`。
+- 把 `ViewCheckOption` 从视图尾部挪走：只要「SELECT 之后仍可能跟 `WITH`」，
+  `WITH` 就还在 `GroupByWithOpt` 的 FOLLOW 里，冲突依旧。要彻底消除，
+  得按「有无 GROUP BY」拆开 `SelectStmt` 的尾部规则，改动面远超收益。
+
+**实现建议**（不新增 goyacc 冲突、改动局部）：
+
+1. 给 `GroupByWithOpt`（`parser.y:4239`）补上两个产生式，把缺失的那 1 个
+   lookahead 用 shift 的方式补齐：
+
+   ```
+   GroupByWithOpt:
+       /* EMPTY */ %prec empty { $$ = 0 }
+   |   "WITH" "ROLLUP"                      { $$ = 1 }
+   |   "WITH" "CUBE"                        { $$ = 2 }
+   |   "WITH" "CASCADED" "CHECK" "OPTION"   { $$ = 3 }
+   |   "WITH" "LOCAL" "CHECK" "OPTION"      { $$ = 4 }
+   ```
+
+   在 `ByList` 状态里这些全部是 shift，与 ε-reduce 的冲突仍由现有的
+   `%precedence with` 冲掉（与今天行为一致，`make parser` 不报冲突）；
+   shift 之后靠第 2 个 token（`ROLLUP`/`CUBE`/`CASCADED`/`LOCAL`）区分，
+   正好补上 LALR 缺的那 1 个 token。`CASCADED`/`LOCAL`/`CHECK`/`OPTION`
+   都是既有 token，无需新增。
+
+2. `ast.GroupByClause`（`ast/dml.go:656`）增加
+   `CheckOption model.ViewCheckOption` 与 `HasCheckOption bool`
+   （`model.CheckOptionLocal == 0`，`model/model.go:392`，所以必须配一个
+   bool 才能区分「未指定」和 LOCAL），在 `GroupByClause` action 里由
+   码 3/4 写入；`GroupByClause.Restore` 补上
+   ` WITH CASCADED|LOCAL CHECK OPTION`，保证普通 SELECT 的往返稳定。
+
+3. `CreateViewStmt`（`parser.y:2996`）/ `AlterViewStmt`（`parser.y:3027`）
+   的 action：当尾部 `ViewCheckOption` 为空（`$11 == nil`）时，改为读
+   `selStmt.GroupBy`；若 `HasCheckOption` 为真则取用该值，并把
+   `selStmt.GroupBy.HasCheckOption` 置回 false（避免 `GroupByClause.Restore`
+   与视图自身的 `WITH ... CHECK OPTION` 重复输出）；否则维持现有默认
+   `model.CheckOptionCascaded`。
+
+4. 用例（建议进 `compat_test.go`）：
+   `create/alter view ... as select ... group by a with {cascaded|local} check option`、
+   `group by a with rollup`（回归）、无 `GROUP BY` 的 `with ... check option`、
+   普通 `select ... group by a with local check option` 的往返。
+
+5. 已知取舍：语法层无法判断语句是否处于视图上下文，因此普通 `SELECT`
+   也会接受 `GROUP BY ... WITH ... CHECK OPTION`（宽松接受）。若不接受，
+   只能在 AST 构建后报错，`parser.y` 内做不到。
 
 ### 4.2 暂不支持的集合运算
 
@@ -227,39 +279,120 @@ create view v as select a from t group by a with cascaded check option
   （目前仅支持 `UNION [ALL|DISTINCT]`；MariaDB 支持，且 `INTERSECT`
   优先级高于 `UNION`/`EXCEPT`，需为 `UnionStmt` 引入运算符与优先级处理）
 
+**现状**：`UnionStmt`（`parser.y:6778`）只表达 UNION 链，
+`ast.UnionSelectList.Selects` 是 `[]*SelectStmt`（`ast/dml.go:1239`）且
+`Restore` 里写死输出 `UNION`（`ast/dml.go:1249`），无法表达其他运算符，
+更无法表达「INTERSECT 分组」这种需要嵌套的结构。
+
+**实现建议**：
+
+1. **token**：新增 `intersect "INTERSECT"`，放在
+   `/* The following tokens belong to ReservedKeyword. */`（`parser.y:71`）
+   与 UnReservedKeyword（`parser.y:280`）之间，与既有保留字 `EXCEPT`
+   （`parser.y:127`、`misc.go:257`）同级；同时在 `misc.go` `tokenMap`
+   补 `"INTERSECT": intersect`。**不要**把它加进 `UnReservedKeyword:` /
+   `NotKeywordToken:` 列表——保留字不进这两个列表，`consistent_test.go`
+   会校验一致性。代价：`intersect` 不再能当标识符（与 MySQL 8.0 一致）。
+   注意 `SET ROLE ... ALL EXCEPT`（`parser.y:6963`）已用到 `EXCEPT`，
+   属于不同上下文，不受影响。
+
+2. **AST**：二选一——
+   - 改造现有节点：`UnionSelectList.Selects` 改成
+     `[]*UnionSelect{AfterSetOperator SetOprType, Select StmtNode}`，
+     新增 `SetOprType`（`Union`/`Intersect`/`Except`，另带 All/Distinct）；
+     嵌套的 INTERSECT 分组用 `Select` 字段放 `*UnionStmt` 表达。
+     破坏性变更，需同步修改 `UnionSelectList.Restore`/`Accept` 及所有
+     直接索引 `Selects` 的地方。
+   - **（推荐）**对齐上游 TiDB 的 `ast.SetOprStmt`
+     （`Selects []Node` + `SetOprTypes []SetOprType`），语义一致且后续
+     merge 上游更容易。
+
+3. **语法**：用**分层因式分解**表达优先级，不要用「一条扁平规则 +
+   `%left/%nonassoc` 优先级」——扁平写法在 `A INTERSECT B UNION C` 这种
+   输入上会给出错误的结合方向：
+
+   ```
+   UnionStmt:      SetUnionList OrderByOptional SelectStmtLimit SelectLockOpt
+   SetUnionList:   IntersectList
+                 | SetUnionList "UNION" UnionOpt IntersectList
+                 | SetUnionList "EXCEPT" UnionOpt IntersectList
+   IntersectList:  SetOperand
+                 | IntersectList "INTERSECT" UnionOpt SetOperand
+   SetOperand:     SelectStmt | '(' SelectStmt ')' | '(' UnionStmt ')'
+   ```
+
+   这样 `A UNION B INTERSECT C` → `A UNION (B INTERSECT C)`，
+   `A INTERSECT B UNION C` → `(A INTERSECT B) UNION C`，与 MariaDB/
+   PostgreSQL 语义一致；`INTERSECT` 在 `IntersectList` 尾部只有 shift
+   动作，`UNION`/`EXCEPT` 在该状态没有对应 shift，天然无冲突
+   （仍以 `make parser` 报 0 冲突为准）。
+
+4. **迁移**：现有 `UnionStmt` 三条规则把
+   `OrderByOptional SelectStmtLimit SelectLockOpt` 绑在最后一个 select
+   之后，而 `UnionSelect: SelectStmt` 自己也带 OrderBy/Limit，本来就靠
+   precedence 消歧。建议保留外层结构，只把中间的
+   `UnionClauseList "UNION" UnionOpt` 换成 `SetUnionList`，逐条回归
+   `parser_test.go` 的 union 用例。
+
+5. **用例矩阵**：`A UNION B INTERSECT C`、`A INTERSECT B UNION C`、
+   `A EXCEPT B UNION C`、`ALL`/`DISTINCT` 变体、`(A INTERSECT B) UNION C`、
+   整体带 `ORDER BY`/`LIMIT`、与 `INSERT ... SELECT` / `CREATE TABLE ... AS`
+   / `EXPLAIN` 的组合，以及 `SET ROLE ... ALL EXCEPT` 不受影响。
+
+6. **风险**：AST 结构变更会影响下游对 `SelectList` 的直接索引；
+   `Accept` 需要遍历嵌套节点；restore 要在运算符两侧正确补空格并输出
+   `ALL`/`DISTINCT`；`IsAfterUnionDistinct`/`IsInBraces`
+   （`ast/dml.go` 的 `SelectStmt` 字段）需要按新结构重新归属。
+
 ### 4.3 暂不支持的 GROUP BY 扩展
 
 - `GROUPING SETS ((...), ...)`
   （`GROUPING(expr)` 函数、`CUBE(...)`、`ROLLUP(...)`、`WITH CUBE/ROLLUP`
   已支持）
 
+**先确认方言**：MySQL/MariaDB 都只提供 `WITH ROLLUP` / `WITH CUBE` /
+`GROUPING()`，**没有** `GROUPING SETS`（该语法属于 SQL:2003 /
+PostgreSQL）。若目标只是对齐 MySQL，此项应降级或不做；确认要做的前提下
+再按下面步骤实现。
 
----
+**实现建议**：
 
-## 5. v0.2.0 新增语法
+1. **token**：新增 `grouping "GROUPING"`、`sets "SETS"`，放在
+   `/* The following tokens belong to UnReservedKeyword. */`（`parser.y:280`）
+   块内，并且三处都要改：token 声明、`UnReservedKeyword:` 列表
+   （`parser.y:4328`）、`misc.go` `tokenMap`——`consistent_test.go` 会
+   校验三者一致。保持 unreserved，这样 `grouping(a)` 函数调用和把
+   `sets` 当列名/表名仍然可用。
 
-**状态**: 已实现（v0.2.0，分多次提交）；用例见 `compat_test.go`
+2. **语法**：在 `GroupByWithOpt`（`parser.y:4239`）加一支即可，该状态里
+   全是 shift，不会引入新冲突：
 
-逐项完成原第 3 节中搁置的语法：
+   ```
+   GroupByWithOpt:
+       ...（现有 3 支）
+   |   "GROUPING" "SETS" '(' GroupingSetList ')'
+   GroupingSetList: GroupingSet
+                 | GroupingSetList ',' GroupingSet
+   GroupingSet:     '(' ByList ')'
+                 | "ROLLUP" '(' ByList ')'
+                 | "CUBE" '(' ByList ')'
+   ```
 
-- 3.2 表空间 / 服务器对象：`CREATE/ALTER/DROP [UNDO] TABLESPACE`、
-  `CREATE/ALTER/DROP SERVER`（`FOREIGN DATA WRAPPER ... OPTIONS(...)`）
-- 3.4 资源组 / 日志组：`CREATE/ALTER/DROP RESOURCE GROUP`（`TYPE`、
-  `VCPU`、`THREAD_PRIORITY`、`ENABLE/DISABLE`、`DROP ... FORCE`）、
-  `CREATE/ALTER/DROP LOGFILE GROUP`
-- 3.5 ALTER TABLE 分区 / 表空间操作：`EXCHANGE PARTITION ... WITH TABLE
-  ... [WITHOUT VALIDATION]`、`REORGANIZE PARTITION ...`、`REMOVE
-  PARTITIONING`、`DISCARD/IMPORT TABLESPACE`
-- 3.7 `SELECT ... INTO OUTFILE 'file' [CHARACTER SET cs] [FIELDS ...]
-  [LINES ...]`、`INTO DUMPFILE 'file'`，以及末尾形式
-  `SELECT ... FROM t INTO var_list`
-- 3.9 `CHECK TABLE` / `REPAIR TABLE` / `OPTIMIZE TABLE` / `CHECKSUM TABLE`
-  （多表 + 选项：`FOR UPGRADE`、`QUICK`、`FAST`、`MEDIUM`、`EXTENDED`、
-  `CHANGED`、`USE_FRM`，及 `LOCAL` 前缀；`NO_WRITE_TO_BINLOG` 未支持）
-- 3.10 列 `VISIBLE` / `INVISIBLE` 属性（`ast.ColumnOptionVisible` /
-  `ast.ColumnOptionInvisible`），适用于 `CREATE TABLE` 与 `ALTER TABLE
-  MODIFY/CHANGE`
-- 3.11 `EXPLAIN FORMAT=JSON|TRADITIONAL|TREE SELECT ...` 与
-  `EXPLAIN FORMAT=JSON|TRADITIONAL|TREE FOR CONNECTION N`
-  （值小写归一为 `json`/`traditional`/`tree`；带引号的
-  `FORMAT='...'` 原样接受，恢复时统一输出为带引号形式）
+   注意 `GROUPING SETS (())` / `GROUPING SETS ()` 若要支持空分组，
+   需要单独的 `ByListOpt`（当前 `parser.y` 只有 `ByList`，`parser.y:4657`）；
+   定义空分组时留意别和 `ByList` 的空产生式撞成 reduce/reduce。
+
+3. **AST**：`ast.GroupByClause`（`ast/dml.go:656`）增加
+   `GroupingSets [][]*ByItem`（若要支持组内嵌套 `ROLLUP`/`CUBE`，改用
+   `[]GroupingSet` 结构体）；`Restore` 在 `WITH ROLLUP/CUBE` 之后输出。
+   「`ROLLUP`/`CUBE`/`GROUPING SETS` 互斥」属语义校验，parser 不做。
+
+4. **用例**：`group by grouping sets ((a), (a, b), ())`、
+   `group by a, b grouping sets ((a, b))`、组内表达式、
+   与 `HAVING`/`ORDER BY`/`LIMIT`/`WINDOW` 组合、往返 restore；
+   每步都以 `make parser` 0 冲突为准。
+
+5. **风险**：空分组 `()` 与 `ByList` 的空产生式可能产生 reduce/reduce；
+   `(` 之后的上下文已在 `GROUP BY` 子句内，不会再与表达式括号混淆。
+
+
