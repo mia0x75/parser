@@ -166,6 +166,12 @@ func TestCompatRoundTrip(t *testing.T) {
 		"optimize local table t",
 		"checksum table t",
 		"checksum table t1, t2 quick",
+
+		// Column VISIBLE / INVISIBLE.
+		"create table t (a int invisible)",
+		"create table t (a int visible, b varchar(10) not null invisible)",
+		"alter table t modify column a int invisible",
+		"alter table t change column a b int visible",
 	}
 	for _, sql := range cases {
 		stmt, err := New().ParseOneStmt(sql, "", "")
@@ -397,5 +403,17 @@ func TestTableMaintenanceAST(t *testing.T) {
 	rep := mustParseOne(t, "repair table t for upgrade").(*ast.TableMaintenanceStmt)
 	if rep.Tp != ast.TableMaintenanceRepair || len(rep.Options) != 1 || rep.Options[0] != "FOR UPGRADE" {
 		t.Fatalf("unexpected repair stmt: %+v", rep)
+	}
+}
+
+func TestColumnVisibilityAST(t *testing.T) {
+	ct := mustParseOne(t, "create table t (a int invisible)").(*ast.CreateTableStmt)
+	opts := ct.Cols[0].Options
+	if len(opts) != 1 || opts[0].Tp != ast.ColumnOptionInvisible {
+		t.Fatalf("unexpected options: %+v", opts)
+	}
+	ctv := mustParseOne(t, "create table t (a int visible)").(*ast.CreateTableStmt)
+	if got := ctv.Cols[0].Options[len(ctv.Cols[0].Options)-1].Tp; got != ast.ColumnOptionVisible {
+		t.Fatalf("unexpected visible option: %v", got)
 	}
 }

@@ -567,6 +567,8 @@ import (
 	repair                "REPAIR"
 	optimize              "OPTIMIZE"
 	upgrade               "UPGRADE"
+	visible               "VISIBLE"
+	invisible             "INVISIBLE"
 
 	/* The following tokens belong to NotKeywordToken. */
 	addDate            "ADDDATE"
@@ -1983,6 +1985,14 @@ ColumnOption:
 |	"COLLATE" CollationName
 	{
 		$$ = &ast.ColumnOption{Tp: ast.ColumnOptionCollate, StrValue: $2.(string)}
+	}
+|	"VISIBLE"
+	{
+		$$ = &ast.ColumnOption{Tp: ast.ColumnOptionVisible}
+	}
+|	"INVISIBLE"
+	{
+		$$ = &ast.ColumnOption{Tp: ast.ColumnOptionInvisible}
 	}
 
 GeneratedAlways:
@@ -4313,7 +4323,7 @@ UnReservedKeyword:
 | "ATOMIC" | "CLOSE" | "CONDITION" | "CONTINUE" | "CURSOR" | "DECLARE" | "ELSEIF" | "EXIT" | "FETCH" | "FOUND" | "HANDLER" | "ITERATE" | "LEAVE" | "LOOP"
 | "RESIGNAL" | "SIGNAL" | "SQLEXCEPTION" | "SQLSTATE" | "SQLWARNING" | "UNDO" | "UNTIL" | "WHILE"
 | "NOWAIT" | "SKIP" | "LOCKED" | "ROLLUP" | "WORK" | "RELEASE" | "SAVEPOINT" | "SEQUENCE" | "INCREMENT" | "MINVALUE" | "CACHE" | "CYCLE" | "NOMAXVALUE" | "NOMINVALUE" | "NOCYCLE" | "NOCACHE" | "AGGREGATE" | "SONAME" | "STRING" | "XA" | "RESUME" | "MIGRATE" | "SUSPEND" | "ONE" | "PHASE" | "CUBE"
-| "SERVER" | "DATAFILE" | "WRAPPER" | "OPTIONS" | "FILE_BLOCK_SIZE" | "EXTENT_SIZE" | "INITIAL_SIZE" | "AUTOEXTEND_SIZE" | "MAX_SIZE" | "NODEGROUP" | "WAIT" | "RESOURCE" | "LOGFILE" | "VCPU" | "UNDO_BUFFER_SIZE" | "REDO_BUFFER_SIZE" | "THREAD_PRIORITY" | "UNDOFILE" | "TYPE" | "SYSTEM" | "REORGANIZE" | "EXCHANGE" | "DISCARD" | "IMPORT" | "VALIDATION" | "WITHOUT" | "REMOVE" | "PARTITIONING" | "OUTFILE" | "DUMPFILE" | "REPAIR" | "OPTIMIZE" | "UPGRADE"
+| "SERVER" | "DATAFILE" | "WRAPPER" | "OPTIONS" | "FILE_BLOCK_SIZE" | "EXTENT_SIZE" | "INITIAL_SIZE" | "AUTOEXTEND_SIZE" | "MAX_SIZE" | "NODEGROUP" | "WAIT" | "RESOURCE" | "LOGFILE" | "VCPU" | "UNDO_BUFFER_SIZE" | "REDO_BUFFER_SIZE" | "THREAD_PRIORITY" | "UNDOFILE" | "TYPE" | "SYSTEM" | "REORGANIZE" | "EXCHANGE" | "DISCARD" | "IMPORT" | "VALIDATION" | "WITHOUT" | "REMOVE" | "PARTITIONING" | "OUTFILE" | "DUMPFILE" | "REPAIR" | "OPTIMIZE" | "UPGRADE" | "VISIBLE" | "INVISIBLE"
 
 
 NotKeywordToken:

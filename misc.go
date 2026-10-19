@@ -661,6 +661,8 @@ var tokenMap = map[string]int{
 	"REPAIR":                   repair,
 	"OPTIMIZE":                 optimize,
 	"UPGRADE":                  upgrade,
+	"VISIBLE":                  visible,
+	"INVISIBLE":                invisible,
 }
 
 // See https://dev.mysql.com/doc/refman/5.7/en/function-resolution.html for details

@@ -406,6 +406,8 @@ const (
 	ColumnOptionReference
 	ColumnOptionCollate
 	ColumnOptionCheck
+	ColumnOptionVisible
+	ColumnOptionInvisible
 )
 
 var (
@@ -492,6 +494,10 @@ func (n *ColumnOption) Restore(ctx *format.RestoreCtx) error {
 			return errors.Annotate(err, "An error occurred while splicing ColumnOption CHECK Expr")
 		}
 		ctx.WritePlain(")")
+	case ColumnOptionVisible:
+		ctx.WriteKeyWord("VISIBLE")
+	case ColumnOptionInvisible:
+		ctx.WriteKeyWord("INVISIBLE")
 	default:
 		return errors.New("An error occurred while splicing ColumnOption")
 	}

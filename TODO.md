@@ -161,10 +161,6 @@ options and a recommendation so it can be decided later.
 - `LATERAL` 派生表（MySQL 8.0.14）
 - `JSON_TABLE(...)`（MySQL 8.0.4）
 
-### 3.10 列可见性
-
-- 列 `VISIBLE` / `INVISIBLE`（MySQL 8.0.23）
-
 ### 3.11 EXPLAIN 的输出格式
 
 - `EXPLAIN FORMAT=JSON|TRADITIONAL|TREE SELECT ...`
@@ -265,3 +261,6 @@ create view v as select a from t group by a with cascaded check option
 - 3.9 `CHECK TABLE` / `REPAIR TABLE` / `OPTIMIZE TABLE` / `CHECKSUM TABLE`
   （多表 + 选项：`FOR UPGRADE`、`QUICK`、`FAST`、`MEDIUM`、`EXTENDED`、
   `CHANGED`、`USE_FRM`，及 `LOCAL` 前缀；`NO_WRITE_TO_BINLOG` 未支持）
+- 3.10 列 `VISIBLE` / `INVISIBLE` 属性（`ast.ColumnOptionVisible` /
+  `ast.ColumnOptionInvisible`），适用于 `CREATE TABLE` 与 `ALTER TABLE
+  MODIFY/CHANGE`
