@@ -564,6 +564,9 @@ import (
 	partitioning          "PARTITIONING"
 	outfile               "OUTFILE"
 	dumpfile              "DUMPFILE"
+	repair                "REPAIR"
+	optimize              "OPTIMIZE"
+	upgrade               "UPGRADE"
 
 	/* The following tokens belong to NotKeywordToken. */
 	addDate            "ADDDATE"
@@ -764,6 +767,10 @@ import (
 	CreateLogfileGroupStmt          /* CREATE LOGFILE GROUP statement */
 	AlterLogfileGroupStmt           /* ALTER LOGFILE GROUP statement */
 	DropLogfileGroupStmt            /* DROP LOGFILE GROUP statement */
+	CheckTableStmt                  /* CHECK TABLE statement */
+	RepairTableStmt                 /* REPAIR TABLE statement */
+	OptimizeTableStmt               /* OPTIMIZE TABLE statement */
+	ChecksumTableStmt               /* CHECKSUM TABLE statement */
 	XAStmt                          /* XA transaction statement */
 	SetStmt                         /* Set variable statement */
 	SetRoleStmt                     /* Set active role statement */
@@ -1039,6 +1046,8 @@ import (
 	ExchangePartitionValidationOpt  /* optional WITHOUT VALIDATION */
 	LogfileGroupOption              /* logfile group option */
 	LogfileGroupOptionList          /* logfile group option list */
+	TableMaintenanceOption          /* table maintenance option */
+	TableMaintenanceOptionList      /* table maintenance option list */
 	UDFReturnType                   /* user defined function return type */
 	ReturningOpt                    /* optional RETURNING field list */
 	XAIdent                         /* XA transaction identifier */
@@ -1710,6 +1719,71 @@ AnalyzeTableStmt:
 			IndexFlag: true,
 			MaxNumBuckets: $8.(uint64),
 		}
+	}
+
+
+CheckTableStmt:
+	"CHECK" "TABLE" TableNameList TableMaintenanceOptionList
+	{
+		$$ = &ast.TableMaintenanceStmt{
+			Tp:      ast.TableMaintenanceCheck,
+			Tables:  $3.([]*ast.TableName),
+			Options: $4.([]string),
+		}
+	}
+
+
+RepairTableStmt:
+	"REPAIR" LocalOpt "TABLE" TableNameList TableMaintenanceOptionList
+	{
+		$$ = &ast.TableMaintenanceStmt{
+			Tp:      ast.TableMaintenanceRepair,
+			Tables:  $4.([]*ast.TableName),
+			Options: $5.([]string),
+		}
+	}
+
+
+OptimizeTableStmt:
+	"OPTIMIZE" LocalOpt "TABLE" TableNameList
+	{
+		$$ = &ast.TableMaintenanceStmt{
+			Tp:     ast.TableMaintenanceOptimize,
+			Tables: $4.([]*ast.TableName),
+		}
+	}
+
+
+ChecksumTableStmt:
+	"CHECKSUM" "TABLE" TableNameList TableMaintenanceOptionList
+	{
+		$$ = &ast.TableMaintenanceStmt{
+			Tp:      ast.TableMaintenanceChecksum,
+			Tables:  $3.([]*ast.TableName),
+			Options: $4.([]string),
+		}
+	}
+
+
+TableMaintenanceOptionList:
+	/* EMPTY */
+	{
+		$$ = []string{}
+	}
+|	TableMaintenanceOptionList TableMaintenanceOption
+	{
+		$$ = append($1.([]string), $2.(string))
+	}
+
+
+TableMaintenanceOption:
+	Identifier
+	{
+		$$ = strings.ToUpper($1)
+	}
+|	"FOR" "UPGRADE"
+	{
+		$$ = "FOR UPGRADE"
 	}
 
 
@@ -4239,7 +4313,7 @@ UnReservedKeyword:
 | "ATOMIC" | "CLOSE" | "CONDITION" | "CONTINUE" | "CURSOR" | "DECLARE" | "ELSEIF" | "EXIT" | "FETCH" | "FOUND" | "HANDLER" | "ITERATE" | "LEAVE" | "LOOP"
 | "RESIGNAL" | "SIGNAL" | "SQLEXCEPTION" | "SQLSTATE" | "SQLWARNING" | "UNDO" | "UNTIL" | "WHILE"
 | "NOWAIT" | "SKIP" | "LOCKED" | "ROLLUP" | "WORK" | "RELEASE" | "SAVEPOINT" | "SEQUENCE" | "INCREMENT" | "MINVALUE" | "CACHE" | "CYCLE" | "NOMAXVALUE" | "NOMINVALUE" | "NOCYCLE" | "NOCACHE" | "AGGREGATE" | "SONAME" | "STRING" | "XA" | "RESUME" | "MIGRATE" | "SUSPEND" | "ONE" | "PHASE" | "CUBE"
-| "SERVER" | "DATAFILE" | "WRAPPER" | "OPTIONS" | "FILE_BLOCK_SIZE" | "EXTENT_SIZE" | "INITIAL_SIZE" | "AUTOEXTEND_SIZE" | "MAX_SIZE" | "NODEGROUP" | "WAIT" | "RESOURCE" | "LOGFILE" | "VCPU" | "UNDO_BUFFER_SIZE" | "REDO_BUFFER_SIZE" | "THREAD_PRIORITY" | "UNDOFILE" | "TYPE" | "SYSTEM" | "REORGANIZE" | "EXCHANGE" | "DISCARD" | "IMPORT" | "VALIDATION" | "WITHOUT" | "REMOVE" | "PARTITIONING" | "OUTFILE" | "DUMPFILE"
+| "SERVER" | "DATAFILE" | "WRAPPER" | "OPTIONS" | "FILE_BLOCK_SIZE" | "EXTENT_SIZE" | "INITIAL_SIZE" | "AUTOEXTEND_SIZE" | "MAX_SIZE" | "NODEGROUP" | "WAIT" | "RESOURCE" | "LOGFILE" | "VCPU" | "UNDO_BUFFER_SIZE" | "REDO_BUFFER_SIZE" | "THREAD_PRIORITY" | "UNDOFILE" | "TYPE" | "SYSTEM" | "REORGANIZE" | "EXCHANGE" | "DISCARD" | "IMPORT" | "VALIDATION" | "WITHOUT" | "REMOVE" | "PARTITIONING" | "OUTFILE" | "DUMPFILE" | "REPAIR" | "OPTIMIZE" | "UPGRADE"
 
 
 NotKeywordToken:
@@ -8019,6 +8093,10 @@ Statement:
 |	CreateLogfileGroupStmt
 |	AlterLogfileGroupStmt
 |	DropLogfileGroupStmt
+|	CheckTableStmt
+|	RepairTableStmt
+|	OptimizeTableStmt
+|	ChecksumTableStmt
 |	SubSelect
 	{
 		// `(select 1)`; is a valid select statement

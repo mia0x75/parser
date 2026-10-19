@@ -153,6 +153,19 @@ func TestCompatRoundTrip(t *testing.T) {
 		"select a from t into @x, @y",
 		"select a, b from t into x",
 		"select a into @x from t",
+
+		// CHECK / REPAIR / OPTIMIZE / CHECKSUM TABLE.
+		"check table t",
+		"check table t1, t2 quick",
+		"check table t for upgrade",
+		"check table t fast medium extended changed",
+		"repair table t",
+		"repair table t quick extended use_frm",
+		"repair table t local",
+		"optimize table t",
+		"optimize local table t",
+		"checksum table t",
+		"checksum table t1, t2 quick",
 	}
 	for _, sql := range cases {
 		stmt, err := New().ParseOneStmt(sql, "", "")
@@ -365,5 +378,24 @@ func TestSelectIntoAST(t *testing.T) {
 	trailing := mustParseOne(t, "select a from t into @x, y").(*ast.SelectStmt)
 	if len(trailing.IntoVars) != 2 || trailing.IntoVars[0] != "@x" || trailing.IntoVars[1] != "y" {
 		t.Fatalf("unexpected trailing IntoVars: %+v", trailing.IntoVars)
+	}
+}
+
+func TestTableMaintenanceAST(t *testing.T) {
+	chk := mustParseOne(t, "check table t1, t2 quick").(*ast.TableMaintenanceStmt)
+	if chk.Tp != ast.TableMaintenanceCheck || len(chk.Tables) != 2 || chk.Tables[0].Name.L != "t1" || len(chk.Options) != 1 || chk.Options[0] != "QUICK" {
+		t.Fatalf("unexpected check stmt: %+v", chk)
+	}
+	opt := mustParseOne(t, "optimize local table t").(*ast.TableMaintenanceStmt)
+	if opt.Tp != ast.TableMaintenanceOptimize || len(opt.Tables) != 1 || len(opt.Options) != 0 {
+		t.Fatalf("unexpected optimize stmt: %+v", opt)
+	}
+	sum := mustParseOne(t, "checksum table t").(*ast.TableMaintenanceStmt)
+	if sum.Tp != ast.TableMaintenanceChecksum || len(sum.Tables) != 1 {
+		t.Fatalf("unexpected checksum stmt: %+v", sum)
+	}
+	rep := mustParseOne(t, "repair table t for upgrade").(*ast.TableMaintenanceStmt)
+	if rep.Tp != ast.TableMaintenanceRepair || len(rep.Options) != 1 || rep.Options[0] != "FOR UPGRADE" {
+		t.Fatalf("unexpected repair stmt: %+v", rep)
 	}
 }

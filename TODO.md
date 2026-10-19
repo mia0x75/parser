@@ -161,11 +161,6 @@ options and a recommendation so it can be decided later.
 - `LATERAL` 派生表（MySQL 8.0.14）
 - `JSON_TABLE(...)`（MySQL 8.0.4）
 
-### 3.9 表维护语句
-
-- `CHECK TABLE` / `REPAIR TABLE` / `OPTIMIZE TABLE` / `CHECKSUM TABLE`
-  （仅 `ANALYZE TABLE` 已支持）
-
 ### 3.10 列可见性
 
 - 列 `VISIBLE` / `INVISIBLE`（MySQL 8.0.23）
@@ -267,3 +262,6 @@ create view v as select a from t group by a with cascaded check option
 - 3.7 `SELECT ... INTO OUTFILE 'file' [CHARACTER SET cs] [FIELDS ...]
   [LINES ...]`、`INTO DUMPFILE 'file'`，以及末尾形式
   `SELECT ... FROM t INTO var_list`
+- 3.9 `CHECK TABLE` / `REPAIR TABLE` / `OPTIMIZE TABLE` / `CHECKSUM TABLE`
+  （多表 + 选项：`FOR UPGRADE`、`QUICK`、`FAST`、`MEDIUM`、`EXTENDED`、
+  `CHANGED`、`USE_FRM`，及 `LOCAL` 前缀；`NO_WRITE_TO_BINLOG` 未支持）

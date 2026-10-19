@@ -658,6 +658,9 @@ var tokenMap = map[string]int{
 	"PARTITIONING":             partitioning,
 	"OUTFILE":                  outfile,
 	"DUMPFILE":                 dumpfile,
+	"REPAIR":                   repair,
+	"OPTIMIZE":                 optimize,
+	"UPGRADE":                  upgrade,
 }
 
 // See https://dev.mysql.com/doc/refman/5.7/en/function-resolution.html for details
