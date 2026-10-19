@@ -660,6 +660,12 @@ type GroupByClause struct {
 	WithRollup bool
 	// WithCube indicates whether `WITH CUBE` is specified.
 	WithCube bool
+	// HasCheckOption indicates whether a view `WITH CASCADED|LOCAL CHECK OPTION`
+	// clause directly follows the GROUP BY clause.
+	HasCheckOption bool
+	// CheckOption is the view check option following the GROUP BY clause.
+	// It is only meaningful when HasCheckOption is true.
+	CheckOption model.ViewCheckOption
 }
 
 // Restore implements Node interface.
@@ -678,6 +684,13 @@ func (n *GroupByClause) Restore(ctx *format.RestoreCtx) error {
 	}
 	if n.WithCube {
 		ctx.WriteKeyWord(" WITH CUBE")
+	}
+	if n.HasCheckOption {
+		if n.CheckOption == model.CheckOptionLocal {
+			ctx.WriteKeyWord(" WITH LOCAL CHECK OPTION")
+		} else {
+			ctx.WriteKeyWord(" WITH CASCADED CHECK OPTION")
+		}
 	}
 	return nil
 }

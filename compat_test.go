@@ -19,6 +19,7 @@ import (
 
 	"github.com/mia0x75/parser/ast"
 	fmtrestore "github.com/mia0x75/parser/format"
+	"github.com/mia0x75/parser/model"
 )
 
 func restoreStmt(t *testing.T, stmt ast.StmtNode) string {
@@ -53,6 +54,11 @@ func TestCompatRoundTrip(t *testing.T) {
 		"select a, sum(b) from t group by a with rollup",
 		"select a, sum(b) from t group by a with cube",
 		"select cube(a, b), rollup(c) from t",
+		"select a from t group by a with cascaded check option",
+		"select a from t group by a with local check option",
+		"create view v as select a from t group by a with cascaded check option",
+		"create view v as select a from t group by a with local check option",
+		"alter view v as select a from t group by a with local check option",
 
 		// SAVEPOINT family.
 		"savepoint sp1",
@@ -437,5 +443,20 @@ func TestExplainFormatAST(t *testing.T) {
 	forConn := mustParseOne(t, "explain format=traditional for connection 7").(*ast.ExplainForStmt)
 	if forConn.Format != "traditional" || forConn.ConnectionID != 7 {
 		t.Fatalf("unexpected explain for: %+v", forConn)
+	}
+}
+
+func TestGroupByCheckOptionAST(t *testing.T) {
+	local := mustParseOne(t, "select a from t group by a with local check option").(*ast.SelectStmt)
+	if local.GroupBy == nil || !local.GroupBy.HasCheckOption || local.GroupBy.CheckOption != model.CheckOptionLocal {
+		t.Fatalf("unexpected group by: %+v", local.GroupBy)
+	}
+	cascaded := mustParseOne(t, "select a from t group by a with cascaded check option").(*ast.SelectStmt)
+	if cascaded.GroupBy == nil || !cascaded.GroupBy.HasCheckOption || cascaded.GroupBy.CheckOption != model.CheckOptionCascaded {
+		t.Fatalf("unexpected group by: %+v", cascaded.GroupBy)
+	}
+	rollup := mustParseOne(t, "select a from t group by a with rollup").(*ast.SelectStmt)
+	if rollup.GroupBy == nil || !rollup.GroupBy.WithRollup || rollup.GroupBy.HasCheckOption {
+		t.Fatalf("unexpected group by: %+v", rollup.GroupBy)
 	}
 }

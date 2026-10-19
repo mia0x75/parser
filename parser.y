@@ -4231,6 +4231,12 @@ GroupByClause:
 			gc.WithRollup = true
 		case 2:
 			gc.WithCube = true
+		case 3:
+			gc.CheckOption = model.CheckOptionCascaded
+			gc.HasCheckOption = true
+		case 4:
+			gc.CheckOption = model.CheckOptionLocal
+			gc.HasCheckOption = true
 		}
 		$$ = gc
 	}
@@ -4240,6 +4246,8 @@ GroupByWithOpt:
 	/* EMPTY */ %prec empty { $$ = 0 }
 |	"WITH" "ROLLUP" { $$ = 1 }
 |	"WITH" "CUBE" { $$ = 2 }
+|	"WITH" "CASCADED" "CHECK" "OPTION" { $$ = 3 }
+|	"WITH" "LOCAL" "CHECK" "OPTION" { $$ = 4 }
 
 
 HavingClause:

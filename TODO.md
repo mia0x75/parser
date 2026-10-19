@@ -199,81 +199,7 @@ v0.1.0 已实现（用例见 `compat_test.go`）：
 - `SELECT ... INTO @user_var` / `FETCH ... INTO @user_var`
 - CTE：`WITH [RECURSIVE] name [(cols)] AS (subquery) SELECT ...`
 
-### 4.1 已知回归：`GROUP BY` + `WITH CASCADED|LOCAL CHECK OPTION`
-
-引入 `GROUP BY ... WITH ROLLUP/CUBE` 后，`WITH` 被赋予了新的优先级
-（`%precedence with`，`parser.y:1236`），导致视图定义中紧随 `GROUP BY` 的
-`WITH CASCADED CHECK OPTION` 无法解析：
-
-```
-create view v as select a from t group by a with cascaded check option
--- error: line 1 column 57 near "cascaded check option"
-```
-
-（已复核仍可复现；无 `GROUP BY` 的 `... WITH CASCADED CHECK OPTION`、
-以及 `group by a with rollup` 均正常。）
-
-**影响面窄**：仅当 `CREATE/ALTER VIEW` 的查询同时含 `GROUP BY` 且直接跟
-`WITH CASCADED|LOCAL CHECK OPTION` 时触发。
-
-**根因（LALR(1) 两 token 前瞻）**：解析完 `ByList` 后，状态里同时有
-`GroupByWithOpt: . "WITH" ROLLUP/CUBE`（shift）与 `GroupByWithOpt: . ε`
-（reduce），而 `WITH` 确实是 ε-reduce 的合法前瞻（`ViewCheckOption` 可以
-跟在 `SelectStmt` 后面）。LALR 只能看 1 个 token，无法区分
-`WITH ROLLUP` 与 `WITH CASCADED ...`；`%precedence with > empty` 强制
-shift，于是 `cascaded` 无处可去。
-
-**不可行的思路**（先排除，避免重复试错）：
-
-- 反转 precedence（让 ε 赢）：会直接破坏 `group by a with rollup`。
-- 把 `ViewCheckOption` 从视图尾部挪走：只要「SELECT 之后仍可能跟 `WITH`」，
-  `WITH` 就还在 `GroupByWithOpt` 的 FOLLOW 里，冲突依旧。要彻底消除，
-  得按「有无 GROUP BY」拆开 `SelectStmt` 的尾部规则，改动面远超收益。
-
-**实现建议**（不新增 goyacc 冲突、改动局部）：
-
-1. 给 `GroupByWithOpt`（`parser.y:4239`）补上两个产生式，把缺失的那 1 个
-   lookahead 用 shift 的方式补齐：
-
-   ```
-   GroupByWithOpt:
-       /* EMPTY */ %prec empty { $$ = 0 }
-   |   "WITH" "ROLLUP"                      { $$ = 1 }
-   |   "WITH" "CUBE"                        { $$ = 2 }
-   |   "WITH" "CASCADED" "CHECK" "OPTION"   { $$ = 3 }
-   |   "WITH" "LOCAL" "CHECK" "OPTION"      { $$ = 4 }
-   ```
-
-   在 `ByList` 状态里这些全部是 shift，与 ε-reduce 的冲突仍由现有的
-   `%precedence with` 冲掉（与今天行为一致，`make parser` 不报冲突）；
-   shift 之后靠第 2 个 token（`ROLLUP`/`CUBE`/`CASCADED`/`LOCAL`）区分，
-   正好补上 LALR 缺的那 1 个 token。`CASCADED`/`LOCAL`/`CHECK`/`OPTION`
-   都是既有 token，无需新增。
-
-2. `ast.GroupByClause`（`ast/dml.go:656`）增加
-   `CheckOption model.ViewCheckOption` 与 `HasCheckOption bool`
-   （`model.CheckOptionLocal == 0`，`model/model.go:392`，所以必须配一个
-   bool 才能区分「未指定」和 LOCAL），在 `GroupByClause` action 里由
-   码 3/4 写入；`GroupByClause.Restore` 补上
-   ` WITH CASCADED|LOCAL CHECK OPTION`，保证普通 SELECT 的往返稳定。
-
-3. `CreateViewStmt`（`parser.y:2996`）/ `AlterViewStmt`（`parser.y:3027`）
-   的 action：当尾部 `ViewCheckOption` 为空（`$11 == nil`）时，改为读
-   `selStmt.GroupBy`；若 `HasCheckOption` 为真则取用该值，并把
-   `selStmt.GroupBy.HasCheckOption` 置回 false（避免 `GroupByClause.Restore`
-   与视图自身的 `WITH ... CHECK OPTION` 重复输出）；否则维持现有默认
-   `model.CheckOptionCascaded`。
-
-4. 用例（建议进 `compat_test.go`）：
-   `create/alter view ... as select ... group by a with {cascaded|local} check option`、
-   `group by a with rollup`（回归）、无 `GROUP BY` 的 `with ... check option`、
-   普通 `select ... group by a with local check option` 的往返。
-
-5. 已知取舍：语法层无法判断语句是否处于视图上下文，因此普通 `SELECT`
-   也会接受 `GROUP BY ... WITH ... CHECK OPTION`（宽松接受）。若不接受，
-   只能在 AST 构建后报错，`parser.y` 内做不到。
-
-### 4.2 暂不支持的集合运算
+### 4.1 暂不支持的集合运算
 
 - `INTERSECT [ALL|DISTINCT]`、`EXCEPT [ALL|DISTINCT]`
   （目前仅支持 `UNION [ALL|DISTINCT]`；MariaDB 支持，且 `INTERSECT`
@@ -344,7 +270,7 @@ shift，于是 `cascaded` 无处可去。
    `ALL`/`DISTINCT`；`IsAfterUnionDistinct`/`IsInBraces`
    （`ast/dml.go` 的 `SelectStmt` 字段）需要按新结构重新归属。
 
-### 4.3 暂不支持的 GROUP BY 扩展
+### 4.2 暂不支持的 GROUP BY 扩展
 
 - `GROUPING SETS ((...), ...)`
   （`GROUPING(expr)` 函数、`CUBE(...)`、`ROLLUP(...)`、`WITH CUBE/ROLLUP`
