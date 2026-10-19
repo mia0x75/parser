@@ -172,6 +172,13 @@ func TestCompatRoundTrip(t *testing.T) {
 		"create table t (a int visible, b varchar(10) not null invisible)",
 		"alter table t modify column a int invisible",
 		"alter table t change column a b int visible",
+
+		// EXPLAIN FORMAT=JSON|TRADITIONAL|TREE.
+		"explain format=json select * from t",
+		"explain format=traditional select 1",
+		"explain format=tree select 1",
+		"explain format='json' select 1",
+		"explain format=tree for connection 3",
 	}
 	for _, sql := range cases {
 		stmt, err := New().ParseOneStmt(sql, "", "")
@@ -415,5 +422,20 @@ func TestColumnVisibilityAST(t *testing.T) {
 	ctv := mustParseOne(t, "create table t (a int visible)").(*ast.CreateTableStmt)
 	if got := ctv.Cols[0].Options[len(ctv.Cols[0].Options)-1].Tp; got != ast.ColumnOptionVisible {
 		t.Fatalf("unexpected visible option: %v", got)
+	}
+}
+
+func TestExplainFormatAST(t *testing.T) {
+	tree := mustParseOne(t, "explain format=tree select 1").(*ast.ExplainStmt)
+	if tree.Format != "tree" {
+		t.Fatalf("unexpected format: %q", tree.Format)
+	}
+	tj := mustParseOne(t, "explain format=JSON select 1").(*ast.ExplainStmt)
+	if tj.Format != "json" {
+		t.Fatalf("unexpected format: %q", tj.Format)
+	}
+	forConn := mustParseOne(t, "explain format=traditional for connection 7").(*ast.ExplainForStmt)
+	if forConn.Format != "traditional" || forConn.ConnectionID != 7 {
+		t.Fatalf("unexpected explain for: %+v", forConn)
 	}
 }

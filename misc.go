@@ -663,6 +663,8 @@ var tokenMap = map[string]int{
 	"UPGRADE":                  upgrade,
 	"VISIBLE":                  visible,
 	"INVISIBLE":                invisible,
+	"TRADITIONAL":              traditional,
+	"TREE":                     tree,
 }
 
 // See https://dev.mysql.com/doc/refman/5.7/en/function-resolution.html for details

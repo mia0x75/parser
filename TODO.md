@@ -161,11 +161,6 @@ options and a recommendation so it can be decided later.
 - `LATERAL` 派生表（MySQL 8.0.14）
 - `JSON_TABLE(...)`（MySQL 8.0.4）
 
-### 3.11 EXPLAIN 的输出格式
-
-- `EXPLAIN FORMAT=JSON|TRADITIONAL|TREE SELECT ...`
-  （目前 `FORMAT` 仅支持 `EXPLAIN FORMAT=... FOR CONNECTION N`）
-
 ### 3.12 GET DIAGNOSTICS
 
 - `GET [CURRENT|STACKED] DIAGNOSTICS ...`
@@ -264,3 +259,7 @@ create view v as select a from t group by a with cascaded check option
 - 3.10 列 `VISIBLE` / `INVISIBLE` 属性（`ast.ColumnOptionVisible` /
   `ast.ColumnOptionInvisible`），适用于 `CREATE TABLE` 与 `ALTER TABLE
   MODIFY/CHANGE`
+- 3.11 `EXPLAIN FORMAT=JSON|TRADITIONAL|TREE SELECT ...` 与
+  `EXPLAIN FORMAT=JSON|TRADITIONAL|TREE FOR CONNECTION N`
+  （值小写归一为 `json`/`traditional`/`tree`；带引号的
+  `FORMAT='...'` 原样接受，恢复时统一输出为带引号形式）

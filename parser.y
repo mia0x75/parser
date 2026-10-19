@@ -569,6 +569,8 @@ import (
 	upgrade               "UPGRADE"
 	visible               "VISIBLE"
 	invisible             "INVISIBLE"
+	traditional           "TRADITIONAL"
+	tree                  "TREE"
 
 	/* The following tokens belong to NotKeywordToken. */
 	addDate            "ADDDATE"
@@ -1217,6 +1219,7 @@ import (
 
 %type	<ident>
 	ODBCDateTimeType                /* ODBC type keywords for date and time literals */
+	ExplainFormat                   /* EXPLAIN FORMAT= option value */
 	Identifier                      /* Identifier or unreserved keyword */
 	NotKeywordToken                 /* Tokens not mysql keyword but treated specially */
 	UnReservedKeyword               /* MySQL unreserved keywords */
@@ -3879,14 +3882,14 @@ ExplainStmt:
 			ConnectionID: getUint64FromNUM($4),
 		}
 	}
-|	ExplainSym "FORMAT" "=" stringLit "FOR" "CONNECTION" NUM
+|	ExplainSym "FORMAT" "=" ExplainFormat "FOR" "CONNECTION" NUM
 	{
 		$$ = &ast.ExplainForStmt{
 			Format:       $4,
 			ConnectionID: getUint64FromNUM($7),
 		}
 	}
-|	ExplainSym "FORMAT" "=" stringLit ExplainableStmt
+|	ExplainSym "FORMAT" "=" ExplainFormat ExplainableStmt
 	{
 		$$ = &ast.ExplainStmt{
 			Stmt:	$5,
@@ -3901,6 +3904,25 @@ ExplainStmt:
             Analyze: true,
         }
     }
+
+
+ExplainFormat:
+	stringLit
+	{
+		$$ = $1
+	}
+|	"JSON"
+	{
+		$$ = strings.ToLower($1)
+	}
+|	"TRADITIONAL"
+	{
+		$$ = strings.ToLower($1)
+	}
+|	"TREE"
+	{
+		$$ = strings.ToLower($1)
+	}
 
 
 LengthNum:
@@ -4323,7 +4345,7 @@ UnReservedKeyword:
 | "ATOMIC" | "CLOSE" | "CONDITION" | "CONTINUE" | "CURSOR" | "DECLARE" | "ELSEIF" | "EXIT" | "FETCH" | "FOUND" | "HANDLER" | "ITERATE" | "LEAVE" | "LOOP"
 | "RESIGNAL" | "SIGNAL" | "SQLEXCEPTION" | "SQLSTATE" | "SQLWARNING" | "UNDO" | "UNTIL" | "WHILE"
 | "NOWAIT" | "SKIP" | "LOCKED" | "ROLLUP" | "WORK" | "RELEASE" | "SAVEPOINT" | "SEQUENCE" | "INCREMENT" | "MINVALUE" | "CACHE" | "CYCLE" | "NOMAXVALUE" | "NOMINVALUE" | "NOCYCLE" | "NOCACHE" | "AGGREGATE" | "SONAME" | "STRING" | "XA" | "RESUME" | "MIGRATE" | "SUSPEND" | "ONE" | "PHASE" | "CUBE"
-| "SERVER" | "DATAFILE" | "WRAPPER" | "OPTIONS" | "FILE_BLOCK_SIZE" | "EXTENT_SIZE" | "INITIAL_SIZE" | "AUTOEXTEND_SIZE" | "MAX_SIZE" | "NODEGROUP" | "WAIT" | "RESOURCE" | "LOGFILE" | "VCPU" | "UNDO_BUFFER_SIZE" | "REDO_BUFFER_SIZE" | "THREAD_PRIORITY" | "UNDOFILE" | "TYPE" | "SYSTEM" | "REORGANIZE" | "EXCHANGE" | "DISCARD" | "IMPORT" | "VALIDATION" | "WITHOUT" | "REMOVE" | "PARTITIONING" | "OUTFILE" | "DUMPFILE" | "REPAIR" | "OPTIMIZE" | "UPGRADE" | "VISIBLE" | "INVISIBLE"
+| "SERVER" | "DATAFILE" | "WRAPPER" | "OPTIONS" | "FILE_BLOCK_SIZE" | "EXTENT_SIZE" | "INITIAL_SIZE" | "AUTOEXTEND_SIZE" | "MAX_SIZE" | "NODEGROUP" | "WAIT" | "RESOURCE" | "LOGFILE" | "VCPU" | "UNDO_BUFFER_SIZE" | "REDO_BUFFER_SIZE" | "THREAD_PRIORITY" | "UNDOFILE" | "TYPE" | "SYSTEM" | "REORGANIZE" | "EXCHANGE" | "DISCARD" | "IMPORT" | "VALIDATION" | "WITHOUT" | "REMOVE" | "PARTITIONING" | "OUTFILE" | "DUMPFILE" | "REPAIR" | "OPTIMIZE" | "UPGRADE" | "VISIBLE" | "INVISIBLE" | "TRADITIONAL" | "TREE"
 
 
 NotKeywordToken:
