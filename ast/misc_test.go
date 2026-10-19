@@ -79,6 +79,35 @@ func TestMiscVisitorCover(t *testing.T) {
 	}
 }
 
+func TestSpStmtVisitorCover(t *testing.T) {
+	valueExpr := NewValueExpr(42)
+	noop := &SetStmt{Variables: []*VariableAssignment{{Value: valueExpr}}}
+	stmts := []Node{
+		&BeginEndStmt{List: []StmtNode{noop}},
+		&DeclareStmt{Default: valueExpr},
+		&DeclareConditionStmt{Condition: &HandlerCondition{}},
+		&DeclareCursorStmt{Select: noop},
+		&DeclareHandlerStmt{Stmt: noop},
+		&IfStmt{Conditions: []*IfClause{{Condition: valueExpr, List: []StmtNode{noop}}}, ElseList: []StmtNode{noop}},
+		&CaseStmt{Value: valueExpr, Whens: []*CaseWhenStmt{{Expr: valueExpr, List: []StmtNode{noop}}}, ElseList: []StmtNode{noop}},
+		&WhileStmt{Condition: valueExpr, List: []StmtNode{noop}},
+		&RepeatStmt{Condition: valueExpr, List: []StmtNode{noop}},
+		&LoopStmt{List: []StmtNode{noop}},
+		&LeaveStmt{},
+		&IterateStmt{},
+		&OpenStmt{},
+		&CloseStmt{},
+		&FetchStmt{},
+		&SignalStmt{Condition: &HandlerCondition{}, InfoItems: []*SignalInfoItem{{Value: valueExpr}}},
+		&ResignalStmt{Condition: &HandlerCondition{}, InfoItems: []*SignalInfoItem{{Value: valueExpr}}},
+		&ReturnStmt{Expr: valueExpr},
+	}
+	for _, v := range stmts {
+		v.Accept(visitor{})
+		v.Accept(visitor1{})
+	}
+}
+
 func TestMiscSuite_TestDDLVisitorCover(t *testing.T) {
 	sql := `
 create table t (c1 smallint unsigned, c2 int unsigned);

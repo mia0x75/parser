@@ -41,6 +41,9 @@ var (
 	_ StmtNode = &GrantRoleStmt{}
 	_ StmtNode = &PrepareStmt{}
 	_ StmtNode = &RollbackStmt{}
+	_ StmtNode = &SavepointStmt{}
+	_ StmtNode = &ReleaseSavepointStmt{}
+	_ StmtNode = &XAStmt{}
 	_ StmtNode = &SetPwdStmt{}
 	_ StmtNode = &SetRoleStmt{}
 	_ StmtNode = &SetDefaultRoleStmt{}
@@ -396,11 +399,19 @@ func (n *CommitStmt) Accept(v Visitor) (Node, bool) {
 // See https://dev.mysql.com/doc/refman/5.7/en/commit.html
 type RollbackStmt struct {
 	stmtNode
+
+	// SavepointName is the target savepoint of `ROLLBACK TO [SAVEPOINT] name`.
+	// It is empty for a full transaction rollback.
+	SavepointName string
 }
 
 // Restore implements Node interface.
 func (n *RollbackStmt) Restore(ctx *format.RestoreCtx) error {
 	ctx.WriteKeyWord("ROLLBACK")
+	if n.SavepointName != "" {
+		ctx.WriteKeyWord(" TO SAVEPOINT ")
+		ctx.WriteName(n.SavepointName)
+	}
 	return nil
 }
 
@@ -414,8 +425,96 @@ func (n *RollbackStmt) Accept(v Visitor) (Node, bool) {
 	return v.Leave(n)
 }
 
-// UseStmt is a statement to use the DBName database as the current database.
-// See https://dev.mysql.com/doc/refman/5.7/en/use.html
+// SavepointStmt is a `SAVEPOINT identifier` statement.
+// See https://dev.mysql.com/doc/refman/8.0/en/savepoint.html
+type SavepointStmt struct {
+	stmtNode
+
+	Name string
+}
+
+// Restore implements Node interface.
+func (n *SavepointStmt) Restore(ctx *format.RestoreCtx) error {
+	ctx.WriteKeyWord("SAVEPOINT ")
+	ctx.WriteName(n.Name)
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *SavepointStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*SavepointStmt)
+	return v.Leave(n)
+}
+
+// ReleaseSavepointStmt is a `RELEASE SAVEPOINT identifier` statement.
+// See https://dev.mysql.com/doc/refman/8.0/en/savepoint.html
+type ReleaseSavepointStmt struct {
+	stmtNode
+
+	Name string
+}
+
+// Restore implements Node interface.
+func (n *ReleaseSavepointStmt) Restore(ctx *format.RestoreCtx) error {
+	ctx.WriteKeyWord("RELEASE SAVEPOINT ")
+	ctx.WriteName(n.Name)
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *ReleaseSavepointStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*ReleaseSavepointStmt)
+	return v.Leave(n)
+}
+
+// XAStmt is a statement to execute an XA transaction command.
+// See https://dev.mysql.com/doc/refman/8.0/en/xa-statements.html
+type XAStmt struct {
+	stmtNode
+
+	// Command is one of START, BEGIN, END, PREPARE, COMMIT, ROLLBACK, RECOVER.
+	Command string
+	// XID is the literal transaction identifier. It is empty for RECOVER.
+	XID string
+	// Extra holds trailing keywords such as JOIN, RESUME, SUSPEND, FOR MIGRATE
+	// or ONE PHASE.
+	Extra string
+}
+
+// Restore implements Node interface.
+func (n *XAStmt) Restore(ctx *format.RestoreCtx) error {
+	ctx.WriteKeyWord("XA ")
+	ctx.WriteKeyWord(n.Command)
+	if n.XID != "" {
+		ctx.WritePlain(" ")
+		ctx.WriteString(n.XID)
+	}
+	if n.Extra != "" {
+		ctx.WritePlain(" ")
+		ctx.WriteKeyWord(n.Extra)
+	}
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *XAStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*XAStmt)
+	return v.Leave(n)
+}
+
+// UseStmt is a statement to use the DBName database as the current database.// See https://dev.mysql.com/doc/refman/5.7/en/use.html
 type UseStmt struct {
 	stmtNode
 

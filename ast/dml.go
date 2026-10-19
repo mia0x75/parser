@@ -30,6 +30,8 @@ var (
 	_ DMLNode = &UnionStmt{}
 	_ DMLNode = &UpdateStmt{}
 	_ DMLNode = &SelectStmt{}
+	_ DMLNode = &ValuesStmt{}
+	_ DMLNode = &TableStmt{}
 	_ DMLNode = &ShowStmt{}
 	_ DMLNode = &LoadDataStmt{}
 
@@ -423,6 +425,7 @@ const (
 	SelectLockNone SelectLockType = iota
 	SelectLockForUpdate
 	SelectLockInShareMode
+	SelectLockForShare
 )
 
 // String implements fmt.Stringer.
@@ -434,8 +437,30 @@ func (slt SelectLockType) String() string {
 		return "for update"
 	case SelectLockInShareMode:
 		return "in share mode"
+	case SelectLockForShare:
+		return "for share"
 	}
 	return "unsupported select lock type"
+}
+
+// SelectLockWaitPolicy is the wait policy of a locking read.
+type SelectLockWaitPolicy int
+
+// Wait policies for locking reads.
+const (
+	SelectLockWaitDefault SelectLockWaitPolicy = iota
+	SelectLockWaitNoWait
+	SelectLockWaitSkipLocked
+)
+
+// SelectLockInfo is the parsed SELECT locking clause.
+type SelectLockInfo struct {
+	// Type is the locking read type.
+	Type SelectLockType
+	// Tables is the optional `OF tbl_name [, ...]` list.
+	Tables []*TableName
+	// WaitPolicy is the optional NOWAIT / SKIP LOCKED policy.
+	WaitPolicy SelectLockWaitPolicy
 }
 
 // WildCardField is a special type of select field content.
@@ -631,6 +656,10 @@ func (n *ByItem) Accept(v Visitor) (Node, bool) {
 type GroupByClause struct {
 	node
 	Items []*ByItem
+	// WithRollup indicates whether `WITH ROLLUP` is specified.
+	WithRollup bool
+	// WithCube indicates whether `WITH CUBE` is specified.
+	WithCube bool
 }
 
 // Restore implements Node interface.
@@ -643,6 +672,12 @@ func (n *GroupByClause) Restore(ctx *format.RestoreCtx) error {
 		if err := v.Restore(ctx); err != nil {
 			return errors.Annotatef(err, "An error occurred while restore GroupByClause.Items[%d]", i)
 		}
+	}
+	if n.WithRollup {
+		ctx.WriteKeyWord(" WITH ROLLUP")
+	}
+	if n.WithCube {
+		ctx.WriteKeyWord(" WITH CUBE")
 	}
 	return nil
 }
@@ -760,8 +795,17 @@ type SelectStmt struct {
 	Limit *Limit
 	// LockTp is the lock type
 	LockTp SelectLockType
+	// LockedTables is the optional `OF tbl_name [, ...]` list of a locking read.
+	LockedTables []*TableName
+	// LockWaitPolicy is the wait policy of a locking read (NOWAIT / SKIP LOCKED).
+	LockWaitPolicy SelectLockWaitPolicy
 	// TableHints represents the table level Optimizer Hint for join type
 	TableHints []*TableOptimizerHint
+	// IntoVars is the variable list of a SELECT ... INTO var_list statement,
+	// only meaningful inside a stored program.
+	IntoVars []string
+	// With is the optional common table expression clause.
+	With *WithClause
 	// IsAfterUnionDistinct indicates whether it's a stmt after "union distinct".
 	IsAfterUnionDistinct bool
 	// IsInBraces indicates whether it's a stmt in brace.
@@ -770,6 +814,12 @@ type SelectStmt struct {
 
 // Restore implements Node interface.
 func (n *SelectStmt) Restore(ctx *format.RestoreCtx) error {
+	if n.With != nil {
+		if err := n.With.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while restore SelectStmt.With")
+		}
+		ctx.WritePlain(" ")
+	}
 	ctx.WriteKeyWord("SELECT ")
 
 	if n.SelectStmtOpts.Priority > 0 {
@@ -816,6 +866,20 @@ func (n *SelectStmt) Restore(ctx *format.RestoreCtx) error {
 			}
 			if err := field.Restore(ctx); err != nil {
 				return errors.Annotatef(err, "An error occurred while restore SelectStmt.Fields[%d]", i)
+			}
+		}
+	}
+
+	if len(n.IntoVars) > 0 {
+		ctx.WriteKeyWord(" INTO ")
+		for i, v := range n.IntoVars {
+			if i != 0 {
+				ctx.WritePlain(",")
+			}
+			if strings.HasPrefix(v, "@") {
+				ctx.WritePlain(v)
+			} else {
+				ctx.WriteName(v)
 			}
 		}
 	}
@@ -883,7 +947,27 @@ func (n *SelectStmt) Restore(ctx *format.RestoreCtx) error {
 		ctx.WriteKeyWord(n.LockTp.String())
 	case SelectLockForUpdate:
 		ctx.WritePlain(" ")
-		ctx.WriteKeyWord(n.LockTp.String())
+		ctx.WriteKeyWord("FOR UPDATE")
+	case SelectLockForShare:
+		ctx.WritePlain(" ")
+		ctx.WriteKeyWord("FOR SHARE")
+	}
+	if len(n.LockedTables) > 0 {
+		ctx.WriteKeyWord(" OF ")
+		for i, tbl := range n.LockedTables {
+			if i != 0 {
+				ctx.WritePlain(", ")
+			}
+			if err := tbl.Restore(ctx); err != nil {
+				return errors.Annotate(err, "An error occurred while restore SelectStmt.LockedTables")
+			}
+		}
+	}
+	switch n.LockWaitPolicy {
+	case SelectLockWaitNoWait:
+		ctx.WriteKeyWord(" NOWAIT")
+	case SelectLockWaitSkipLocked:
+		ctx.WriteKeyWord(" SKIP LOCKED")
 	}
 	return nil
 }
@@ -896,6 +980,13 @@ func (n *SelectStmt) Accept(v Visitor) (Node, bool) {
 	}
 
 	n = newNode.(*SelectStmt)
+	if n.With != nil {
+		node, ok := n.With.Accept(v)
+		if !ok {
+			return n, false
+		}
+		n.With = node.(*WithClause)
+	}
 	if n.TableHints != nil && len(n.TableHints) != 0 {
 		newHints := make([]*TableOptimizerHint, len(n.TableHints))
 		for i, hint := range n.TableHints {
@@ -975,6 +1066,167 @@ func (n *SelectStmt) Accept(v Visitor) (Node, bool) {
 	return v.Leave(n)
 }
 
+// ValuesStmt is a table value constructor statement.
+// See https://dev.mysql.com/doc/refman/8.0/en/values.html
+type ValuesStmt struct {
+	dmlNode
+
+	Rows []*RowExpr
+}
+
+// Restore implements Node interface.
+func (n *ValuesStmt) Restore(ctx *format.RestoreCtx) error {
+	ctx.WriteKeyWord("VALUES ")
+	for i, row := range n.Rows {
+		if i > 0 {
+			ctx.WritePlain(", ")
+		}
+		if err := row.Restore(ctx); err != nil {
+			return errors.Annotatef(err, "An error occurred while splicing ValuesStmt Row[%v]", i)
+		}
+	}
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *ValuesStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*ValuesStmt)
+	for i, row := range n.Rows {
+		node, ok := row.Accept(v)
+		if !ok {
+			return n, false
+		}
+		n.Rows[i] = node.(*RowExpr)
+	}
+	return v.Leave(n)
+}
+
+// TableStmt is a `TABLE tbl_name` statement, which is equivalent to
+// `SELECT * FROM tbl_name`.
+// See https://dev.mysql.com/doc/refman/8.0/en/table.html
+type TableStmt struct {
+	dmlNode
+
+	Table *TableName
+}
+
+// Restore implements Node interface.
+func (n *TableStmt) Restore(ctx *format.RestoreCtx) error {
+	ctx.WriteKeyWord("TABLE ")
+	if err := n.Table.Restore(ctx); err != nil {
+		return errors.Annotate(err, "An error occurred while splicing TableStmt Table")
+	}
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *TableStmt) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*TableStmt)
+	node, ok := n.Table.Accept(v)
+	if !ok {
+		return n, false
+	}
+	n.Table = node.(*TableName)
+	return v.Leave(n)
+}
+
+// WithClause is a common table expression clause.
+// See https://dev.mysql.com/doc/refman/8.0/en/with.html
+type WithClause struct {
+	node
+
+	IsRecursive bool
+	CTEs        []*CommonTableExpression
+}
+
+// Restore implements Node interface.
+func (n *WithClause) Restore(ctx *format.RestoreCtx) error {
+	ctx.WriteKeyWord("WITH ")
+	if n.IsRecursive {
+		ctx.WriteKeyWord("RECURSIVE ")
+	}
+	for i, cte := range n.CTEs {
+		if i > 0 {
+			ctx.WritePlain(", ")
+		}
+		if err := cte.Restore(ctx); err != nil {
+			return errors.Annotatef(err, "An error occurred while restore WithClause.CTEs[%d]", i)
+		}
+	}
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *WithClause) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*WithClause)
+	for i, cte := range n.CTEs {
+		node, ok := cte.Accept(v)
+		if !ok {
+			return n, false
+		}
+		n.CTEs[i] = node.(*CommonTableExpression)
+	}
+	return v.Leave(n)
+}
+
+// CommonTableExpression is a single CTE definition inside a WithClause.
+type CommonTableExpression struct {
+	node
+
+	Name     model.CIStr
+	ColNames []model.CIStr
+	Query    ResultSetNode
+}
+
+// Restore implements Node interface.
+func (n *CommonTableExpression) Restore(ctx *format.RestoreCtx) error {
+	ctx.WriteName(n.Name.O)
+	if len(n.ColNames) > 0 {
+		ctx.WritePlain(" (")
+		for i, col := range n.ColNames {
+			if i > 0 {
+				ctx.WritePlain(", ")
+			}
+			ctx.WriteName(col.O)
+		}
+		ctx.WritePlain(")")
+	}
+	ctx.WriteKeyWord(" AS ")
+	ctx.WritePlain("(")
+	if err := n.Query.Restore(ctx); err != nil {
+		return errors.Annotate(err, "An error occurred while restore CommonTableExpression.Query")
+	}
+	ctx.WritePlain(")")
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *CommonTableExpression) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*CommonTableExpression)
+	node, ok := n.Query.Accept(v)
+	if !ok {
+		return n, false
+	}
+	n.Query = node.(ResultSetNode)
+	return v.Leave(n)
+}
+
 // UnionSelectList represents the select list in a union statement.
 type UnionSelectList struct {
 	node
@@ -1030,10 +1282,18 @@ type UnionStmt struct {
 	SelectList *UnionSelectList
 	OrderBy    *OrderByClause
 	Limit      *Limit
+	// With is the optional common table expression clause.
+	With *WithClause
 }
 
 // Restore implements Node interface.
 func (n *UnionStmt) Restore(ctx *format.RestoreCtx) error {
+	if n.With != nil {
+		if err := n.With.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while restore UnionStmt.With")
+		}
+		ctx.WritePlain(" ")
+	}
 	if err := n.SelectList.Restore(ctx); err != nil {
 		return errors.Annotate(err, "An error occurred while restore UnionStmt.SelectList")
 	}
@@ -1061,6 +1321,13 @@ func (n *UnionStmt) Accept(v Visitor) (Node, bool) {
 		return v.Leave(newNode)
 	}
 	n = newNode.(*UnionStmt)
+	if n.With != nil {
+		node, ok := n.With.Accept(v)
+		if !ok {
+			return n, false
+		}
+		n.With = node.(*WithClause)
+	}
 	if n.SelectList != nil {
 		node, ok := n.SelectList.Accept(v)
 		if !ok {
@@ -1321,6 +1588,8 @@ type InsertStmt struct {
 	Priority    mysql.PriorityEnum
 	OnDuplicate []*Assignment
 	Select      ResultSetNode
+	// Returning is the optional RETURNING field list (MariaDB).
+	Returning *FieldList
 }
 
 // Restore implements Node interface.
@@ -1406,6 +1675,12 @@ func (n *InsertStmt) Restore(ctx *format.RestoreCtx) error {
 			}
 		}
 	}
+	if n.Returning != nil {
+		ctx.WriteKeyWord(" RETURNING ")
+		if err := n.Returning.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while restore InsertStmt.Returning")
+		}
+	}
 
 	return nil
 }
@@ -1462,6 +1737,13 @@ func (n *InsertStmt) Accept(v Visitor) (Node, bool) {
 		}
 		n.OnDuplicate[i] = node.(*Assignment)
 	}
+	if n.Returning != nil {
+		node, ok := n.Returning.Accept(v)
+		if !ok {
+			return n, false
+		}
+		n.Returning = node.(*FieldList)
+	}
 	return v.Leave(n)
 }
 
@@ -1484,6 +1766,8 @@ type DeleteStmt struct {
 	BeforeFrom   bool
 	// TableHints represents the table level Optimizer Hint for join type.
 	TableHints []*TableOptimizerHint
+	// Returning is the optional RETURNING field list (MariaDB).
+	Returning *FieldList
 }
 
 // Restore implements Node interface.
@@ -1563,6 +1847,13 @@ func (n *DeleteStmt) Restore(ctx *format.RestoreCtx) error {
 		}
 	}
 
+	if n.Returning != nil {
+		ctx.WriteKeyWord(" RETURNING ")
+		if err := n.Returning.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while restore DeleteStmt.Returning")
+		}
+	}
+
 	return nil
 }
 
@@ -1609,6 +1900,13 @@ func (n *DeleteStmt) Accept(v Visitor) (Node, bool) {
 		}
 		n.Limit = node.(*Limit)
 	}
+	if n.Returning != nil {
+		node, ok = n.Returning.Accept(v)
+		if !ok {
+			return n, false
+		}
+		n.Returning = node.(*FieldList)
+	}
 	return v.Leave(n)
 }
 
@@ -1626,6 +1924,8 @@ type UpdateStmt struct {
 	IgnoreErr     bool
 	MultipleTable bool
 	TableHints    []*TableOptimizerHint
+	// Returning is the optional RETURNING field list (MariaDB).
+	Returning *FieldList
 }
 
 // Restore implements Node interface.
@@ -1694,6 +1994,13 @@ func (n *UpdateStmt) Restore(ctx *format.RestoreCtx) error {
 		}
 	}
 
+	if n.Returning != nil {
+		ctx.WriteKeyWord(" RETURNING ")
+		if err := n.Returning.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while restore UpdateStmt.Returning")
+		}
+	}
+
 	return nil
 }
 
@@ -1736,6 +2043,13 @@ func (n *UpdateStmt) Accept(v Visitor) (Node, bool) {
 			return n, false
 		}
 		n.Limit = node.(*Limit)
+	}
+	if n.Returning != nil {
+		node, ok = n.Returning.Accept(v)
+		if !ok {
+			return n, false
+		}
+		n.Returning = node.(*FieldList)
 	}
 	return v.Leave(n)
 }

@@ -55,6 +55,16 @@ type Scanner struct {
 	// lastScanOffset indicates last offset returned by scan().
 	// It's used to substring sql in syntax error message.
 	lastScanOffset int
+
+	// delimiter is the active statement delimiter. It is empty when the
+	// default ";" is used. A non-empty value means the input uses a custom
+	// delimiter set by a `DELIMITER` command (see consumeDelimiterCommand).
+	delimiter string
+
+	// stmtStart reports whether the scanner is positioned at the start of a
+	// statement. It is used to only recognize the `DELIMITER` client command
+	// at statement boundaries.
+	stmtStart bool
 }
 
 type specialCommentScanner interface {
@@ -115,6 +125,44 @@ func (s *Scanner) reset(sql string) {
 	s.warns = s.warns[:0]
 	s.stmtStartPos = 0
 	s.specialComment = nil
+	s.delimiter = ""
+	s.stmtStart = true
+}
+
+// consumeDelimiterCommand consumes a client-side `DELIMITER <value>` command
+// if the scanner is positioned at one, changes the active delimiter and
+// returns true. The command itself does not produce any token.
+func (s *Scanner) consumeDelimiterCommand() bool {
+	const kw = "delimiter"
+	rest := s.r.s[s.r.p.Offset:]
+	if len(rest) < len(kw) || !strings.EqualFold(rest[:len(kw)], kw) {
+		return false
+	}
+	after := rest[len(kw):]
+	// The keyword must be followed by whitespace, otherwise it is an
+	// identifier (e.g. a column named `delimiter`).
+	if len(after) == 0 || (after[0] != ' ' && after[0] != '\t') {
+		return false
+	}
+	lineEnd := strings.IndexByte(rest, '\n')
+	line := rest
+	if lineEnd >= 0 {
+		line = rest[:lineEnd]
+	}
+	delim := strings.TrimSpace(line[len(kw):])
+	s.r.skipBytes(len(line))
+	if lineEnd >= 0 {
+		s.r.skipBytes(1) // consume the trailing newline
+	}
+	if delim != "" {
+		if delim == ";" {
+			s.delimiter = ""
+		} else {
+			s.delimiter = delim
+		}
+	}
+	s.stmtStartPos = s.r.p.Offset
+	return true
 }
 
 func (s *Scanner) stmtText() string {
@@ -168,6 +216,11 @@ func (s *Scanner) AppendError(err error) {
 func (s *Scanner) Lex(v *yySymType) int {
 	tok, pos, lit := s.scan()
 	s.lastScanOffset = pos.Offset
+	if tok == int(';') {
+		s.stmtStart = true
+	} else if tok != 0 {
+		s.stmtStart = false
+	}
 	v.offset = pos.Offset
 	v.ident = lit
 	if tok == identifier {
@@ -268,6 +321,19 @@ func (s *Scanner) scan() (tok int, pos Pos, lit string) {
 	if unicode.IsSpace(ch0) {
 		ch0 = s.skipWhitespace()
 	}
+
+	// A custom statement delimiter (set by a DELIMITER command) is
+	// translated into the regular ";" token so the grammar is unchanged.
+	if s.atDelimiter() {
+		s.r.skipBytes(len(s.delimiter))
+		return int(';'), s.r.pos(), ""
+	}
+
+	// Recognize the client-side DELIMITER command at statement boundaries.
+	if s.stmtStart && s.consumeDelimiterCommand() {
+		return s.scan()
+	}
+
 	pos = s.r.pos()
 	if s.r.eof() {
 		// when scanner meets EOF, the returned token should be 0,
@@ -311,7 +377,7 @@ func startWithXx(s *Scanner) (tok int, pos Pos, lit string) {
 		}
 		return
 	}
-	s.r.incAsLongAs(isIdentChar)
+	s.incIdentChars()
 	tok, lit = identifier, s.r.data(&pos)
 	return
 }
@@ -344,7 +410,7 @@ func startWithBb(s *Scanner) (tok int, pos Pos, lit string) {
 		}
 		return
 	}
-	s.r.incAsLongAs(isIdentChar)
+	s.incIdentChars()
 	tok, lit = identifier, s.r.data(&pos)
 	return
 }
@@ -506,8 +572,36 @@ func startWithAt(s *Scanner) (tok int, pos Pos, lit string) {
 func scanIdentifier(s *Scanner) (int, Pos, string) {
 	pos := s.r.pos()
 	s.r.inc()
-	s.r.incAsLongAs(isIdentChar)
+	s.incIdentChars()
 	return identifier, pos, s.r.data(&pos)
+}
+
+// atDelimiter reports whether the input at the current position starts with
+// the active custom delimiter.
+func (s *Scanner) atDelimiter() bool {
+	if s.delimiter == "" || s.r.p.Offset > len(s.r.s) {
+		return false
+	}
+	return strings.HasPrefix(s.r.s[s.r.p.Offset:], s.delimiter)
+}
+
+// incIdentChars consumes identifier characters. When a custom delimiter is
+// active it stops before the delimiter so that a delimiter glued to the end of
+// an identifier (e.g. `end$$`) is still recognized.
+func (s *Scanner) incIdentChars() {
+	for {
+		if s.atDelimiter() {
+			return
+		}
+		ch := s.r.peek()
+		if !isIdentChar(ch) {
+			return
+		}
+		if ch == unicode.ReplacementChar && s.r.eof() {
+			return
+		}
+		s.r.inc()
+	}
 }
 
 func scanIdentifierOrString(s *Scanner) (tok int, lit string) {
@@ -674,7 +768,7 @@ func startWithNumber(s *Scanner) (tok int, pos Pos, lit string) {
 			p2 := s.r.pos()
 			// 0x, 0x7fz3 are identifier
 			if p1 == p2 || isDigit(s.r.peek()) {
-				s.r.incAsLongAs(isIdentChar)
+				s.incIdentChars()
 				return identifier, pos, s.r.data(&pos)
 			}
 			tok = hexLit
@@ -685,14 +779,14 @@ func startWithNumber(s *Scanner) (tok int, pos Pos, lit string) {
 			p2 := s.r.pos()
 			// 0b, 0b123, 0b1ab are identifier
 			if p1 == p2 || isDigit(s.r.peek()) {
-				s.r.incAsLongAs(isIdentChar)
+				s.incIdentChars()
 				return identifier, pos, s.r.data(&pos)
 			}
 			tok = bitLit
 		case ch1 == '.':
 			return s.scanFloat(&pos)
 		case ch1 == 'B':
-			s.r.incAsLongAs(isIdentChar)
+			s.incIdentChars()
 			return identifier, pos, s.r.data(&pos)
 		}
 	}
@@ -704,8 +798,8 @@ func startWithNumber(s *Scanner) (tok int, pos Pos, lit string) {
 	}
 
 	// Identifiers may begin with a digit but unless quoted may not consist solely of digits.
-	if !s.r.eof() && isIdentChar(ch0) {
-		s.r.incAsLongAs(isIdentChar)
+	if !s.r.eof() && isIdentChar(ch0) && !s.atDelimiter() {
+		s.incIdentChars()
 		return identifier, pos, s.r.data(&pos)
 	}
 	lit = s.r.data(&pos)
@@ -769,7 +863,7 @@ func (s *Scanner) scanFloat(beg *Pos) (tok int, pos Pos, lit string) {
 			// D1 . D2 e XX when XX is not D3, parse the result to an identifier.
 			// 9e9e = 9e9(float) + e(identifier)
 			// 9est = 9est(identifier)
-			s.r.incAsLongAs(isIdentChar)
+			s.incIdentChars()
 			tok = identifier
 		}
 	} else {
@@ -832,6 +926,16 @@ func (r *reader) inc() {
 
 func (r *reader) incN(n int) {
 	for i := 0; i < n; i++ {
+		r.inc()
+	}
+}
+
+// skipBytes advances the reader by exactly n bytes. n is expected to align
+// with rune boundaries.
+func (r *reader) skipBytes(n int) {
+	end := r.p.Offset + n
+	for r.p.Offset < end {
+		r.peek()
 		r.inc()
 	}
 }

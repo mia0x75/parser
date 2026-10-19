@@ -193,23 +193,49 @@ const (
 	EventStatusDisableOnSlave
 )
 
-// CreateFunctionStmt is a statement to create a stored function.
+// CreateFunctionStmt is a statement to create a stored function or a user
+// defined function (UDF).
 // See https://dev.mysql.com/doc/refman/8.0/en/create-procedure.html
+// See https://dev.mysql.com/doc/refman/8.0/en/create-function-udf.html
 type CreateFunctionStmt struct {
 	ddlNode
 
 	OrReplace       bool
 	IfNotExists     bool
+	Aggregate       bool
 	Definer         *auth.UserIdentity
 	Name            *TableName
 	Params          []*FuncParam
 	Returns         *types.FieldType
 	Characteristics *RoutineCharacteristics
 	Body            StmtNode
+	// Soname is the shared library name of a UDF. When it is not empty the
+	// statement is a `CREATE FUNCTION ... SONAME` UDF definition.
+	Soname string
 }
 
 // Restore implements Node interface.
 func (n *CreateFunctionStmt) Restore(ctx *format.RestoreCtx) error {
+	if n.Soname != "" {
+		ctx.WriteKeyWord("CREATE ")
+		if n.Aggregate {
+			ctx.WriteKeyWord("AGGREGATE ")
+		}
+		ctx.WriteKeyWord("FUNCTION ")
+		if n.IfNotExists {
+			ctx.WriteKeyWord("IF NOT EXISTS ")
+		}
+		if err := n.Name.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while restore CreateFunctionStmt.Name")
+		}
+		ctx.WriteKeyWord(" RETURNS ")
+		if err := n.Returns.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while restore CreateFunctionStmt.Returns")
+		}
+		ctx.WriteKeyWord(" SONAME ")
+		ctx.WriteString(n.Soname)
+		return nil
+	}
 	ctx.WriteKeyWord("CREATE ")
 	if n.OrReplace {
 		ctx.WriteKeyWord("OR REPLACE ")
@@ -255,11 +281,13 @@ func (n *CreateFunctionStmt) Accept(v Visitor) (Node, bool) {
 		return n, false
 	}
 	n.Name = node.(*TableName)
-	body, ok := n.Body.Accept(v)
-	if !ok {
-		return n, false
+	if n.Body != nil {
+		body, ok := n.Body.Accept(v)
+		if !ok {
+			return n, false
+		}
+		n.Body = body.(StmtNode)
 	}
-	n.Body = body.(StmtNode)
 	return v.Leave(n)
 }
 

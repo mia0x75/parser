@@ -405,6 +405,7 @@ const (
 	ColumnOptionGenerated
 	ColumnOptionReference
 	ColumnOptionCollate
+	ColumnOptionCheck
 )
 
 var (
@@ -485,6 +486,12 @@ func (n *ColumnOption) Restore(ctx *format.RestoreCtx) error {
 		}
 		ctx.WriteKeyWord("COLLATE ")
 		ctx.WritePlain(n.StrValue)
+	case ColumnOptionCheck:
+		ctx.WriteKeyWord("CHECK (")
+		if err := n.Expr.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while splicing ColumnOption CHECK Expr")
+		}
+		ctx.WritePlain(")")
 	default:
 		return errors.New("An error occurred while splicing ColumnOption")
 	}
@@ -576,6 +583,7 @@ const (
 	ConstraintUniqIndex
 	ConstraintForeignKey
 	ConstraintFulltext
+	ConstraintCheck
 )
 
 // Constraint is constraint for table definition.
@@ -589,11 +597,26 @@ type Constraint struct {
 
 	Refer *ReferenceDef // Used for foreign key.
 
+	Expr ExprNode // Used for CHECK constraint.
+
 	Option *IndexOption // Index Options
 }
 
 // Restore implements Node interface.
 func (n *Constraint) Restore(ctx *format.RestoreCtx) error {
+	if n.Tp == ConstraintCheck {
+		if n.Name != "" {
+			ctx.WriteKeyWord("CONSTRAINT ")
+			ctx.WriteName(n.Name)
+			ctx.WritePlain(" ")
+		}
+		ctx.WriteKeyWord("CHECK (")
+		if err := n.Expr.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while splicing Constraint CHECK Expr")
+		}
+		ctx.WritePlain(")")
+		return nil
+	}
 	switch n.Tp {
 	case ConstraintNoConstraint:
 		return nil
@@ -666,6 +689,13 @@ func (n *Constraint) Accept(v Visitor) (Node, bool) {
 			return n, false
 		}
 		n.Keys[i] = node.(*IndexColName)
+	}
+	if n.Expr != nil {
+		node, ok := n.Expr.Accept(v)
+		if !ok {
+			return n, false
+		}
+		n.Expr = node.(ExprNode)
 	}
 	if n.Refer != nil {
 		node, ok := n.Refer.Accept(v)
@@ -758,6 +788,8 @@ type CreateTableStmt struct {
 	ddlNode
 
 	IfNotExists bool
+	Temporary   bool
+	OrReplace   bool
 	Table       *TableName
 	ReferTable  *TableName
 	Cols        []*ColumnDef
@@ -770,11 +802,17 @@ type CreateTableStmt struct {
 
 // Restore implements Node interface.
 func (n *CreateTableStmt) Restore(ctx *format.RestoreCtx) error {
-	ctx.WriteKeyWord("CREATE TABLE ")
+	ctx.WriteKeyWord("CREATE ")
+	if n.OrReplace {
+		ctx.WriteKeyWord("OR REPLACE ")
+	}
+	if n.Temporary {
+		ctx.WriteKeyWord("TEMPORARY ")
+	}
+	ctx.WriteKeyWord("TABLE ")
 	if n.IfNotExists {
 		ctx.WriteKeyWord("IF NOT EXISTS ")
 	}
-
 	if err := n.Table.Restore(ctx); err != nil {
 		return errors.Annotate(err, "An error occurred while splicing CreateTableStmt Table")
 	}
@@ -1729,6 +1767,7 @@ const (
 	AlterTableCoalescePartitions
 	AlterTableDropPartition
 	AlterTableTruncatePartition
+	AlterTableRenameColumn
 
 	// TODO: Add more actions
 )
@@ -1799,6 +1838,7 @@ type AlterTableSpec struct {
 	NewTable        *TableName
 	NewColumns      []*ColumnDef
 	OldColumnName   *ColumnName
+	NewColumnName   *ColumnName
 	Position        *ColumnPosition
 	LockType        LockType
 	Algorithm       AlterAlgorithm
@@ -1931,6 +1971,15 @@ func (n *AlterTableSpec) Restore(ctx *format.RestoreCtx) error {
 		ctx.WriteName(n.FromKey.O)
 		ctx.WriteKeyWord(" TO ")
 		ctx.WriteName(n.ToKey.O)
+	case AlterTableRenameColumn:
+		ctx.WriteKeyWord("RENAME COLUMN ")
+		if err := n.OldColumnName.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while restore AlterTableSpec.OldColumnName")
+		}
+		ctx.WriteKeyWord(" TO ")
+		if err := n.NewColumnName.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while restore AlterTableSpec.NewColumnName")
+		}
 	case AlterTableForce:
 		// TODO: not support
 		ctx.WriteKeyWord("FORCE")
