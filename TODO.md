@@ -151,11 +151,6 @@ options and a recommendation so it can be decided later.
 
 - `SET PERSIST` / `SET PERSIST_ONLY`（MySQL 8.0）
 
-### 3.4 资源组 / 日志组
-
-- `CREATE/DROP/ALTER RESOURCE GROUP`（MySQL 8.0）
-- `CREATE LOGFILE GROUP` / `ALTER LOGFILE GROUP` / `DROP LOGFILE GROUP`
-
 ### 3.5 ALTER TABLE 的分区 / 表空间操作
 
 - `ALTER TABLE ... EXCHANGE PARTITION ... WITH TABLE ...`
@@ -281,3 +276,6 @@ create view v as select a from t group by a with cascaded check option
 
 - 3.2 表空间 / 服务器对象：`CREATE/ALTER/DROP [UNDO] TABLESPACE`、
   `CREATE/ALTER/DROP SERVER`（`FOREIGN DATA WRAPPER ... OPTIONS(...)`）
+- 3.4 资源组 / 日志组：`CREATE/ALTER/DROP RESOURCE GROUP`（`TYPE`、
+  `VCPU`、`THREAD_PRIORITY`、`ENABLE/DISABLE`、`DROP ... FORCE`）、
+  `CREATE/ALTER/DROP LOGFILE GROUP`

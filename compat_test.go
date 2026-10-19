@@ -123,6 +123,18 @@ func TestCompatRoundTrip(t *testing.T) {
 		"create server srv foreign data wrapper 'mysql'",
 		"alter server srv options(user 'u2')",
 		"drop server if exists srv",
+
+		// Resource groups.
+		"create resource group rg type = system vcpu = 0-3, 5 thread_priority 10 enable",
+		"create resource group rg type = user vcpu = 1",
+		"alter resource group rg vcpu = 2 thread_priority 5 disable",
+		"drop resource group rg",
+		"drop resource group rg force",
+
+		// Logfile groups.
+		"create logfile group lg add undofile 'undo.dat' initial_size 1048576 undo_buffer_size 8388608 redo_buffer_size 4194304 nodegroup 0 wait comment 'x' engine innodb",
+		"alter logfile group lg add undofile 'undo2.dat' initial_size 2097152",
+		"drop logfile group lg engine innodb",
 	}
 	for _, sql := range cases {
 		stmt, err := New().ParseOneStmt(sql, "", "")
@@ -260,5 +272,35 @@ func TestServerAST(t *testing.T) {
 	drop := mustParseOne(t, "drop server if exists srv").(*ast.DropServerStmt)
 	if !drop.IfExists || drop.Name != "srv" {
 		t.Fatalf("unexpected DropServerStmt: %+v", drop)
+	}
+}
+
+func TestResourceGroupAST(t *testing.T) {
+	stmt := mustParseOne(t, "create resource group rg type = system vcpu = 0-3, 5 thread_priority 10 enable").(*ast.CreateResourceGroupStmt)
+	if stmt.Name != "rg" || !stmt.IsSystem || stmt.State != ast.ResourceGroupStateEnable {
+		t.Fatalf("unexpected CreateResourceGroupStmt: %+v", stmt)
+	}
+	if len(stmt.VCPU) != 2 || stmt.VCPU[0].From != 0 || stmt.VCPU[0].To != 3 || stmt.VCPU[1].From != 5 || stmt.VCPU[1].To != 5 {
+		t.Fatalf("unexpected VCPU: %+v", stmt.VCPU)
+	}
+	if stmt.ThreadPriority == nil || *stmt.ThreadPriority != 10 {
+		t.Fatalf("unexpected ThreadPriority: %v", stmt.ThreadPriority)
+	}
+	drop := mustParseOne(t, "drop resource group rg force").(*ast.DropResourceGroupStmt)
+	if drop.Name != "rg" || !drop.Force {
+		t.Fatalf("unexpected DropResourceGroupStmt: %+v", drop)
+	}
+}
+
+func TestLogfileGroupAST(t *testing.T) {
+	stmt := mustParseOne(t, "create logfile group lg add undofile 'undo.dat' initial_size 1048576 undo_buffer_size 8388608").(*ast.CreateLogfileGroupStmt)
+	if stmt.Name != "lg" || stmt.UndoFile != "undo.dat" || len(stmt.Options) != 2 {
+		t.Fatalf("unexpected CreateLogfileGroupStmt: %+v", stmt)
+	}
+	if stmt.Options[0].Tp != ast.LogfileGroupOptionInitialSize || stmt.Options[0].Val != 1048576 {
+		t.Fatalf("unexpected option: %+v", stmt.Options[0])
+	}
+	if stmt.Options[1].Tp != ast.LogfileGroupOptionUndoBufferSize || stmt.Options[1].Val != 8388608 {
+		t.Fatalf("unexpected option: %+v", stmt.Options[1])
 	}
 }

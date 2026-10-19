@@ -545,6 +545,15 @@ import (
 	maxSize               "MAX_SIZE"
 	nodegroup             "NODEGROUP"
 	wait                  "WAIT"
+	resource              "RESOURCE"
+	logfile               "LOGFILE"
+	vcpu                  "VCPU"
+	undoBufferSize        "UNDO_BUFFER_SIZE"
+	redoBufferSize        "REDO_BUFFER_SIZE"
+	threadPriority        "THREAD_PRIORITY"
+	undofile              "UNDOFILE"
+	typeSym               "TYPE"
+	systemSym             "SYSTEM"
 
 	/* The following tokens belong to NotKeywordToken. */
 	addDate            "ADDDATE"
@@ -739,6 +748,12 @@ import (
 	CreateServerStmt                /* CREATE SERVER statement */
 	AlterServerStmt                 /* ALTER SERVER statement */
 	DropServerStmt                  /* DROP SERVER statement */
+	CreateResourceGroupStmt         /* CREATE RESOURCE GROUP statement */
+	AlterResourceGroupStmt          /* ALTER RESOURCE GROUP statement */
+	DropResourceGroupStmt           /* DROP RESOURCE GROUP statement */
+	CreateLogfileGroupStmt          /* CREATE LOGFILE GROUP statement */
+	AlterLogfileGroupStmt           /* ALTER LOGFILE GROUP statement */
+	DropLogfileGroupStmt            /* DROP LOGFILE GROUP statement */
 	XAStmt                          /* XA transaction statement */
 	SetStmt                         /* Set variable statement */
 	SetRoleStmt                     /* Set active role statement */
@@ -1004,6 +1019,15 @@ import (
 	ServerOption                    /* foreign server option */
 	ServerOptionList                /* foreign server option list */
 	ServerOptionListOpt             /* optional foreign server option list */
+	ResourceGroupType               /* resource group type SYSTEM or USER */
+	VCPUListOpt                     /* optional VCPU list */
+	VCPUList                        /* VCPU list */
+	ResourceGroupVCPU               /* resource group VCPU spec */
+	ThreadPriorityOpt               /* optional THREAD_PRIORITY */
+	ResourceGroupStateOpt           /* optional ENABLE/DISABLE */
+	ForceOpt                        /* optional FORCE keyword */
+	LogfileGroupOption              /* logfile group option */
+	LogfileGroupOptionList          /* logfile group option list */
 	UDFReturnType                   /* user defined function return type */
 	ReturningOpt                    /* optional RETURNING field list */
 	XAIdent                         /* XA transaction identifier */
@@ -2392,6 +2416,183 @@ ServerOption:
 ServerOptionName:
 	Identifier   { $$ = $1 }
 |	"DATABASE"   { $$ = "DATABASE" }
+
+
+ResourceGroupType:
+	Identifier
+	{
+		$$ = strings.EqualFold($1, "SYSTEM")
+	}
+
+
+VCPUListOpt:
+	/* EMPTY */
+	{
+		$$ = []*ast.ResourceGroupVCPU{}
+	}
+|	"VCPU" EqOpt VCPUList
+	{
+		$$ = $3.([]*ast.ResourceGroupVCPU)
+	}
+
+
+VCPUList:
+	ResourceGroupVCPU
+	{
+		$$ = []*ast.ResourceGroupVCPU{$1.(*ast.ResourceGroupVCPU)}
+	}
+|	VCPUList ',' ResourceGroupVCPU
+	{
+		$$ = append($1.([]*ast.ResourceGroupVCPU), $3.(*ast.ResourceGroupVCPU))
+	}
+
+
+ResourceGroupVCPU:
+	NUM
+	{
+		$$ = &ast.ResourceGroupVCPU{From: getUint64FromNUM($1), To: getUint64FromNUM($1)}
+	}
+|	NUM '-' NUM
+	{
+		$$ = &ast.ResourceGroupVCPU{From: getUint64FromNUM($1), To: getUint64FromNUM($3)}
+	}
+
+
+ThreadPriorityOpt:
+	/* EMPTY */
+	{
+		$$ = (*int)(nil)
+	}
+|	"THREAD_PRIORITY" EqOpt intLit
+	{
+		v := int($3.(int64))
+		$$ = &v
+	}
+
+
+ResourceGroupStateOpt:
+	/* EMPTY */ { $$ = ast.ResourceGroupStateNone }
+|	"ENABLE"    { $$ = ast.ResourceGroupStateEnable }
+|	"DISABLE"   { $$ = ast.ResourceGroupStateDisable }
+
+
+CreateResourceGroupStmt:
+	"CREATE" "RESOURCE" "GROUP" Identifier "TYPE" EqOpt ResourceGroupType VCPUListOpt ThreadPriorityOpt ResourceGroupStateOpt
+	{
+		var tp *int
+		if $9 != nil {
+			tp = $9.(*int)
+		}
+		$$ = &ast.CreateResourceGroupStmt{
+			Name:           $4,
+			IsSystem:       $7.(bool),
+			VCPU:           $8.([]*ast.ResourceGroupVCPU),
+			ThreadPriority: tp,
+			State:          $10.(int),
+		}
+	}
+
+
+AlterResourceGroupStmt:
+	"ALTER" "RESOURCE" "GROUP" Identifier VCPUListOpt ThreadPriorityOpt ResourceGroupStateOpt
+	{
+		var tp *int
+		if $6 != nil {
+			tp = $6.(*int)
+		}
+		$$ = &ast.AlterResourceGroupStmt{
+			Name:           $4,
+			VCPU:           $5.([]*ast.ResourceGroupVCPU),
+			ThreadPriority: tp,
+			State:          $7.(int),
+		}
+	}
+
+
+ForceOpt:
+	/* EMPTY */ { $$ = false }
+|	"FORCE"     { $$ = true }
+
+
+DropResourceGroupStmt:
+	"DROP" "RESOURCE" "GROUP" Identifier ForceOpt
+	{
+		$$ = &ast.DropResourceGroupStmt{Name: $4, Force: $5.(bool)}
+	}
+
+
+LogfileGroupOptionList:
+	/* EMPTY */
+	{
+		$$ = []*ast.LogfileGroupOption{}
+	}
+|	LogfileGroupOptionList LogfileGroupOption
+	{
+		$$ = append($1.([]*ast.LogfileGroupOption), $2.(*ast.LogfileGroupOption))
+	}
+
+
+LogfileGroupOption:
+	"INITIAL_SIZE" EqOpt LengthNum
+	{
+		$$ = &ast.LogfileGroupOption{Tp: ast.LogfileGroupOptionInitialSize, Val: $3.(uint64)}
+	}
+|	"UNDO_BUFFER_SIZE" EqOpt LengthNum
+	{
+		$$ = &ast.LogfileGroupOption{Tp: ast.LogfileGroupOptionUndoBufferSize, Val: $3.(uint64)}
+	}
+|	"REDO_BUFFER_SIZE" EqOpt LengthNum
+	{
+		$$ = &ast.LogfileGroupOption{Tp: ast.LogfileGroupOptionRedoBufferSize, Val: $3.(uint64)}
+	}
+|	"NODEGROUP" EqOpt LengthNum
+	{
+		$$ = &ast.LogfileGroupOption{Tp: ast.LogfileGroupOptionNodegroup, Val: $3.(uint64)}
+	}
+|	"WAIT"
+	{
+		$$ = &ast.LogfileGroupOption{Tp: ast.LogfileGroupOptionWait}
+	}
+|	"COMMENT" EqOpt stringLit
+	{
+		$$ = &ast.LogfileGroupOption{Tp: ast.LogfileGroupOptionComment, Str: $3}
+	}
+|	"ENGINE" EqOpt Identifier
+	{
+		$$ = &ast.LogfileGroupOption{Tp: ast.LogfileGroupOptionEngine, Str: $3}
+	}
+
+
+CreateLogfileGroupStmt:
+	"CREATE" "LOGFILE" "GROUP" Identifier "ADD" "UNDOFILE" stringLit LogfileGroupOptionList
+	{
+		$$ = &ast.CreateLogfileGroupStmt{
+			Name:     $4,
+			UndoFile: $7,
+			Options:  $8.([]*ast.LogfileGroupOption),
+		}
+	}
+
+
+AlterLogfileGroupStmt:
+	"ALTER" "LOGFILE" "GROUP" Identifier "ADD" "UNDOFILE" stringLit LogfileGroupOptionList
+	{
+		$$ = &ast.AlterLogfileGroupStmt{
+			Name:     $4,
+			UndoFile: $7,
+			Options:  $8.([]*ast.LogfileGroupOption),
+		}
+	}
+
+
+DropLogfileGroupStmt:
+	"DROP" "LOGFILE" "GROUP" Identifier LogfileGroupOptionList
+	{
+		$$ = &ast.DropLogfileGroupStmt{
+			Name:    $4,
+			Options: $5.([]*ast.LogfileGroupOption),
+		}
+	}
 
 
 DBName:
@@ -3983,7 +4184,7 @@ UnReservedKeyword:
 | "ATOMIC" | "CLOSE" | "CONDITION" | "CONTINUE" | "CURSOR" | "DECLARE" | "ELSEIF" | "EXIT" | "FETCH" | "FOUND" | "HANDLER" | "ITERATE" | "LEAVE" | "LOOP"
 | "RESIGNAL" | "SIGNAL" | "SQLEXCEPTION" | "SQLSTATE" | "SQLWARNING" | "UNDO" | "UNTIL" | "WHILE"
 | "NOWAIT" | "SKIP" | "LOCKED" | "ROLLUP" | "WORK" | "RELEASE" | "SAVEPOINT" | "SEQUENCE" | "INCREMENT" | "MINVALUE" | "CACHE" | "CYCLE" | "NOMAXVALUE" | "NOMINVALUE" | "NOCYCLE" | "NOCACHE" | "AGGREGATE" | "SONAME" | "STRING" | "XA" | "RESUME" | "MIGRATE" | "SUSPEND" | "ONE" | "PHASE" | "CUBE"
-| "SERVER" | "DATAFILE" | "WRAPPER" | "OPTIONS" | "FILE_BLOCK_SIZE" | "EXTENT_SIZE" | "INITIAL_SIZE" | "AUTOEXTEND_SIZE" | "MAX_SIZE" | "NODEGROUP" | "WAIT"
+| "SERVER" | "DATAFILE" | "WRAPPER" | "OPTIONS" | "FILE_BLOCK_SIZE" | "EXTENT_SIZE" | "INITIAL_SIZE" | "AUTOEXTEND_SIZE" | "MAX_SIZE" | "NODEGROUP" | "WAIT" | "RESOURCE" | "LOGFILE" | "VCPU" | "UNDO_BUFFER_SIZE" | "REDO_BUFFER_SIZE" | "THREAD_PRIORITY" | "UNDOFILE" | "TYPE" | "SYSTEM"
 
 
 NotKeywordToken:
@@ -7725,6 +7926,12 @@ Statement:
 |	CreateServerStmt
 |	AlterServerStmt
 |	DropServerStmt
+|	CreateResourceGroupStmt
+|	AlterResourceGroupStmt
+|	DropResourceGroupStmt
+|	CreateLogfileGroupStmt
+|	AlterLogfileGroupStmt
+|	DropLogfileGroupStmt
 |	SubSelect
 	{
 		// `(select 1)`; is a valid select statement

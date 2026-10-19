@@ -639,6 +639,15 @@ var tokenMap = map[string]int{
 	"MAX_SIZE":                 maxSize,
 	"NODEGROUP":                nodegroup,
 	"WAIT":                     wait,
+	"RESOURCE":                 resource,
+	"LOGFILE":                  logfile,
+	"VCPU":                     vcpu,
+	"UNDO_BUFFER_SIZE":         undoBufferSize,
+	"REDO_BUFFER_SIZE":         redoBufferSize,
+	"THREAD_PRIORITY":          threadPriority,
+	"UNDOFILE":                 undofile,
+	"TYPE":                     typeSym,
+	"SYSTEM":                   systemSym,
 }
 
 // See https://dev.mysql.com/doc/refman/5.7/en/function-resolution.html for details
