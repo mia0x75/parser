@@ -562,6 +562,8 @@ import (
 	without               "WITHOUT"
 	remove                "REMOVE"
 	partitioning          "PARTITIONING"
+	outfile               "OUTFILE"
+	dumpfile              "DUMPFILE"
 
 	/* The following tokens belong to NotKeywordToken. */
 	addDate            "ADDDATE"
@@ -1158,7 +1160,9 @@ import (
 	SpConditionValueList            /* handler condition value list */
 	SpConditionValueOpt             /* optional handler/signal condition value */
 	SpNameList                      /* simple identifier list */
-	SpIntoVarOpt                    /* optional SELECT INTO variable list */
+	SelectIntoOpt                    /* optional SELECT INTO clause */
+	SelectIntoOutfileOpts            /* SELECT INTO OUTFILE options */
+	CharsetOpt                       /* optional CHARACTER SET clause */
 	SpSignalInfoItemListOpt         /* optional SIGNAL/RESIGNAL SET clause */
 	SpSignalInfoItemList            /* SIGNAL/RESIGNAL SET item list */
 	SpSignalInfoItem                /* single SIGNAL/RESIGNAL SET item */
@@ -1214,6 +1218,7 @@ import (
 
 
 %precedence empty
+%precedence into
 %precedence with
 
 %precedence sqlBufferResult
@@ -4234,7 +4239,7 @@ UnReservedKeyword:
 | "ATOMIC" | "CLOSE" | "CONDITION" | "CONTINUE" | "CURSOR" | "DECLARE" | "ELSEIF" | "EXIT" | "FETCH" | "FOUND" | "HANDLER" | "ITERATE" | "LEAVE" | "LOOP"
 | "RESIGNAL" | "SIGNAL" | "SQLEXCEPTION" | "SQLSTATE" | "SQLWARNING" | "UNDO" | "UNTIL" | "WHILE"
 | "NOWAIT" | "SKIP" | "LOCKED" | "ROLLUP" | "WORK" | "RELEASE" | "SAVEPOINT" | "SEQUENCE" | "INCREMENT" | "MINVALUE" | "CACHE" | "CYCLE" | "NOMAXVALUE" | "NOMINVALUE" | "NOCYCLE" | "NOCACHE" | "AGGREGATE" | "SONAME" | "STRING" | "XA" | "RESUME" | "MIGRATE" | "SUSPEND" | "ONE" | "PHASE" | "CUBE"
-| "SERVER" | "DATAFILE" | "WRAPPER" | "OPTIONS" | "FILE_BLOCK_SIZE" | "EXTENT_SIZE" | "INITIAL_SIZE" | "AUTOEXTEND_SIZE" | "MAX_SIZE" | "NODEGROUP" | "WAIT" | "RESOURCE" | "LOGFILE" | "VCPU" | "UNDO_BUFFER_SIZE" | "REDO_BUFFER_SIZE" | "THREAD_PRIORITY" | "UNDOFILE" | "TYPE" | "SYSTEM" | "REORGANIZE" | "EXCHANGE" | "DISCARD" | "IMPORT" | "VALIDATION" | "WITHOUT" | "REMOVE" | "PARTITIONING"
+| "SERVER" | "DATAFILE" | "WRAPPER" | "OPTIONS" | "FILE_BLOCK_SIZE" | "EXTENT_SIZE" | "INITIAL_SIZE" | "AUTOEXTEND_SIZE" | "MAX_SIZE" | "NODEGROUP" | "WAIT" | "RESOURCE" | "LOGFILE" | "VCPU" | "UNDO_BUFFER_SIZE" | "REDO_BUFFER_SIZE" | "THREAD_PRIORITY" | "UNDOFILE" | "TYPE" | "SYSTEM" | "REORGANIZE" | "EXCHANGE" | "DISCARD" | "IMPORT" | "VALIDATION" | "WITHOUT" | "REMOVE" | "PARTITIONING" | "OUTFILE" | "DUMPFILE"
 
 
 NotKeywordToken:
@@ -5813,14 +5818,19 @@ WithColNameListOpt:
 
 
 SelectStmtBasic:
-	"SELECT" SelectStmtOpts SelectStmtFieldList SpIntoVarOpt	{
+	"SELECT" SelectStmtOpts SelectStmtFieldList SelectIntoOpt	{
 		st := &ast.SelectStmt {
 			SelectStmtOpts: $2.(*ast.SelectStmtOpts),
 			Distinct:      $2.(*ast.SelectStmtOpts).Distinct,
 			Fields:        $3.(*ast.FieldList),
 		}
 		if $4 != nil {
-			st.IntoVars = $4.([]string)
+			in := $4.(*ast.SelectIntoStatement)
+			if in.Tp == ast.SelectIntoVarList {
+				st.IntoVars = in.VarList
+			} else {
+				st.Into = in
+			}
 		}
 		$$ = st
 	}
@@ -5872,7 +5882,7 @@ SelectStmtFromTable:
 
 
 SelectStmt:
-	SelectStmtBasic OrderByOptional SelectStmtLimit SelectLockOpt
+	SelectStmtBasic OrderByOptional SelectStmtLimit SelectLockOpt SelectIntoOpt
 	{
 		st := $1.(*ast.SelectStmt)
 		if $4 != nil {
@@ -5886,10 +5896,12 @@ SelectStmt:
 			src := parser.src
 			var lastEnd int
 			if $2 != nil {
-				lastEnd = yyS[yypt-2].offset-1
+				lastEnd = yyS[yypt-3].offset-1
 			} else if $3 != nil {
-				lastEnd = yyS[yypt-1].offset-1
+				lastEnd = yyS[yypt-2].offset-1
 			} else if $4 != nil {
+				lastEnd = yyS[yypt-1].offset-1
+			} else if $5 != nil {
 				lastEnd = yyS[yypt].offset-1
 			} else {
 				lastEnd = len(src)
@@ -5905,9 +5917,10 @@ SelectStmt:
 		if $3 != nil {
 			st.Limit = $3.(*ast.Limit)
 		}
+		setSelectInto(st, $5)
 		$$ = st
 	}
-|	SelectStmtFromDualTable OrderByOptional SelectStmtLimit SelectLockOpt
+|	SelectStmtFromDualTable OrderByOptional SelectStmtLimit SelectLockOpt SelectIntoOpt
 	{
 		st := $1.(*ast.SelectStmt)
 		if $2 != nil {
@@ -5922,9 +5935,10 @@ SelectStmt:
 			st.LockedTables = lock.Tables
 			st.LockWaitPolicy = lock.WaitPolicy
 		}
+		setSelectInto(st, $5)
 		$$ = st
 	}
-|	SelectStmtFromTable OrderByOptional SelectStmtLimit SelectLockOpt
+|	SelectStmtFromTable OrderByOptional SelectStmtLimit SelectLockOpt SelectIntoOpt
 	{
 		st := $1.(*ast.SelectStmt)
 		if $4 != nil {
@@ -5939,6 +5953,7 @@ SelectStmt:
 		if $3 != nil {
 			st.Limit = $3.(*ast.Limit)
 		}
+		setSelectInto(st, $5)
 		$$ = st
 	}
 
@@ -7732,14 +7747,36 @@ SpNameList:
 	}
 
 
-SpIntoVarOpt:
-	/* EMPTY */
+SelectIntoOpt:
+	/* EMPTY */ %prec empty
 	{
-		$$ = ([]string)(nil)
+		$$ = nil
 	}
 |	"INTO" SpNameList
 	{
-		$$ = $2.([]string)
+		$$ = &ast.SelectIntoStatement{Tp: ast.SelectIntoVarList, VarList: $2.([]string)}
+	}
+|	"INTO" "OUTFILE" stringLit SelectIntoOutfileOpts
+	{
+		st := $4.(*ast.SelectIntoStatement)
+		st.FileName = $3
+		$$ = st
+	}
+|	"INTO" "DUMPFILE" stringLit
+	{
+		$$ = &ast.SelectIntoStatement{Tp: ast.SelectIntoDumpfile, FileName: $3}
+	}
+
+
+SelectIntoOutfileOpts:
+	CharsetOpt Fields Lines
+	{
+		$$ = &ast.SelectIntoStatement{
+			Tp:      ast.SelectIntoOutfile,
+			Charset: $1.(string),
+			Fields:  $2.(*ast.FieldsClause),
+			Lines:   $3.(*ast.LinesClause),
+		}
 	}
 
 
@@ -9324,8 +9361,8 @@ IgnoreLines:
 
 
 CharsetOpt:
-	/* EMPTY */ {}
-|	"CHARACTER" "SET" CharsetName
+	/* EMPTY */ { $$ = "" }
+|	CharsetOrCharacterSet CharsetName { $$ = $2.(string) }
 
 
 LocalOpt:

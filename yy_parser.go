@@ -285,3 +285,17 @@ func getUint64FromNUM(num interface{}) uint64 {
 	}
 	return 0
 }
+
+// setSelectInto applies a parsed SELECT ... INTO clause to the statement,
+// storing a variable list in IntoVars and an OUTFILE/DUMPFILE clause in Into.
+func setSelectInto(st *ast.SelectStmt, in interface{}) {
+	if in == nil {
+		return
+	}
+	x := in.(*ast.SelectIntoStatement)
+	if x.Tp == ast.SelectIntoVarList {
+		st.IntoVars = x.VarList
+	} else {
+		st.Into = x
+	}
+}

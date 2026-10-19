@@ -102,11 +102,9 @@ options and a recommendation so it can be decided later.
    （`make parser` 拒绝任何冲突）。折中方案是强制 `;`，代价是该偏差。
    **选项**: 将 `END` 设为保留字（破坏既有用例）或接受现状。
 
-2. **`SELECT ... INTO var_list` 仅支持 INTO 位于字段列表之后、FROM 之前**
-   （含无 FROM 的情形），例如 `SELECT a INTO x FROM t`、`SELECT 1 INTO x`。
-   **不支持** 末尾形式 `SELECT a FROM t INTO x`（MySQL 允许）。
-   **根因**: 末尾 INTO 与「FROM 前 INTO」共享同一 lookahead，会引入
-   shift/reduce 冲突（`SelectStmtBasic` 的 FOLLOW 含 `into`）。
+2. **`SELECT ... INTO var_list` 支持 INTO 位于字段列表之后、FROM 之前**
+   （含无 FROM 的情形），也支持末尾形式 `SELECT a FROM t INTO x`。
+   见第 5 节。
 
 3. **不支持 `GET DIAGNOSTICS`**（及其 `CONDITION`/`STATEMENT` 形式）。
 
@@ -157,13 +155,6 @@ options and a recommendation so it can be decided later.
 - `INSTALL PLUGIN` / `UNINSTALL PLUGIN`
 - `INSTALL COMPONENT` / `UNINSTALL COMPONENT`
 - `CLONE ...`
-
-### 3.7 SELECT ... INTO 文件与末尾形式
-
-- `SELECT ... INTO OUTFILE '...' ...` / `INTO DUMPFILE '...'`
-- 末尾形式 `SELECT ... FROM t INTO var_list`
-  （「字段列表之后、FROM 之前」的 `SELECT ... INTO var_list` 已支持，
-  见第 2 节限制 2。）
 
 ### 3.8 LATERAL 与 JSON_TABLE
 
@@ -273,3 +264,6 @@ create view v as select a from t group by a with cascaded check option
 - 3.5 ALTER TABLE 分区 / 表空间操作：`EXCHANGE PARTITION ... WITH TABLE
   ... [WITHOUT VALIDATION]`、`REORGANIZE PARTITION ...`、`REMOVE
   PARTITIONING`、`DISCARD/IMPORT TABLESPACE`
+- 3.7 `SELECT ... INTO OUTFILE 'file' [CHARACTER SET cs] [FIELDS ...]
+  [LINES ...]`、`INTO DUMPFILE 'file'`，以及末尾形式
+  `SELECT ... FROM t INTO var_list`

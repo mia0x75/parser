@@ -656,6 +656,8 @@ var tokenMap = map[string]int{
 	"WITHOUT":                  without,
 	"REMOVE":                   remove,
 	"PARTITIONING":             partitioning,
+	"OUTFILE":                  outfile,
+	"DUMPFILE":                 dumpfile,
 }
 
 // See https://dev.mysql.com/doc/refman/5.7/en/function-resolution.html for details

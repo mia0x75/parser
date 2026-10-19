@@ -804,6 +804,8 @@ type SelectStmt struct {
 	// IntoVars is the variable list of a SELECT ... INTO var_list statement,
 	// only meaningful inside a stored program.
 	IntoVars []string
+	// Into is the optional SELECT ... INTO OUTFILE / DUMPFILE clause.
+	Into *SelectIntoStatement
 	// With is the optional common table expression clause.
 	With *WithClause
 	// IsAfterUnionDistinct indicates whether it's a stmt after "union distinct".
@@ -968,6 +970,12 @@ func (n *SelectStmt) Restore(ctx *format.RestoreCtx) error {
 		ctx.WriteKeyWord(" NOWAIT")
 	case SelectLockWaitSkipLocked:
 		ctx.WriteKeyWord(" SKIP LOCKED")
+	}
+	if n.Into != nil {
+		ctx.WritePlain(" ")
+		if err := n.Into.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while restore SelectStmt.Into")
+		}
 	}
 	return nil
 }
@@ -1572,6 +1580,78 @@ func (n *LinesClause) Restore(ctx *format.RestoreCtx) error {
 		}
 	}
 	return nil
+}
+
+// SelectIntoType is the type of a SELECT ... INTO clause.
+type SelectIntoType int
+
+// SELECT ... INTO clause types.
+const (
+	SelectIntoVarList SelectIntoType = iota + 1
+	SelectIntoOutfile
+	SelectIntoDumpfile
+)
+
+// SelectIntoStatement represents the INTO clause of a SELECT statement,
+// covering INTO var_list, INTO OUTFILE and INTO DUMPFILE.
+type SelectIntoStatement struct {
+	node
+
+	Tp       SelectIntoType
+	VarList  []string
+	FileName string
+	Charset  string
+	Fields   *FieldsClause
+	Lines    *LinesClause
+}
+
+// Restore implements Node interface.
+func (n *SelectIntoStatement) Restore(ctx *format.RestoreCtx) error {
+	switch n.Tp {
+	case SelectIntoVarList:
+		ctx.WriteKeyWord("INTO ")
+		for i, v := range n.VarList {
+			if i != 0 {
+				ctx.WritePlain(", ")
+			}
+			if strings.HasPrefix(v, "@") {
+				ctx.WritePlain(v)
+			} else {
+				ctx.WriteName(v)
+			}
+		}
+	case SelectIntoOutfile:
+		ctx.WriteKeyWord("INTO OUTFILE ")
+		ctx.WriteString(n.FileName)
+		if n.Charset != "" {
+			ctx.WriteKeyWord(" CHARACTER SET ")
+			ctx.WritePlain(n.Charset)
+		}
+		if n.Fields != nil {
+			if err := n.Fields.Restore(ctx); err != nil {
+				return errors.Annotate(err, "An error occurred while restore SelectIntoStatement.Fields")
+			}
+		}
+		if n.Lines != nil {
+			if err := n.Lines.Restore(ctx); err != nil {
+				return errors.Annotate(err, "An error occurred while restore SelectIntoStatement.Lines")
+			}
+		}
+	case SelectIntoDumpfile:
+		ctx.WriteKeyWord("INTO DUMPFILE ")
+		ctx.WriteString(n.FileName)
+	}
+	return nil
+}
+
+// Accept implements Node Accept interface.
+func (n *SelectIntoStatement) Accept(v Visitor) (Node, bool) {
+	newNode, skipChildren := v.Enter(n)
+	if skipChildren {
+		return v.Leave(newNode)
+	}
+	n = newNode.(*SelectIntoStatement)
+	return v.Leave(n)
 }
 
 // InsertStmt is a statement to insert new rows into an existing table.

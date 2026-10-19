@@ -144,6 +144,15 @@ func TestCompatRoundTrip(t *testing.T) {
 		"alter table t remove partitioning",
 		"alter table t discard tablespace",
 		"alter table t import tablespace",
+
+		// SELECT ... INTO OUTFILE / DUMPFILE and trailing INTO.
+		"select * from t into outfile 'file.txt'",
+		"select * from t into outfile 'file.txt' fields terminated by ',' enclosed by '\"' lines terminated by '\n'",
+		"select * from t into outfile 'file.txt' character set utf8mb4 fields terminated by ','",
+		"select * from t into dumpfile 'file.bin'",
+		"select a from t into @x, @y",
+		"select a, b from t into x",
+		"select a into @x from t",
 	}
 	for _, sql := range cases {
 		stmt, err := New().ParseOneStmt(sql, "", "")
@@ -338,5 +347,23 @@ func TestAlterTablePartitionAST(t *testing.T) {
 	impt := mustParseOne(t, "alter table t import tablespace").(*ast.AlterTableStmt).Specs[0]
 	if impt.Tp != ast.AlterTableImportTablespace {
 		t.Fatalf("unexpected import spec: %+v", impt)
+	}
+}
+
+func TestSelectIntoAST(t *testing.T) {
+	sel := mustParseOne(t, "select a from t into outfile 'f.txt' character set utf8mb4 fields terminated by ','").(*ast.SelectStmt)
+	if sel.Into == nil || sel.Into.Tp != ast.SelectIntoOutfile || sel.Into.FileName != "f.txt" || sel.Into.Charset != "utf8mb4" {
+		t.Fatalf("unexpected Into: %+v", sel.Into)
+	}
+	if sel.Into.Fields == nil || sel.Into.Fields.Terminated != "," {
+		t.Fatalf("unexpected Into.Fields: %+v", sel.Into.Fields)
+	}
+	dump := mustParseOne(t, "select a from t into dumpfile 'f.bin'").(*ast.SelectStmt)
+	if dump.Into == nil || dump.Into.Tp != ast.SelectIntoDumpfile || dump.Into.FileName != "f.bin" {
+		t.Fatalf("unexpected dump Into: %+v", dump.Into)
+	}
+	trailing := mustParseOne(t, "select a from t into @x, y").(*ast.SelectStmt)
+	if len(trailing.IntoVars) != 2 || trailing.IntoVars[0] != "@x" || trailing.IntoVars[1] != "y" {
+		t.Fatalf("unexpected trailing IntoVars: %+v", trailing.IntoVars)
 	}
 }
