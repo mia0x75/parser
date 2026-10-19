@@ -135,6 +135,15 @@ func TestCompatRoundTrip(t *testing.T) {
 		"create logfile group lg add undofile 'undo.dat' initial_size 1048576 undo_buffer_size 8388608 redo_buffer_size 4194304 nodegroup 0 wait comment 'x' engine innodb",
 		"alter logfile group lg add undofile 'undo2.dat' initial_size 2097152",
 		"drop logfile group lg engine innodb",
+
+		// ALTER TABLE partition / tablespace operations.
+		"alter table t exchange partition p0 with table t2",
+		"alter table t exchange partition p0 with table t2 without validation",
+		"alter table t reorganize partition p0, p1 into (partition p0 values less than (10), partition p1 values less than (20))",
+		"alter table t reorganize partition all into (partition p0 values less than (10))",
+		"alter table t remove partitioning",
+		"alter table t discard tablespace",
+		"alter table t import tablespace",
 	}
 	for _, sql := range cases {
 		stmt, err := New().ParseOneStmt(sql, "", "")
@@ -302,5 +311,32 @@ func TestLogfileGroupAST(t *testing.T) {
 	}
 	if stmt.Options[1].Tp != ast.LogfileGroupOptionUndoBufferSize || stmt.Options[1].Val != 8388608 {
 		t.Fatalf("unexpected option: %+v", stmt.Options[1])
+	}
+}
+
+func TestAlterTablePartitionAST(t *testing.T) {
+	stmt := mustParseOne(t, "alter table t exchange partition p0 with table t2 without validation").(*ast.AlterTableStmt)
+	spec := stmt.Specs[0]
+	if spec.Tp != ast.AlterTableExchangePartition || spec.Name != "p0" {
+		t.Fatalf("unexpected exchange spec: %+v", spec)
+	}
+	if spec.NewTable == nil || spec.NewTable.Name.O != "t2" || !spec.WithoutValidation {
+		t.Fatalf("unexpected exchange spec: %+v", spec)
+	}
+	reorg := mustParseOne(t, "alter table t reorganize partition p0, p1 into (partition p0 values less than (10))").(*ast.AlterTableStmt).Specs[0]
+	if reorg.Tp != ast.AlterTableReorganizePartition || len(reorg.PartitionNames) != 2 || len(reorg.PartDefinitions) != 1 {
+		t.Fatalf("unexpected reorganize spec: %+v", reorg)
+	}
+	rm := mustParseOne(t, "alter table t remove partitioning").(*ast.AlterTableStmt).Specs[0]
+	if rm.Tp != ast.AlterTableRemovePartitioning {
+		t.Fatalf("unexpected remove spec: %+v", rm)
+	}
+	disc := mustParseOne(t, "alter table t discard tablespace").(*ast.AlterTableStmt).Specs[0]
+	if disc.Tp != ast.AlterTableDiscardTablespace {
+		t.Fatalf("unexpected discard spec: %+v", disc)
+	}
+	impt := mustParseOne(t, "alter table t import tablespace").(*ast.AlterTableStmt).Specs[0]
+	if impt.Tp != ast.AlterTableImportTablespace {
+		t.Fatalf("unexpected import spec: %+v", impt)
 	}
 }

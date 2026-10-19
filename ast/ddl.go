@@ -1768,6 +1768,11 @@ const (
 	AlterTableDropPartition
 	AlterTableTruncatePartition
 	AlterTableRenameColumn
+	AlterTableExchangePartition
+	AlterTableReorganizePartition
+	AlterTableRemovePartitioning
+	AlterTableDiscardTablespace
+	AlterTableImportTablespace
 
 	// TODO: Add more actions
 )
@@ -1831,22 +1836,24 @@ func (a AlterAlgorithm) String() string {
 type AlterTableSpec struct {
 	node
 
-	Tp              AlterTableType
-	Name            string
-	Constraint      *Constraint
-	Options         []*TableOption
-	NewTable        *TableName
-	NewColumns      []*ColumnDef
-	OldColumnName   *ColumnName
-	NewColumnName   *ColumnName
-	Position        *ColumnPosition
-	LockType        LockType
-	Algorithm       AlterAlgorithm
-	Comment         string
-	FromKey         model.CIStr
-	ToKey           model.CIStr
-	PartDefinitions []*PartitionDefinition
-	Num             uint64
+	Tp                AlterTableType
+	Name              string
+	Constraint        *Constraint
+	Options           []*TableOption
+	NewTable          *TableName
+	NewColumns        []*ColumnDef
+	OldColumnName     *ColumnName
+	NewColumnName     *ColumnName
+	Position          *ColumnPosition
+	LockType          LockType
+	Algorithm         AlterAlgorithm
+	Comment           string
+	FromKey           model.CIStr
+	ToKey             model.CIStr
+	PartDefinitions   []*PartitionDefinition
+	PartitionNames    []model.CIStr
+	WithoutValidation bool
+	Num               uint64
 }
 
 // Restore implements Node interface.
@@ -2010,6 +2017,44 @@ func (n *AlterTableSpec) Restore(ctx *format.RestoreCtx) error {
 	case AlterTableTruncatePartition:
 		ctx.WriteKeyWord("TRUNCATE PARTITION ")
 		ctx.WriteName(n.Name)
+	case AlterTableExchangePartition:
+		ctx.WriteKeyWord("EXCHANGE PARTITION ")
+		ctx.WriteName(n.Name)
+		ctx.WriteKeyWord(" WITH TABLE ")
+		if err := n.NewTable.Restore(ctx); err != nil {
+			return errors.Annotate(err, "An error occurred while restore AlterTableSpec.NewTable")
+		}
+		if n.WithoutValidation {
+			ctx.WriteKeyWord(" WITHOUT VALIDATION")
+		}
+	case AlterTableReorganizePartition:
+		ctx.WriteKeyWord("REORGANIZE PARTITION ")
+		if len(n.PartitionNames) == 0 {
+			ctx.WriteKeyWord("ALL")
+		} else {
+			for i, name := range n.PartitionNames {
+				if i != 0 {
+					ctx.WritePlain(", ")
+				}
+				ctx.WriteName(name.O)
+			}
+		}
+		ctx.WriteKeyWord(" INTO (")
+		for i, def := range n.PartDefinitions {
+			if i != 0 {
+				ctx.WritePlain(", ")
+			}
+			if err := def.Restore(ctx); err != nil {
+				return errors.Annotatef(err, "An error occurred while restore AlterTableSpec.PartDefinitions[%d]", i)
+			}
+		}
+		ctx.WritePlain(")")
+	case AlterTableRemovePartitioning:
+		ctx.WriteKeyWord("REMOVE PARTITIONING")
+	case AlterTableDiscardTablespace:
+		ctx.WriteKeyWord("DISCARD TABLESPACE")
+	case AlterTableImportTablespace:
+		ctx.WriteKeyWord("IMPORT TABLESPACE")
 	default:
 		// TODO: not support
 		ctx.WritePlainf(" /* AlterTableType(%d) is not supported */ ", n.Tp)

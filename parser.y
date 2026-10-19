@@ -554,6 +554,14 @@ import (
 	undofile              "UNDOFILE"
 	typeSym               "TYPE"
 	systemSym             "SYSTEM"
+	reorganize            "REORGANIZE"
+	exchange              "EXCHANGE"
+	discard               "DISCARD"
+	import_               "IMPORT"
+	validation            "VALIDATION"
+	without               "WITHOUT"
+	remove                "REMOVE"
+	partitioning          "PARTITIONING"
 
 	/* The following tokens belong to NotKeywordToken. */
 	addDate            "ADDDATE"
@@ -1026,6 +1034,7 @@ import (
 	ThreadPriorityOpt               /* optional THREAD_PRIORITY */
 	ResourceGroupStateOpt           /* optional ENABLE/DISABLE */
 	ForceOpt                        /* optional FORCE keyword */
+	ExchangePartitionValidationOpt  /* optional WITHOUT VALIDATION */
 	LogfileGroupOption              /* logfile group option */
 	LogfileGroupOptionList          /* logfile group option list */
 	UDFReturnType                   /* user defined function return type */
@@ -1298,6 +1307,11 @@ BucketsOpt:
 |	"WITH" NUM "BUCKETS"    { $$ = getUint64FromNUM($2) }
 
 
+ExchangePartitionValidationOpt:
+	/* EMPTY */                  { $$ = false }
+|	"WITHOUT" "VALIDATION"       { $$ = true }
+
+
 AlterTableSpec:
 	AlterTableOptionListOpt
 	{
@@ -1389,6 +1403,42 @@ AlterTableSpec:
 			Tp: ast.AlterTableTruncatePartition,
 			Name: $3,
 		}
+	}
+|	"EXCHANGE" "PARTITION" Identifier "WITH" "TABLE" TableName ExchangePartitionValidationOpt
+	{
+		$$ = &ast.AlterTableSpec{
+			Tp:                ast.AlterTableExchangePartition,
+			Name:              $3,
+			NewTable:          $6.(*ast.TableName),
+			WithoutValidation: $7.(bool),
+		}
+	}
+|	"REORGANIZE" "PARTITION" PartitionNameList "INTO" '(' PartitionDefinitionList ')'
+	{
+		$$ = &ast.AlterTableSpec{
+			Tp:              ast.AlterTableReorganizePartition,
+			PartitionNames:  $3.([]model.CIStr),
+			PartDefinitions: $6.([]*ast.PartitionDefinition),
+		}
+	}
+|	"REORGANIZE" "PARTITION" "ALL" "INTO" '(' PartitionDefinitionList ')'
+	{
+		$$ = &ast.AlterTableSpec{
+			Tp:              ast.AlterTableReorganizePartition,
+			PartDefinitions: $6.([]*ast.PartitionDefinition),
+		}
+	}
+|	"REMOVE" "PARTITIONING"
+	{
+		$$ = &ast.AlterTableSpec{Tp: ast.AlterTableRemovePartitioning}
+	}
+|	"DISCARD" "TABLESPACE"
+	{
+		$$ = &ast.AlterTableSpec{Tp: ast.AlterTableDiscardTablespace}
+	}
+|	"IMPORT" "TABLESPACE"
+	{
+		$$ = &ast.AlterTableSpec{Tp: ast.AlterTableImportTablespace}
 	}
 |	"DROP" KeyOrIndex Identifier
 	{
@@ -4184,7 +4234,7 @@ UnReservedKeyword:
 | "ATOMIC" | "CLOSE" | "CONDITION" | "CONTINUE" | "CURSOR" | "DECLARE" | "ELSEIF" | "EXIT" | "FETCH" | "FOUND" | "HANDLER" | "ITERATE" | "LEAVE" | "LOOP"
 | "RESIGNAL" | "SIGNAL" | "SQLEXCEPTION" | "SQLSTATE" | "SQLWARNING" | "UNDO" | "UNTIL" | "WHILE"
 | "NOWAIT" | "SKIP" | "LOCKED" | "ROLLUP" | "WORK" | "RELEASE" | "SAVEPOINT" | "SEQUENCE" | "INCREMENT" | "MINVALUE" | "CACHE" | "CYCLE" | "NOMAXVALUE" | "NOMINVALUE" | "NOCYCLE" | "NOCACHE" | "AGGREGATE" | "SONAME" | "STRING" | "XA" | "RESUME" | "MIGRATE" | "SUSPEND" | "ONE" | "PHASE" | "CUBE"
-| "SERVER" | "DATAFILE" | "WRAPPER" | "OPTIONS" | "FILE_BLOCK_SIZE" | "EXTENT_SIZE" | "INITIAL_SIZE" | "AUTOEXTEND_SIZE" | "MAX_SIZE" | "NODEGROUP" | "WAIT" | "RESOURCE" | "LOGFILE" | "VCPU" | "UNDO_BUFFER_SIZE" | "REDO_BUFFER_SIZE" | "THREAD_PRIORITY" | "UNDOFILE" | "TYPE" | "SYSTEM"
+| "SERVER" | "DATAFILE" | "WRAPPER" | "OPTIONS" | "FILE_BLOCK_SIZE" | "EXTENT_SIZE" | "INITIAL_SIZE" | "AUTOEXTEND_SIZE" | "MAX_SIZE" | "NODEGROUP" | "WAIT" | "RESOURCE" | "LOGFILE" | "VCPU" | "UNDO_BUFFER_SIZE" | "REDO_BUFFER_SIZE" | "THREAD_PRIORITY" | "UNDOFILE" | "TYPE" | "SYSTEM" | "REORGANIZE" | "EXCHANGE" | "DISCARD" | "IMPORT" | "VALIDATION" | "WITHOUT" | "REMOVE" | "PARTITIONING"
 
 
 NotKeywordToken:

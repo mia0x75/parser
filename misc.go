@@ -648,6 +648,14 @@ var tokenMap = map[string]int{
 	"UNDOFILE":                 undofile,
 	"TYPE":                     typeSym,
 	"SYSTEM":                   systemSym,
+	"REORGANIZE":               reorganize,
+	"EXCHANGE":                 exchange,
+	"DISCARD":                  discard,
+	"IMPORT":                   import_,
+	"VALIDATION":               validation,
+	"WITHOUT":                  without,
+	"REMOVE":                   remove,
+	"PARTITIONING":             partitioning,
 }
 
 // See https://dev.mysql.com/doc/refman/5.7/en/function-resolution.html for details
