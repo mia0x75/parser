@@ -115,6 +115,26 @@ func TestCompatRoundTrip(t *testing.T) {
 		"with recursive cte (n) as (select 1 union all select n + 1 from cte where n < 5) select * from cte",
 		"with a as (select 1), b as (select 2) select * from a, b",
 
+		// Set operations.
+		"select 1 union select 2",
+		"select 1 union all select 2",
+		"select 1 union distinct select 2",
+		"select 1 intersect select 2",
+		"select 1 intersect all select 2",
+		"select 1 except select 2",
+		"select 1 except all select 2",
+		"select 1 union select 2 intersect select 3",
+		"select 1 intersect select 2 union select 3",
+		"select 1 except select 2 union select 3",
+		"(select 1) union (select 2)",
+		"select 1 union (select 2 order by 1)",
+		"select 1 union select 2 order by 1 limit 1",
+		"select 1 union (select 2) order by 1 limit 1",
+		"(select 1 order by 1) union select 2",
+		"with cte as (select 1) select * from cte union select 2",
+		"insert into t select 1 union select 2",
+		"create table t as select 1 intersect select 2",
+
 		// Tablespaces.
 		"create tablespace ts add datafile 'ts.ibd' initial_size 1048576 engine innodb",
 		"create undo tablespace ts add datafile 'ts.ibd'",
@@ -458,5 +478,40 @@ func TestGroupByCheckOptionAST(t *testing.T) {
 	rollup := mustParseOne(t, "select a from t group by a with rollup").(*ast.SelectStmt)
 	if rollup.GroupBy == nil || !rollup.GroupBy.WithRollup || rollup.GroupBy.HasCheckOption {
 		t.Fatalf("unexpected group by: %+v", rollup.GroupBy)
+	}
+}
+
+func TestSetOprAST(t *testing.T) {
+	stmt := mustParseOne(t, "select 1 union all select 2 except select 3 intersect select 4").(*ast.SetOprStmt)
+	if len(stmt.SelectList.Selects) != 4 {
+		t.Fatalf("Selects len = %d, want 4", len(stmt.SelectList.Selects))
+	}
+	wantOps := []ast.SetOprType{ast.UnionAll, ast.Except, ast.Intersect}
+	for i, want := range wantOps {
+		s := stmt.SelectList.Selects[i+1].(*ast.SelectStmt)
+		if s.AfterSetOperator == nil || *s.AfterSetOperator != want {
+			t.Fatalf("Selects[%d].AfterSetOperator = %v, want %v", i+1, s.AfterSetOperator, want)
+		}
+	}
+	if stmt.SelectList.Selects[0].(*ast.SelectStmt).AfterSetOperator != nil {
+		t.Fatalf("first select should not have a set operator")
+	}
+
+	distinct := mustParseOne(t, "select 1 except select 2").(*ast.SetOprStmt)
+	if op := distinct.SelectList.Selects[1].(*ast.SelectStmt).AfterSetOperator; op == nil || *op != ast.Except {
+		t.Fatalf("EXCEPT = %v, want Except", op)
+	}
+	all := mustParseOne(t, "select 1 intersect all select 2").(*ast.SetOprStmt)
+	if op := all.SelectList.Selects[1].(*ast.SelectStmt).AfterSetOperator; op == nil || *op != ast.IntersectAll {
+		t.Fatalf("INTERSECT ALL = %v, want IntersectAll", op)
+	}
+
+	grouped := mustParseOne(t, "select 1 union (select 2 intersect select 3)").(*ast.SetOprStmt)
+	group, ok := grouped.SelectList.Selects[1].(*ast.SetOprSelectList)
+	if !ok {
+		t.Fatalf("Selects[1] = %T, want *ast.SetOprSelectList", grouped.SelectList.Selects[1])
+	}
+	if group.AfterSetOperator == nil || *group.AfterSetOperator != ast.Union {
+		t.Fatalf("group.AfterSetOperator = %v, want Union", group.AfterSetOperator)
 	}
 }

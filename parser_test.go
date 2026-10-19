@@ -2536,23 +2536,33 @@ func TestUnionOrderBy(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected nil, got %#v", err)
 		}
-		us, ok := stmt[0].(*ast.UnionStmt)
-		if ok {
+		switch x := stmt[0].(type) {
+		case *ast.SetOprStmt:
 			var i int
-			for _, s := range us.SelectList.Selects {
-				if s.OrderBy != nil != tt.hasOrderBy[i] {
-					t.Fatalf("got %#v, want %#v", s.OrderBy != nil, tt.hasOrderBy[i])
+			for _, s := range x.SelectList.Selects {
+				var orderBy *ast.OrderByClause
+				switch n := s.(type) {
+				case *ast.SelectStmt:
+					orderBy = n.OrderBy
+				case *ast.SetOprSelectList:
+					orderBy = n.OrderBy
+					if len(n.Selects) == 1 {
+						if one, ok := n.Selects[0].(*ast.SelectStmt); ok {
+							orderBy = one.OrderBy
+						}
+					}
+				}
+				if (orderBy != nil) != tt.hasOrderBy[i] {
+					t.Fatalf("got %#v, want %#v", orderBy != nil, tt.hasOrderBy[i])
 				}
 				i++
 			}
-			if us.OrderBy != nil != tt.hasOrderBy[i] {
-				t.Fatalf("got %#v, want %#v", us.OrderBy != nil, tt.hasOrderBy[i])
+			if (x.OrderBy != nil) != tt.hasOrderBy[i] {
+				t.Fatalf("got %#v, want %#v", x.OrderBy != nil, tt.hasOrderBy[i])
 			}
-		}
-		ss, ok := stmt[0].(*ast.SelectStmt)
-		if ok {
-			if ss.OrderBy != nil != tt.hasOrderBy[0] {
-				t.Fatalf("got %#v, want %#v", ss.OrderBy != nil, tt.hasOrderBy[0])
+		case *ast.SelectStmt:
+			if (x.OrderBy != nil) != tt.hasOrderBy[0] {
+				t.Fatalf("got %#v, want %#v", x.OrderBy != nil, tt.hasOrderBy[0])
 			}
 		}
 	}

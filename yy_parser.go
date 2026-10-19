@@ -286,6 +286,27 @@ func getUint64FromNUM(num interface{}) uint64 {
 	return 0
 }
 
+// setOprSelectListFromSubSelect wraps a parenthesized subquery that appears as
+// an operand of a set operation (UNION/EXCEPT/INTERSECT) into a SetOprSelectList,
+// preserving its own limit/order by/with clause.
+func setOprSelectListFromSubSelect(sub *ast.SubqueryExpr) *ast.SetOprSelectList {
+	var selections []ast.Node
+	var with *ast.WithClause
+	var limit *ast.Limit
+	var orderBy *ast.OrderByClause
+	switch x := sub.Query.(type) {
+	case *ast.SelectStmt:
+		selections = []ast.Node{x}
+		with = x.With
+	case *ast.SetOprStmt:
+		selections = x.SelectList.Selects
+		with = x.With
+		limit = x.Limit
+		orderBy = x.OrderBy
+	}
+	return &ast.SetOprSelectList{Selects: selections, With: with, Limit: limit, OrderBy: orderBy}
+}
+
 // setSelectInto applies a parsed SELECT ... INTO clause to the statement,
 // storing a variable list in IntoVars and an OUTFILE/DUMPFILE clause in Into.
 func setSelectInto(st *ast.SelectStmt, in interface{}) {

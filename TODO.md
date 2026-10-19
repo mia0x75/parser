@@ -199,76 +199,26 @@ v0.1.0 已实现（用例见 `compat_test.go`）：
 - `SELECT ... INTO @user_var` / `FETCH ... INTO @user_var`
 - CTE：`WITH [RECURSIVE] name [(cols)] AS (subquery) SELECT ...`
 
-### 4.1 暂不支持的集合运算
+### 4.1 集合运算的运算符优先级
 
-- `INTERSECT [ALL|DISTINCT]`、`EXCEPT [ALL|DISTINCT]`
-  （目前仅支持 `UNION [ALL|DISTINCT]`；MariaDB 支持，且 `INTERSECT`
-  优先级高于 `UNION`/`EXCEPT`，需为 `UnionStmt` 引入运算符与优先级处理）
+集合运算（`UNION`/`INTERSECT`/`EXCEPT`，含 `ALL`/`DISTINCT`）已支持，
+AST 为 `ast.SetOprStmt`/`ast.SetOprSelectList`（用例见 `compat_test.go`）。
 
-**现状**：`UnionStmt`（`parser.y:6778`）只表达 UNION 链，
-`ast.UnionSelectList.Selects` 是 `[]*SelectStmt`（`ast/dml.go:1239`）且
-`Restore` 里写死输出 `UNION`（`ast/dml.go:1249`），无法表达其他运算符，
-更无法表达「INTERSECT 分组」这种需要嵌套的结构。
+**遗留差异**：当前采用与上游 TiDB 一致的**扁平、同优先级、左结合**解析，
+而 MySQL 8.0.31+ / MariaDB 规定 `INTERSECT` 优先级高于 `UNION`/`EXCEPT`：
+`A UNION B INTERSECT C` 目前解析为 `(A UNION B) INTERSECT C`，
+MySQL/MariaDB 则为 `A UNION (B INTERSECT C)`。（`UNION` 与 `EXCEPT`
+同级左结合，这一部分与 MySQL 一致。）
 
-**实现建议**：
+**若要严格对齐**：在 `SetOprClauseList`（`parser.y`）之上增加
+`query_term` 式分层规则（`UNION`/`EXCEPT` 为外层、`INTERSECT` 为内层），
+使 `A UNION B INTERSECT C` → `A UNION (B INTERSECT C)`。要点：
 
-1. **token**：新增 `intersect "INTERSECT"`，放在
-   `/* The following tokens belong to ReservedKeyword. */`（`parser.y:71`）
-   与 UnReservedKeyword（`parser.y:280`）之间，与既有保留字 `EXCEPT`
-   （`parser.y:127`、`misc.go:257`）同级；同时在 `misc.go` `tokenMap`
-   补 `"INTERSECT": intersect`。**不要**把它加进 `UnReservedKeyword:` /
-   `NotKeywordToken:` 列表——保留字不进这两个列表，`consistent_test.go`
-   会校验一致性。代价：`intersect` 不再能当标识符（与 MySQL 8.0 一致）。
-   注意 `SET ROLE ... ALL EXCEPT`（`parser.y:6963`）已用到 `EXCEPT`，
-   属于不同上下文，不受影响。
-
-2. **AST**：二选一——
-   - 改造现有节点：`UnionSelectList.Selects` 改成
-     `[]*UnionSelect{AfterSetOperator SetOprType, Select StmtNode}`，
-     新增 `SetOprType`（`Union`/`Intersect`/`Except`，另带 All/Distinct）；
-     嵌套的 INTERSECT 分组用 `Select` 字段放 `*UnionStmt` 表达。
-     破坏性变更，需同步修改 `UnionSelectList.Restore`/`Accept` 及所有
-     直接索引 `Selects` 的地方。
-   - **（推荐）**对齐上游 TiDB 的 `ast.SetOprStmt`
-     （`Selects []Node` + `SetOprTypes []SetOprType`），语义一致且后续
-     merge 上游更容易。
-
-3. **语法**：用**分层因式分解**表达优先级，不要用「一条扁平规则 +
-   `%left/%nonassoc` 优先级」——扁平写法在 `A INTERSECT B UNION C` 这种
-   输入上会给出错误的结合方向：
-
-   ```
-   UnionStmt:      SetUnionList OrderByOptional SelectStmtLimit SelectLockOpt
-   SetUnionList:   IntersectList
-                 | SetUnionList "UNION" UnionOpt IntersectList
-                 | SetUnionList "EXCEPT" UnionOpt IntersectList
-   IntersectList:  SetOperand
-                 | IntersectList "INTERSECT" UnionOpt SetOperand
-   SetOperand:     SelectStmt | '(' SelectStmt ')' | '(' UnionStmt ')'
-   ```
-
-   这样 `A UNION B INTERSECT C` → `A UNION (B INTERSECT C)`，
-   `A INTERSECT B UNION C` → `(A INTERSECT B) UNION C`，与 MariaDB/
-   PostgreSQL 语义一致；`INTERSECT` 在 `IntersectList` 尾部只有 shift
-   动作，`UNION`/`EXCEPT` 在该状态没有对应 shift，天然无冲突
-   （仍以 `make parser` 报 0 冲突为准）。
-
-4. **迁移**：现有 `UnionStmt` 三条规则把
-   `OrderByOptional SelectStmtLimit SelectLockOpt` 绑在最后一个 select
-   之后，而 `UnionSelect: SelectStmt` 自己也带 OrderBy/Limit，本来就靠
-   precedence 消歧。建议保留外层结构，只把中间的
-   `UnionClauseList "UNION" UnionOpt` 换成 `SetUnionList`，逐条回归
-   `parser_test.go` 的 union 用例。
-
-5. **用例矩阵**：`A UNION B INTERSECT C`、`A INTERSECT B UNION C`、
-   `A EXCEPT B UNION C`、`ALL`/`DISTINCT` 变体、`(A INTERSECT B) UNION C`、
-   整体带 `ORDER BY`/`LIMIT`、与 `INSERT ... SELECT` / `CREATE TABLE ... AS`
-   / `EXPLAIN` 的组合，以及 `SET ROLE ... ALL EXCEPT` 不受影响。
-
-6. **风险**：AST 结构变更会影响下游对 `SelectList` 的直接索引；
-   `Accept` 需要遍历嵌套节点；restore 要在运算符两侧正确补空格并输出
-   `ALL`/`DISTINCT`；`IsAfterUnionDistinct`/`IsInBraces`
-   （`ast/dml.go` 的 `SelectStmt` 字段）需要按新结构重新归属。
+1. 内层 `INTERSECT` 链的操作数用 `SetOprClause`（`SelectStmt`/`SubSelect`）；
+   最新一条 select 的 `ORDER BY`/`LIMIT` 需上移到 `SetOprStmt`（现有规则已如此）。
+2. 不要用可空的 `SelectStmtLimit` 作运算符后缀，否则会与「无 LIMIT」分支
+   产生 reduce/reduce（已为此新增非空 `SetOprLimit`，沿用即可）。
+3. 每加一条规则都以 `make parser` 报 0 冲突为准。
 
 ### 4.2 暂不支持的 GROUP BY 扩展
 

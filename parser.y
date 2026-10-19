@@ -125,6 +125,7 @@ import (
 	exists            "EXISTS"
 	explain           "EXPLAIN"
 	except            "EXCEPT"
+	intersect         "INTERSECT"
 	falseKwd          "FALSE"
 	firstValue        "FIRST_VALUE"
 	floatType         "FLOAT"
@@ -784,7 +785,9 @@ import (
 	TruncateTableStmt               /* TRUNCATE TABLE statement */
 	UnlockTablesStmt                /* Unlock tables statement */
 	UpdateStmt                      /* UPDATE statement */
-	UnionStmt                       /* Union select state ment */
+	SetOprStmt                      /* Union/Except/Intersect select statement */
+	SetOprStmtWoutLimitOrderBy      /* Set operation select statement without limit/order by */
+	SetOprStmtWithLimitOrderBy      /* Set operation select statement with limit/order by */
 	UseStmt                         /* USE statement */
 	PurgeStmt                       /* PURGE statement */
 	ReturnStmt                      /* RETURN statement */
@@ -1018,9 +1021,11 @@ import (
 	TransactionChar                 /* Transaction characteristic */
 	TransactionChars                /* Transaction characteristic list */
 	TrimDirection                   /* Trim string direction */
-	UnionOpt                        /* Union Option(empty/ALL/DISTINCT) */
-	UnionClauseList                 /* Union select clause list */
-	UnionSelect                     /* Union (select) item */
+	SetOpr                          /* Set operator: UNION/EXCEPT/INTERSECT */
+	SetOprClause                    /* Set operation select clause */
+	SetOprClauseList                /* Set operation select clause list */
+	SetOprOpt                       /* Set operator option(empty/ALL/DISTINCT) */
+	SetOprLimit                     /* LIMIT clause of a set operation (non-empty) */
 	Username                        /* Username */
 	UsernameList                    /* UsernameList */
 	UserSpec                        /* Username and auth option */
@@ -2972,7 +2977,7 @@ AsOpt:
 CreateTableSelectOpt:
 	/* EMPTY */ { $$ = &ast.CreateTableStmt{} }
 |	SelectStmt  { $$ = &ast.CreateTableStmt{Select: $1} }
-|	UnionStmt   { $$ = &ast.CreateTableStmt{Select: $1} }
+|	SetOprStmt   { $$ = &ast.CreateTableStmt{Select: $1} }
 |	SubSelect %prec createTableSelect
 	// TODO: We may need better solution as issue #320.
 	{
@@ -4451,9 +4456,9 @@ InsertValues:
 	{
 		$$ = &ast.InsertStmt{Columns: $2.([]*ast.ColumnName), Select: $5.(*ast.SelectStmt)}
 	}
-|	'(' ColumnNameListOpt ')' UnionStmt
+|	'(' ColumnNameListOpt ')' SetOprStmt
 	{
-		$$ = &ast.InsertStmt{Columns: $2.([]*ast.ColumnName), Select: $4.(*ast.UnionStmt)}
+		$$ = &ast.InsertStmt{Columns: $2.([]*ast.ColumnName), Select: $4.(*ast.SetOprStmt)}
 	}
 |	ValueSym ValuesList %prec insertValues
 	{
@@ -4467,9 +4472,9 @@ InsertValues:
 	{
 		$$ = &ast.InsertStmt{Select: $1.(*ast.SelectStmt)}
 	}
-|	UnionStmt
+|	SetOprStmt
 	{
-		$$ = &ast.InsertStmt{Select: $1.(*ast.UnionStmt)}
+		$$ = &ast.InsertStmt{Select: $1.(*ast.SetOprStmt)}
 	}
 |	"SET" ColumnSetValueList
 	{
@@ -5871,9 +5876,9 @@ WithSelectStmt:
 		st.With = $1.(*ast.WithClause)
 		$$ = st
 	}
-|	WithClause UnionStmt
+|	WithClause SetOprStmt
 	{
-		ut := $2.(*ast.UnionStmt)
+		ut := $2.(*ast.SetOprStmt)
 		ut.With = $1.(*ast.WithClause)
 		$$ = ut
 	}
@@ -5910,12 +5915,12 @@ WithClauseItem:
 			Query:    $5.(*ast.SelectStmt),
 		}
 	}
-|	Identifier WithColNameListOpt "AS" '(' UnionStmt ')'
+|	Identifier WithColNameListOpt "AS" '(' SetOprStmt ')'
 	{
 		$$ = &ast.CommonTableExpression{
 			Name:     model.NewCIStr($1),
 			ColNames: $2.([]model.CIStr),
-			Query:    $5.(*ast.UnionStmt),
+			Query:    $5.(*ast.SetOprStmt),
 		}
 	}
 
@@ -6399,9 +6404,9 @@ TableFactor:
 		parser.setLastSelectFieldText(st, endOffset)
 		$$ = &ast.TableSource{Source: $2.(*ast.SelectStmt), AsName: $4.(model.CIStr)}
 	}
-|	'(' UnionStmt ')' TableAsName
+|	'(' SetOprStmt ')' TableAsName
 	{
-		$$ = &ast.TableSource{Source: $2.(*ast.UnionStmt), AsName: $4.(model.CIStr)}
+		$$ = &ast.TableSource{Source: $2.(*ast.SetOprStmt), AsName: $4.(model.CIStr)}
 	}
 |	'(' TableRefs ')'
 	{
@@ -6724,9 +6729,9 @@ SubSelect:
 		s.SetText(src[yyS[yypt-1].offset:yyS[yypt].offset])
 		$$ = &ast.SubqueryExpr{Query: s}
 	}
-|	'(' UnionStmt ')'
+|	'(' SetOprStmt ')'
 	{
-		s := $2.(*ast.UnionStmt)
+		s := $2.(*ast.SetOprStmt)
 		src := parser.src
 		// See the implementation of yyParse function
 		s.SetText(src[yyS[yypt-1].offset:yyS[yypt].offset])
@@ -6782,138 +6787,173 @@ SelectLockWaitOpt:
 	}
 
 
-// See https://dev.mysql.com/doc/refman/5.7/en/union.html
-UnionStmt:
-	UnionClauseList "UNION" UnionOpt SelectStmtBasic OrderByOptional SelectStmtLimit SelectLockOpt
+// See https://dev.mysql.com/doc/refman/8.0/en/union.html
+// See https://mariadb.com/kb/en/intersect/
+// See https://mariadb.com/kb/en/except/
+SetOprStmt:
+	SetOprStmtWoutLimitOrderBy
+|	SetOprStmtWithLimitOrderBy
+
+
+SetOprStmtWoutLimitOrderBy:
+	SetOprClauseList SetOpr SelectStmt
 	{
-		st := $4.(*ast.SelectStmt)
-		union := $1.(*ast.UnionStmt)
-		st.IsAfterUnionDistinct = $3.(bool)
-		lastSelect := union.SelectList.Selects[len(union.SelectList.Selects)-1]
-		endOffset := parser.endOffset(&yyS[yypt-5])
-		parser.setLastSelectFieldText(lastSelect, endOffset)
-		union.SelectList.Selects = append(union.SelectList.Selects, st)
-		if $5 != nil {
-			union.OrderBy = $5.(*ast.OrderByClause)
+		setOprList := $1.([]ast.Node)
+		if sel, isSelect := setOprList[len(setOprList)-1].(*ast.SelectStmt); isSelect && !sel.IsInBraces {
+			endOffset := parser.endOffset(&yyS[yypt-1])
+			parser.setLastSelectFieldText(sel, endOffset)
 		}
-		if $6 != nil {
-			union.Limit = $6.(*ast.Limit)
-		}
-		if $5 == nil && $6 == nil && $7 != nil {
-			lock := $7.(*ast.SelectLockInfo)
-			st.LockTp = lock.Type
-			st.LockedTables = lock.Tables
-			st.LockWaitPolicy = lock.WaitPolicy
-		}
-		$$ = union
+		setOpr := &ast.SetOprStmt{SelectList: &ast.SetOprSelectList{Selects: setOprList}}
+		st := $3.(*ast.SelectStmt)
+		st.AfterSetOperator = $2.(*ast.SetOprType)
+		// The trailing ORDER BY / LIMIT of the last operand belongs to the
+		// whole set operation, so move them up.
+		setOpr.OrderBy = st.OrderBy
+		setOpr.Limit = st.Limit
+		st.OrderBy = nil
+		st.Limit = nil
+		setOpr.SelectList.Selects = append(setOpr.SelectList.Selects, st)
+		$$ = setOpr
 	}
-|	UnionClauseList "UNION" UnionOpt SelectStmtFromDualTable OrderByOptional SelectStmtLimit SelectLockOpt
+|	SetOprClauseList SetOpr SubSelect
 	{
-		st := $4.(*ast.SelectStmt)
-		union := $1.(*ast.UnionStmt)
-		st.IsAfterUnionDistinct = $3.(bool)
-		lastSelect := union.SelectList.Selects[len(union.SelectList.Selects)-1]
-		endOffset := parser.endOffset(&yyS[yypt-5])
-		parser.setLastSelectFieldText(lastSelect, endOffset)
-		union.SelectList.Selects = append(union.SelectList.Selects, st)
-		if $5 != nil {
-			union.OrderBy = $5.(*ast.OrderByClause)
+		setOprList := $1.([]ast.Node)
+		if sel, isSelect := setOprList[len(setOprList)-1].(*ast.SelectStmt); isSelect && !sel.IsInBraces {
+			endOffset := parser.endOffset(&yyS[yypt-1])
+			parser.setLastSelectFieldText(sel, endOffset)
 		}
-		if $6 != nil {
-			union.Limit = $6.(*ast.Limit)
-		}
-		if $5 == nil && $6 == nil && $7 != nil {
-			lock := $7.(*ast.SelectLockInfo)
-			st.LockTp = lock.Type
-			st.LockedTables = lock.Tables
-			st.LockWaitPolicy = lock.WaitPolicy
-		}
-		$$ = union
-	}
-|	UnionClauseList "UNION" UnionOpt SelectStmtFromTable OrderByOptional
-   	SelectStmtLimit SelectLockOpt
-	{
-		st := $4.(*ast.SelectStmt)
-		union := $1.(*ast.UnionStmt)
-		st.IsAfterUnionDistinct = $3.(bool)
-		lastSelect := union.SelectList.Selects[len(union.SelectList.Selects)-1]
-		endOffset := parser.endOffset(&yyS[yypt-5])
-		parser.setLastSelectFieldText(lastSelect, endOffset)
-		union.SelectList.Selects = append(union.SelectList.Selects, st)
-		if $5 != nil {
-			union.OrderBy = $5.(*ast.OrderByClause)
-		}
-		if $6 != nil {
-			union.Limit = $6.(*ast.Limit)
-		}
-		if $5 == nil && $6 == nil && $7 != nil {
-			lock := $7.(*ast.SelectLockInfo)
-			st.LockTp = lock.Type
-			st.LockedTables = lock.Tables
-			st.LockWaitPolicy = lock.WaitPolicy
-		}
-		$$ = union
-	}
-|	UnionClauseList "UNION" UnionOpt '(' SelectStmt ')' OrderByOptional SelectStmtLimit
-	{
-		union := $1.(*ast.UnionStmt)
-		lastSelect := union.SelectList.Selects[len(union.SelectList.Selects)-1]
-		endOffset := parser.endOffset(&yyS[yypt-6])
-		parser.setLastSelectFieldText(lastSelect, endOffset)
-		st := $5.(*ast.SelectStmt)
-		st.IsInBraces = true
-		st.IsAfterUnionDistinct = $3.(bool)
-		endOffset = parser.endOffset(&yyS[yypt-2])
-		parser.setLastSelectFieldText(st, endOffset)
-		union.SelectList.Selects = append(union.SelectList.Selects, st)
-		if $7 != nil {
-			union.OrderBy = $7.(*ast.OrderByClause)
-		}
-		if $8 != nil {
-			union.Limit = $8.(*ast.Limit)
-		}
-		$$ = union
+		nextSetOprList := setOprSelectListFromSubSelect($3.(*ast.SubqueryExpr))
+		nextSetOprList.AfterSetOperator = $2.(*ast.SetOprType)
+		setOpr := &ast.SetOprStmt{SelectList: &ast.SetOprSelectList{Selects: append(setOprList, nextSetOprList)}}
+		$$ = setOpr
 	}
 
 
-UnionClauseList:
-	UnionSelect
+SetOprStmtWithLimitOrderBy:
+	SetOprClauseList SetOpr SubSelect OrderBy
 	{
-		selectList := &ast.UnionSelectList{Selects: []*ast.SelectStmt{$1.(*ast.SelectStmt)}}
-		$$ = &ast.UnionStmt{
-			SelectList: selectList,
+		setOprList := $1.([]ast.Node)
+		if sel, isSelect := setOprList[len(setOprList)-1].(*ast.SelectStmt); isSelect && !sel.IsInBraces {
+			endOffset := parser.endOffset(&yyS[yypt-2])
+			parser.setLastSelectFieldText(sel, endOffset)
 		}
+		nextSetOprList := setOprSelectListFromSubSelect($3.(*ast.SubqueryExpr))
+		nextSetOprList.AfterSetOperator = $2.(*ast.SetOprType)
+		setOpr := &ast.SetOprStmt{SelectList: &ast.SetOprSelectList{Selects: append(setOprList, nextSetOprList)}}
+		setOpr.OrderBy = $4.(*ast.OrderByClause)
+		$$ = setOpr
 	}
-|	UnionClauseList "UNION" UnionOpt UnionSelect
+|	SetOprClauseList SetOpr SubSelect SetOprLimit
 	{
-		union := $1.(*ast.UnionStmt)
-		st := $4.(*ast.SelectStmt)
-		st.IsAfterUnionDistinct = $3.(bool)
-		lastSelect := union.SelectList.Selects[len(union.SelectList.Selects)-1]
-		endOffset := parser.endOffset(&yyS[yypt-2])
-		parser.setLastSelectFieldText(lastSelect, endOffset)
-		union.SelectList.Selects = append(union.SelectList.Selects, st)
-		$$ = union
+		setOprList := $1.([]ast.Node)
+		if sel, isSelect := setOprList[len(setOprList)-1].(*ast.SelectStmt); isSelect && !sel.IsInBraces {
+			endOffset := parser.endOffset(&yyS[yypt-2])
+			parser.setLastSelectFieldText(sel, endOffset)
+		}
+		nextSetOprList := setOprSelectListFromSubSelect($3.(*ast.SubqueryExpr))
+		nextSetOprList.AfterSetOperator = $2.(*ast.SetOprType)
+		setOpr := &ast.SetOprStmt{SelectList: &ast.SetOprSelectList{Selects: append(setOprList, nextSetOprList)}}
+		setOpr.Limit = $4.(*ast.Limit)
+		$$ = setOpr
+	}
+|	SetOprClauseList SetOpr SubSelect OrderBy SetOprLimit
+	{
+		setOprList := $1.([]ast.Node)
+		if sel, isSelect := setOprList[len(setOprList)-1].(*ast.SelectStmt); isSelect && !sel.IsInBraces {
+			endOffset := parser.endOffset(&yyS[yypt-3])
+			parser.setLastSelectFieldText(sel, endOffset)
+		}
+		nextSetOprList := setOprSelectListFromSubSelect($3.(*ast.SubqueryExpr))
+		nextSetOprList.AfterSetOperator = $2.(*ast.SetOprType)
+		setOpr := &ast.SetOprStmt{SelectList: &ast.SetOprSelectList{Selects: append(setOprList, nextSetOprList)}}
+		setOpr.OrderBy = $4.(*ast.OrderByClause)
+		setOpr.Limit = $5.(*ast.Limit)
+		$$ = setOpr
 	}
 
 
-UnionSelect:
+SetOprClauseList:
+	SetOprClause
+|	SetOprClauseList SetOpr SetOprClause
+	{
+		setOprList1 := $1.([]ast.Node)
+		setOprList2 := $3.([]ast.Node)
+		if sel, isSelect := setOprList1[len(setOprList1)-1].(*ast.SelectStmt); isSelect && !sel.IsInBraces {
+			endOffset := parser.endOffset(&yyS[yypt-1])
+			parser.setLastSelectFieldText(sel, endOffset)
+		}
+		switch x := setOprList2[0].(type) {
+		case *ast.SelectStmt:
+			x.AfterSetOperator = $2.(*ast.SetOprType)
+		case *ast.SetOprSelectList:
+			x.AfterSetOperator = $2.(*ast.SetOprType)
+		}
+		$$ = append(setOprList1, setOprList2...)
+	}
+
+
+SetOprClause:
 	SelectStmt
 	{
-		$$ = $1.(interface{})
+		$$ = []ast.Node{$1.(*ast.SelectStmt)}
 	}
-|	'(' SelectStmt ')'
+|	SubSelect
 	{
-		st := $2.(*ast.SelectStmt)
-		st.IsInBraces = true
-		endOffset := parser.endOffset(&yyS[yypt])
-		parser.setLastSelectFieldText(st, endOffset)
-		$$ = $2
+		$$ = []ast.Node{setOprSelectListFromSubSelect($1.(*ast.SubqueryExpr))}
 	}
 
 
-UnionOpt:
+SetOpr:
+	"UNION" SetOprOpt
+	{
+		var tp ast.SetOprType
+		tp = ast.Union
+		if !$2.(bool) {
+			tp = ast.UnionAll
+		}
+		$$ = &tp
+	}
+|	"EXCEPT" SetOprOpt
+	{
+		var tp ast.SetOprType
+		tp = ast.Except
+		if !$2.(bool) {
+			tp = ast.ExceptAll
+		}
+		$$ = &tp
+	}
+|	"INTERSECT" SetOprOpt
+	{
+		var tp ast.SetOprType
+		tp = ast.Intersect
+		if !$2.(bool) {
+			tp = ast.IntersectAll
+		}
+		$$ = &tp
+	}
+
+
+SetOprOpt:
 DefaultTrueDistinctOpt
+
+
+
+// SetOprLimit is a non-empty LIMIT clause, used so that a set operation
+// operand followed by an optional LIMIT does not introduce a reduce/reduce
+// conflict against the operand-without-LIMIT production.
+SetOprLimit:
+	"LIMIT" LimitOption
+	{
+		$$ = &ast.Limit{Count: $2.(ast.ExprNode)}
+	}
+|	"LIMIT" LimitOption ',' LimitOption
+	{
+		$$ = &ast.Limit{Offset: $2.(ast.ExprNode), Count: $4.(ast.ExprNode)}
+	}
+|	"LIMIT" LimitOption "OFFSET" LimitOption
+	{
+		$$ = &ast.Limit{Offset: $4.(ast.ExprNode), Count: $2.(ast.ExprNode)}
+	}
 
 
 /********************Set Statement*******************************/
@@ -7615,7 +7655,7 @@ SpStmt:
 |	RevokeStmt
 |	RevokeRoleStmt
 |	SelectStmt
-|	UnionStmt
+|	SetOprStmt
 |	SetStmt
 |	SetRoleStmt
 |	SetDefaultRoleStmt
@@ -8116,7 +8156,7 @@ Statement:
 |	RevokeStmt
 |	RevokeRoleStmt
 |	SelectStmt
-|	UnionStmt
+|	SetOprStmt
 |	SetStmt
 |	SetRoleStmt
 |	SetDefaultRoleStmt
@@ -8158,7 +8198,7 @@ ExplainableStmt:
 |	UpdateStmt
 |	InsertIntoStmt
 |	ReplaceIntoStmt
-|	UnionStmt
+|	SetOprStmt
 
 
 StatementList:
